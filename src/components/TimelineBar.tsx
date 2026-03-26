@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
@@ -12,19 +12,22 @@ export function TimelineBar() {
   const connected = useAgentStore((s) => s.connected);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll track to the right
+  const [reviewMode, setReviewMode] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [scrubPosition, setScrubPosition] = useState(100); // percentage
+  const [isDragging, setIsDragging] = useState(false);
+
   useEffect(() => {
-    if (trackRef.current) {
+    if (trackRef.current && !isDragging && !reviewMode) {
       trackRef.current.scrollLeft = trackRef.current.scrollWidth;
     }
-  }, [activity]);
+  }, [activity, isDragging, reviewMode]);
 
   const totalCost = calculateTotalCost(agents);
   const activeCount = Array.from(agents.values()).filter(
     (a) => a.status === "running" || a.status === "idle"
   ).length;
 
-  // Calculate time range
   const agentList = Array.from(agents.values());
   const earliest = agentList.length > 0
     ? Math.min(...agentList.map((a) => a.startTime))
@@ -32,84 +35,124 @@ export function TimelineBar() {
   const now = Date.now();
   const elapsed = now - earliest;
 
-  // Map activity events to positioned dots
   const dots = activity
-    .filter((e) => e.event.type !== "agent:tokens") // skip noisy token events
+    .filter((e) => e.event.type !== "agent:tokens")
     .map((entry) => {
       const pct = elapsed > 0 ? ((entry.timestamp - earliest) / elapsed) * 100 : 50;
       let color: string = UI.text.muted;
-      let agentId = "";
 
       switch (entry.event.type) {
         case "agent:register":
           color = UI.primary;
-          agentId = entry.event.agentId;
           break;
         case "agent:tool_call":
-          agentId = entry.event.agentId;
-          color = agents.get(agentId)
-            ? AGENT_COLORS[agents.get(agentId)!.agentType]
-            : UI.text.muted;
+          { const aid = entry.event.agentId;
+          const a = agents.get(aid);
+          color = a ? AGENT_COLORS[a.agentType] : UI.text.muted; }
           break;
         case "agent:complete":
-          color = UI.text.secondary;
-          agentId = entry.event.agentId;
+          color = "#00ff88";
           break;
         case "agent:status":
-          if (entry.event.status === "error") color = UI.error;
-          else color = UI.text.dimmed;
-          agentId = entry.event.agentId;
+          color = entry.event.status === "error" ? UI.error : UI.text.dimmed;
           break;
       }
 
       return { id: entry.id, pct: Math.max(0, Math.min(100, pct)), color };
     });
 
+  // Visible dots based on scrub position in review mode
+  const visibleDots = reviewMode
+    ? dots.filter((d) => d.pct <= scrubPosition)
+    : dots;
+
+  const speeds = [0.5, 1, 2, 4];
+
+  function handleTrackClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (!reviewMode) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    setScrubPosition(Math.max(0, Math.min(100, pct)));
+  }
+
+  function handleTrackDrag(e: React.MouseEvent<HTMLDivElement>) {
+    if (!isDragging || !reviewMode) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    setScrubPosition(Math.max(0, Math.min(100, pct)));
+  }
+
   return (
     <div
-      className="flex items-center gap-4 px-4"
+      className="flex items-center gap-3 px-4"
       style={{
         height: 48,
         background: "var(--color-panel)",
         borderTop: "1px solid var(--color-border)",
       }}
     >
-      {/* LIVE indicator */}
+      {/* LIVE / Review indicator */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <div className="flex items-center gap-1.5">
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{
-              background: connected ? "#00ff88" : UI.error,
-              boxShadow: connected ? "0 0 6px #00ff88" : `0 0 6px ${UI.error}`,
-              animation: connected ? "pulse-glow 1.5s ease-in-out infinite" : "none",
-            }}
-          />
-          <span
-            className="text-xs font-mono font-bold tracking-wider"
-            style={{ color: connected ? "#00ff88" : UI.error }}
-          >
-            LIVE
-          </span>
-        </div>
+        {!reviewMode ? (
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-2 h-2 rounded-full"
+              style={{
+                background: connected ? "#00ff88" : UI.error,
+                boxShadow: connected ? "0 0 6px #00ff88" : `0 0 6px ${UI.error}`,
+                animation: connected ? "pulse-glow 1.5s ease-in-out infinite" : "none",
+              }}
+            />
+            <span
+              className="text-xs font-mono font-bold tracking-wider"
+              style={{ color: connected ? "#00ff88" : UI.error }}
+            >
+              LIVE
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setReviewMode(false); setScrubPosition(100); }}
+              className="text-xs font-mono px-1.5 py-0.5 rounded"
+              style={{ color: UI.primary, border: `1px solid ${UI.primary}44` }}
+              aria-label="Resume live mode"
+            >
+              LIVE
+            </button>
+          </div>
+        )}
         <span className="text-xs font-mono" style={{ color: UI.text.dimmed }}>
           {formatDuration(elapsed)}
         </span>
       </div>
 
-      {/* Event track */}
+      {/* Event track / Scrubber */}
       <div
         ref={trackRef}
-        className="flex-1 relative overflow-hidden"
+        className="flex-1 relative cursor-pointer"
         style={{ height: 20 }}
+        onClick={handleTrackClick}
+        onMouseDown={() => reviewMode && setIsDragging(true)}
+        onMouseMove={handleTrackDrag}
+        onMouseUp={() => setIsDragging(false)}
+        onMouseLeave={() => setIsDragging(false)}
       >
-        {/* Track background */}
         <div
           className="absolute inset-0 rounded-full"
           style={{ background: "var(--color-border)" }}
         />
-        {/* Event dots */}
-        {dots.map((dot) => (
+        {/* Progress fill in review mode */}
+        {reviewMode && (
+          <div
+            className="absolute top-0 bottom-0 left-0 rounded-full"
+            style={{
+              width: `${scrubPosition}%`,
+              background: `${UI.primary}15`,
+            }}
+          />
+        )}
+        {visibleDots.map((dot) => (
           <div
             key={dot.id}
             className="absolute top-1/2 -translate-y-1/2 rounded-full"
@@ -122,10 +165,52 @@ export function TimelineBar() {
             }}
           />
         ))}
+        {/* Scrub playhead */}
+        {reviewMode && (
+          <div
+            className="absolute top-0 bottom-0"
+            style={{
+              left: `${scrubPosition}%`,
+              width: 2,
+              background: UI.primary,
+              boxShadow: `0 0 6px ${UI.primary}`,
+              borderRadius: 1,
+            }}
+          />
+        )}
       </div>
 
-      {/* Right stats */}
+      {/* Speed controls (review mode only) */}
+      {reviewMode && (
+        <div className="flex gap-0.5 flex-shrink-0">
+          {speeds.map((s) => (
+            <button
+              key={s}
+              onClick={() => setPlaybackSpeed(s)}
+              className="px-1.5 py-0.5 rounded text-xs font-mono"
+              style={{
+                background: playbackSpeed === s ? `${UI.primary}22` : "transparent",
+                border: `1px solid ${playbackSpeed === s ? UI.primary : "var(--color-border)"}`,
+                color: playbackSpeed === s ? UI.primary : UI.text.muted,
+              }}
+            >
+              {s}x
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Right section */}
       <div className="flex items-center gap-3 flex-shrink-0">
+        {!reviewMode && (
+          <button
+            onClick={() => setReviewMode(true)}
+            className="text-xs font-mono px-1.5 py-0.5 rounded"
+            style={{ color: UI.text.muted, border: "1px solid var(--color-border)" }}
+          >
+            Review
+          </button>
+        )}
         <span className="text-xs font-mono" style={{ color: UI.text.dimmed }}>
           {activeCount} active
         </span>
