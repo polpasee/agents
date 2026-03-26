@@ -87,10 +87,10 @@ function renderNodeVisuals(
       .attr("filter", "url(#glow)");
   }
 
-  // Main circle
+  // Main circle — solid dark background so links don't show through
   const mainCircle = g.append("circle")
     .attr("r", GRAPH.nodeRadius)
-    .attr("fill", `${color}22`)
+    .attr("fill", "var(--color-bg)")
     .attr("stroke", color)
     .attr("stroke-width", 2);
 
