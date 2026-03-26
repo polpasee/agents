@@ -6,6 +6,7 @@ import type {
   AgentEvent,
   ToolCallEntry,
 } from "./types";
+import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "./config";
 
 interface AgentStore {
   agents: Map<string, AgentState>;
@@ -22,6 +23,8 @@ interface AgentStore {
   syncState: (agents: AgentState[], edges: EdgeState[]) => void;
   handleEvent: (event: AgentEvent, timestamp: number) => void;
   removeAgent: (agentId: string) => void;
+  hiddenAgentTypes: Set<string>;
+  toggleAgentType: (type: string) => void;
 }
 
 let activityCounter = 0;
@@ -69,7 +72,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
           outputTokens: 0,
           cacheReadTokens: 0,
           cacheCreateTokens: 0,
-          contextWindow: 1000000,
+          contextWindow: DEFAULT_CONTEXT_WINDOW,
           startTime: timestamp,
           metadata: event.metadata,
         };
@@ -95,7 +98,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             result: event.result,
             timestamp,
           };
-          const toolCalls = [...agent.toolCalls, entry].slice(-20);
+          const toolCalls = [...agent.toolCalls, entry].slice(-TOOL_CALLS_MAX_PER_AGENT);
           newAgents.set(event.agentId, { ...agent, toolCalls });
         }
         break;
@@ -131,13 +134,22 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const newActivity = [
       ...activity,
       { id: `act-${++activityCounter}`, timestamp, event },
-    ].slice(-100);
+    ].slice(-ACTIVITY_MAX_ENTRIES);
 
     set({
       agents: newAgents,
       edges: newEdges,
       activity: newActivity,
     });
+  },
+
+  hiddenAgentTypes: new Set(),
+  toggleAgentType: (type) => {
+    const { hiddenAgentTypes } = get();
+    const next = new Set(hiddenAgentTypes);
+    if (next.has(type)) next.delete(type);
+    else next.add(type);
+    set({ hiddenAgentTypes: next });
   },
 
   removeAgent: (agentId) => {
