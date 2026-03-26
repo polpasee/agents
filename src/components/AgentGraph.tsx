@@ -369,6 +369,15 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const simulationRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
   const nodesRef = useRef<SimNode[]>([]);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const effectsRef = useRef<Array<{
+    x: number;
+    y: number;
+    color: string;
+    type: "spawn" | "complete" | "error";
+    startTime: number;
+    duration: number;
+  }>>([]);
+  const prevActivityLenRef = useRef(0);
 
   useImperativeHandle(ref, () => ({
     getNodesAndViewport() {
@@ -440,6 +449,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const agents = useAgentStore((s) => s.agents);
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const activity = useAgentStore((s) => s.activity);
   const filteredAgents = useFilteredAgents();
 
   // Topology key — only changes when agents join/leave or parent links change.
@@ -561,6 +571,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     // Particle group for link flow animation
     canvas.append("g").attr("class", "particles");
 
+    // Effects group for lifecycle animations
+    canvas.append("g").attr("class", "effects");
+
     // Node groups
     const nodeGroup = canvas.append("g").attr("class", "nodes");
     const nodeSelection = nodeGroup.selectAll<SVGGElement, SimNode>("g.node")
@@ -614,6 +627,63 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           (d.target as SimNode).x!, (d.target as SimNode).y!
         ));
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
+
+        // Render lifecycle effects
+        const effectsGroup = d3svg.select<SVGGElement>("g.effects");
+        if (!effectsGroup.empty()) {
+          effectsGroup.selectAll("*").remove();
+          const now = Date.now();
+          effectsRef.current = effectsRef.current.filter(e => now - e.startTime < e.duration);
+
+          for (const effect of effectsRef.current) {
+            const progress = (now - effect.startTime) / effect.duration;
+            const alpha = 1 - progress;
+
+            if (effect.type === "spawn") {
+              // Expanding hex ring
+              const r = GRAPH.nodeRadius + progress * 40;
+              effectsGroup.append("path")
+                .attr("d", hexPath(r))
+                .attr("transform", `translate(${effect.x},${effect.y})`)
+                .attr("fill", "none")
+                .attr("stroke", effect.color)
+                .attr("stroke-width", 2 * alpha)
+                .attr("stroke-opacity", alpha * 0.6);
+            } else if (effect.type === "complete") {
+              // Bright expanding ring
+              const r = GRAPH.nodeRadius + progress * 60;
+              effectsGroup.append("circle")
+                .attr("cx", effect.x)
+                .attr("cy", effect.y)
+                .attr("r", r)
+                .attr("fill", "none")
+                .attr("stroke", "#00ff88")
+                .attr("stroke-width", 1.5 * alpha)
+                .attr("stroke-opacity", alpha * 0.5);
+              // Inner flash (first 30%)
+              if (progress < 0.3) {
+                const flashAlpha = (0.3 - progress) / 0.3;
+                effectsGroup.append("circle")
+                  .attr("cx", effect.x)
+                  .attr("cy", effect.y)
+                  .attr("r", GRAPH.nodeRadius)
+                  .attr("fill", "white")
+                  .attr("opacity", flashAlpha * 0.15);
+              }
+            } else if (effect.type === "error") {
+              // Red pulse glow
+              const r = GRAPH.nodeRadius + progress * 30;
+              effectsGroup.append("circle")
+                .attr("cx", effect.x)
+                .attr("cy", effect.y)
+                .attr("r", r)
+                .attr("fill", "none")
+                .attr("stroke", UI.error)
+                .attr("stroke-width", 3 * alpha)
+                .attr("stroke-opacity", alpha * 0.7);
+            }
+          }
+        }
       });
 
     simulationRef.current = simulation;
@@ -629,6 +699,46 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const d3svg = d3.select(svg);
     const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
     if (nodeGroup.empty()) return;
+
+    // Trigger visual effects for new events
+    const newEntries = activity.slice(prevActivityLenRef.current);
+    prevActivityLenRef.current = activity.length;
+
+    for (const entry of newEntries) {
+      let effectNode: SimNode | undefined;
+      let effectType: "spawn" | "complete" | "error" | null = null;
+      const evt = entry.event;
+
+      switch (evt.type) {
+        case "agent:register":
+          effectNode = nodesRef.current.find(n => n.id === evt.agentId);
+          effectType = "spawn";
+          break;
+        case "agent:complete":
+          effectNode = nodesRef.current.find(n => n.id === evt.agentId);
+          effectType = "complete";
+          break;
+        case "agent:status":
+          if (evt.status === "error") {
+            effectNode = nodesRef.current.find(n => n.id === evt.agentId);
+            effectType = "error";
+          }
+          break;
+      }
+
+      if (effectNode && effectType && effectNode.x != null && effectNode.y != null) {
+        const a = agents.get(effectNode.id);
+        const color = a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
+        effectsRef.current.push({
+          x: effectNode.x,
+          y: effectNode.y,
+          color,
+          type: effectType,
+          startTime: Date.now(),
+          duration: effectType === "error" ? 800 : 1000,
+        });
+      }
+    }
 
     // Re-render only nodes whose visual state has changed
     nodeGroup.selectAll<SVGGElement, SimNode>("g.node").each(function (d) {
@@ -692,7 +802,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         }
       });
     }
-  }, [agents, selectedAgentId]);
+  }, [agents, selectedAgentId, activity]);
 
   // ── Handle resize ──
   useEffect(() => {
