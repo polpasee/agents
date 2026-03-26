@@ -38,6 +38,11 @@ function renderNodeVisuals(
   const isActive = agent.status === "running" || agent.status === "idle";
   const isRunning = agent.status === "running";
 
+  const isFinished = agent.status === "completed" || agent.status === "error";
+  if (isFinished) {
+    g.attr("opacity", 0.35);
+  }
+
   const lastTool = agent.toolCalls.length > 0
     ? agent.toolCalls[agent.toolCalls.length - 1].tool
     : null;
@@ -184,6 +189,18 @@ function updateLinkVisuals(
           .attr("repeatCount", "indefinite");
       }
     });
+
+  linkLine.attr("stroke-opacity", (d) => {
+    const a = agents.get(getTargetId(d));
+    const finished = a?.status === "completed" || a?.status === "error";
+    return finished ? 0.2 : 0.6;
+  });
+
+  linkGlow.attr("stroke-opacity", (d) => {
+    const a = agents.get(getTargetId(d));
+    const finished = a?.status === "completed" || a?.status === "error";
+    return finished ? 0.03 : 0.1;
+  });
 }
 
 /* ── Component ─────────────────────────────────────────── */
