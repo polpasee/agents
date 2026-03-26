@@ -158,18 +158,22 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   recordedEvents: [],
   startRecording: () => set({ recording: true, recordedEvents: [] }),
   downloadRecording: () => {
-    const { recordedEvents } = get();
-    const session = {
-      startTime: recordedEvents[0]?.timestamp || Date.now(),
-      events: recordedEvents,
-    };
-    const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `agent-session-${new Date().toISOString().slice(0, 19)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try {
+      const { recordedEvents } = get();
+      const session = {
+        startTime: recordedEvents[0]?.timestamp ?? Date.now(),
+        events: recordedEvents,
+      };
+      const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `agent-session-${new Date().toISOString().slice(0, 19)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      console.warn("Failed to download recording:", err);
+    }
     set({ recording: false, recordedEvents: [] });
   },
 

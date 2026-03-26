@@ -1,7 +1,7 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { UI } from "@/lib/colors";
+import { UI, STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 
@@ -134,8 +134,8 @@ export function TopBar() {
       {/* Right: Stats */}
       <div className="flex gap-6 text-sm">
         <Stat label="AGENTS" value={total} color={UI.text.secondary} />
-        <Stat label="ACTIVE" value={active} color="#00ff88" />
-        <Stat label="DONE" value={completed} color="#6b7280" />
+        <Stat label="ACTIVE" value={active} color={STATUS_COLORS.running} />
+        <Stat label="DONE" value={completed} color={STATUS_COLORS.completed} />
         <Stat label="ERRORS" value={errors} color={UI.error} />
         <Stat label="COST" value={formatCost(totalCost.total)} color={UI.primary} />
       </div>

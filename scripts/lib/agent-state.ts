@@ -130,20 +130,25 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
 
 // ── Process a JSONL entry ──────────────────────────────
 export function processEntry(entry: Record<string, unknown>, agentId: string, _sessionId: string) {
-  const timestamp = entry.timestamp
-    ? new Date(entry.timestamp as string).getTime()
+  const timestamp = typeof entry.timestamp === "string"
+    ? new Date(entry.timestamp).getTime()
     : Date.now();
 
-  const msg = entry.message as Record<string, unknown> | undefined;
-  if (!msg) return;
+  const msg = entry.message;
+  if (!msg || typeof msg !== "object") return;
+  const message = msg as Record<string, unknown>;
 
-  const role = msg.role as string | undefined;
+  const role = typeof message.role === "string" ? message.role : undefined;
 
-  if (role === "assistant" && Array.isArray(msg.content)) {
-    for (const block of msg.content as Record<string, unknown>[]) {
-      if (block.type === "tool_use") {
-        const toolName = block.name as string;
-        const input = block.input as Record<string, unknown> | undefined;
+  if (role === "assistant" && Array.isArray(message.content)) {
+    for (const block of message.content) {
+      if (!block || typeof block !== "object") continue;
+      const b = block as Record<string, unknown>;
+      if (b.type !== "tool_use") continue;
+      if (typeof b.name !== "string") continue;
+      {
+        const toolName = b.name;
+        const input = b.input && typeof b.input === "object" ? b.input as Record<string, unknown> : undefined;
         let argsStr: string | undefined;
         if (input) {
           const keys = Object.keys(input);
@@ -181,14 +186,15 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
       }
     }
 
-    const usage = msg.usage as Record<string, number> | undefined;
-    if (usage) {
+    const usage = message.usage;
+    if (usage && typeof usage === "object") {
+      const u = usage as Record<string, number>;
       const agent = agents.get(agentId);
       if (agent) {
-        agent.inputTokens = (agent.inputTokens || 0) + (usage.input_tokens || 0);
-        agent.outputTokens = (agent.outputTokens || 0) + (usage.output_tokens || 0);
-        agent.cacheReadTokens = (agent.cacheReadTokens || 0) + (usage.cache_read_input_tokens || 0);
-        agent.cacheCreateTokens = (agent.cacheCreateTokens || 0) + (usage.cache_creation_input_tokens || 0);
+        agent.inputTokens = (agent.inputTokens || 0) + (u.input_tokens || 0);
+        agent.outputTokens = (agent.outputTokens || 0) + (u.output_tokens || 0);
+        agent.cacheReadTokens = (agent.cacheReadTokens || 0) + (u.cache_read_input_tokens || 0);
+        agent.cacheCreateTokens = (agent.cacheCreateTokens || 0) + (u.cache_creation_input_tokens || 0);
 
         const event: AgentEvent = {
           type: "agent:tokens",

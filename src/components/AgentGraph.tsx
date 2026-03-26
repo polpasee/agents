@@ -3,7 +3,7 @@
 import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { getTokenPercent } from "@/lib/utils";
 import { GRAPH } from "@/lib/config";
@@ -34,8 +34,8 @@ function renderNodeVisuals(
   agent: AgentState,
   selectedAgentId: string | null,
 ) {
-  const color = AGENT_COLORS[agent.agentType] || "#94a3b8";
-  const statusColor = STATUS_COLORS[agent.status] || "#6b7280";
+  const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
+  const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
   const label = AGENT_LABELS[agent.agentType] || "AGENT";
   const tokenPercent = getTokenPercent(agent);
   const isSelected = agent.id === selectedAgentId;
@@ -194,12 +194,12 @@ function updateLinkVisuals(
 
   linkGlow.attr("stroke", (d) => {
     const a = agents.get(getTargetId(d));
-    return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
+    return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
   });
   linkLine
     .attr("stroke", (d) => {
       const a = agents.get(getTargetId(d));
-      return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
+      return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
     })
     .attr("stroke-dasharray", (d) => {
       const a = agents.get(getTargetId(d));
@@ -252,7 +252,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         .map((n) => ({
           x: n.x!,
           y: n.y!,
-          color: AGENT_COLORS[n.agent.agentType] || "#94a3b8",
+          color: AGENT_COLORS[n.agent.agentType] || UI.text.secondary,
         }));
       return {
         nodes,
@@ -363,7 +363,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         .attr("x", width / 2)
         .attr("y", height / 2)
         .attr("text-anchor", "middle")
-        .attr("fill", "#444")
+        .attr("fill", UI.text.empty)
         .attr("font-size", 14)
         .text("No agents connected");
       return;

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { truncateId } from "@/lib/utils";
-import type { AgentEvent } from "@/lib/types";
+import type { AgentEvent, AgentType } from "@/lib/types";
 
 export function ActivityStream() {
   const activity = useAgentStore((s) => s.activity);
@@ -28,7 +28,7 @@ export function ActivityStream() {
     >
       <div
         className="px-3 py-1.5 text-xs uppercase tracking-wider flex-shrink-0"
-        style={{ color: "#666", borderBottom: "1px solid var(--color-border)" }}
+        style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
       >
         Activity Stream
       </div>
@@ -61,7 +61,7 @@ function ActivityLine({
 }: {
   timestamp: number;
   event: AgentEvent;
-  agents: Map<string, { agentType: string }>;
+  agents: Map<string, { agentType: AgentType }>;
 }) {
   const time = new Date(timestamp).toLocaleTimeString("en-US", {
     hour12: false,
@@ -72,9 +72,7 @@ function ActivityLine({
 
   const getAgentColor = (id: string) => {
     const agent = agents.get(id);
-    return agent
-      ? AGENT_COLORS[agent.agentType as keyof typeof AGENT_COLORS] || "#94a3b8"
-      : "#94a3b8";
+    return agent ? AGENT_COLORS[agent.agentType] : UI.text.secondary;
   };
 
   let content: React.ReactNode;
