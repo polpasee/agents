@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { TopBar } from "./TopBar";
 import { AgentList } from "./AgentList";
 import { AgentGraph } from "./AgentGraph";
@@ -15,6 +16,7 @@ export function Dashboard() {
   useWebSocket();
   useSoundNotifications();
   const graphRef = useRef<AgentGraphHandle>(null);
+  useKeyboardShortcuts(graphRef);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
