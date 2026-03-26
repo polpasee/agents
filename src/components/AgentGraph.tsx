@@ -150,6 +150,33 @@ function renderNodeVisuals(
     .style("pointer-events", "none")
     .text(statusLabel);
 
+  // Tool call sparkline
+  if (agent.toolCalls.length > 0) {
+    const now = Date.now();
+    const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
+    for (const tc of agent.toolCalls) {
+      const age = now - tc.timestamp;
+      const bucketIdx = GRAPH.sparklineBuckets - 1 - Math.floor(age / GRAPH.sparklineBucketMs);
+      if (bucketIdx >= 0 && bucketIdx < GRAPH.sparklineBuckets) {
+        buckets[bucketIdx]++;
+      }
+    }
+    const maxVal = Math.max(...buckets, 1);
+    const barW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
+    const sparkG = g.append("g")
+      .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${GRAPH.sparklineY})`);
+    for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
+      const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
+      sparkG.append("rect")
+        .attr("x", i * barW)
+        .attr("y", GRAPH.sparklineHeight - h)
+        .attr("width", barW - 0.5)
+        .attr("height", h)
+        .attr("fill", color)
+        .attr("opacity", 0.6);
+    }
+  }
+
 }
 
 /* ── Update link stroke colors and dash styles ─────────── */
