@@ -28,9 +28,15 @@ export function Dashboard() {
       <div className="flex flex-1 min-h-0">
         <AgentList />
         <div className="relative flex-1 h-full">
-          <AgentGraph ref={graphRef} />
-          <GraphControls onFitToView={() => graphRef.current?.fitToView()} />
-          <MiniMap graphRef={graphRef} />
+          {viewMode === "graph" ? (
+            <>
+              <AgentGraph ref={graphRef} />
+              <GraphControls onFitToView={() => graphRef.current?.fitToView()} />
+              <MiniMap graphRef={graphRef} />
+            </>
+          ) : (
+            <Timeline />
+          )}
         </div>
         <AgentDetail />
       </div>

@@ -23,6 +23,12 @@ interface AgentStore {
   syncState: (agents: AgentState[], edges: EdgeState[]) => void;
   handleEvent: (event: AgentEvent, timestamp: number) => void;
   removeAgent: (agentId: string) => void;
+  recording: boolean;
+  recordedEvents: Array<{ timestamp: number; event: AgentEvent }>;
+  startRecording: () => void;
+  downloadRecording: () => void;
+  viewMode: "graph" | "timeline";
+  setViewMode: (mode: "graph" | "timeline") => void;
   hiddenAgentTypes: Set<string>;
   toggleAgentType: (type: string) => void;
 }
@@ -136,12 +142,36 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       { id: `act-${++activityCounter}`, timestamp, event },
     ].slice(-ACTIVITY_MAX_ENTRIES);
 
+    const { recording, recordedEvents } = get();
     set({
       agents: newAgents,
       edges: newEdges,
       activity: newActivity,
+      ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
+
+  recording: false,
+  recordedEvents: [],
+  startRecording: () => set({ recording: true, recordedEvents: [] }),
+  downloadRecording: () => {
+    const { recordedEvents } = get();
+    const session = {
+      startTime: recordedEvents[0]?.timestamp || Date.now(),
+      events: recordedEvents,
+    };
+    const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `agent-session-${new Date().toISOString().slice(0, 19)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    set({ recording: false, recordedEvents: [] });
+  },
+
+  viewMode: "graph" as "graph" | "timeline",
+  setViewMode: (mode) => set({ viewMode: mode }),
 
   hiddenAgentTypes: new Set(),
   toggleAgentType: (type) => {

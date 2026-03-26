@@ -10,6 +10,11 @@ export function TopBar() {
   const connected = useAgentStore((s) => s.connected);
   const selectedSessionId = useAgentStore((s) => s.selectedSessionId);
   const selectSession = useAgentStore((s) => s.selectSession);
+  const viewMode = useAgentStore((s) => s.viewMode);
+  const setViewMode = useAgentStore((s) => s.setViewMode);
+  const recording = useAgentStore((s) => s.recording);
+  const startRecording = useAgentStore((s) => s.startRecording);
+  const downloadRecording = useAgentStore((s) => s.downloadRecording);
 
   const allAgents = Array.from(agents.values());
 
@@ -94,6 +99,36 @@ export function TopBar() {
             })}
           </select>
         )}
+
+        <div className="flex gap-0.5 ml-2">
+          {(["graph", "timeline"] as const).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              className="px-2 py-0.5 rounded text-xs font-mono capitalize"
+              style={{
+                background: viewMode === mode ? `${UI.primary}22` : "transparent",
+                border: `1px solid ${viewMode === mode ? UI.primary : "var(--color-border)"}`,
+                color: viewMode === mode ? UI.primary : UI.text.muted,
+              }}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={recording ? downloadRecording : startRecording}
+          className="px-2 py-0.5 rounded text-xs font-mono ml-2"
+          style={{
+            background: recording ? `${UI.error}22` : "transparent",
+            border: `1px solid ${recording ? UI.error : "var(--color-border)"}`,
+            color: recording ? UI.error : UI.text.muted,
+          }}
+          title={recording ? "Stop & download recording" : "Start recording"}
+        >
+          REC
+        </button>
       </div>
 
       {/* Right: Stats */}
