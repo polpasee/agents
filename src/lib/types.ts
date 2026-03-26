@@ -102,3 +102,8 @@ export interface ActivityEntry {
   timestamp: number;
   event: AgentEvent;
 }
+
+export interface RecordedSession {
+  startTime: number;
+  events: Array<{ timestamp: number; event: AgentEvent }>;
+}
