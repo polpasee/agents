@@ -1,0 +1,48 @@
+@import "tailwindcss";
+@import "../styles/neon.css";
+
+:root {
+  --color-bg: #0a0a1a;
+  --color-panel: #0d1117;
+  --color-border: #1a1a2e;
+  --color-cyan: #00f5ff;
+  --color-magenta: #ff00ff;
+  --color-green: #00ff88;
+  --color-amber: #ffaa00;
+  --color-purple: #a78bfa;
+  --color-pink: #f472b6;
+  --color-red: #ff4444;
+  --color-slate: #94a3b8;
+}
+
+body {
+  background: var(--color-bg);
+  color: #e2e8f0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* React Flow overrides for neon theme */
+.react-flow__background {
+  background: var(--color-bg) !important;
+}
+
+.react-flow__controls button {
+  background: var(--color-panel) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-slate) !important;
+  fill: var(--color-slate) !important;
+}
+
+.react-flow__controls button:hover {
+  background: #1a1a2e !important;
+}
+
+.react-flow__minimap {
+  background: var(--color-panel) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
