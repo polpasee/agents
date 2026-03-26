@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { getTokenPercent } from "@/lib/utils";
+import { GRAPH } from "@/lib/config";
 import type { AgentState } from "@/lib/types";
+
+export interface AgentGraphHandle {
+  fitToView(): void;
+}
 
 interface SimNode extends d3.SimulationNodeDatum {
   id: string;
@@ -18,17 +23,238 @@ interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   target: string | SimNode;
 }
 
-export function AgentGraph() {
+/* ── Render the visual elements inside a node <g> ──────── */
+function renderNodeVisuals(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  g: d3.Selection<SVGGElement, any, any, any>,
+  agent: AgentState,
+  selectedAgentId: string | null,
+) {
+  const color = AGENT_COLORS[agent.agentType] || "#94a3b8";
+  const statusColor = STATUS_COLORS[agent.status] || "#6b7280";
+  const label = AGENT_LABELS[agent.agentType] || "AGENT";
+  const tokenPercent = getTokenPercent(agent);
+  const isSelected = agent.id === selectedAgentId;
+  const isActive = agent.status === "running" || agent.status === "idle";
+  const isRunning = agent.status === "running";
+
+  const lastTool = agent.toolCalls.length > 0
+    ? agent.toolCalls[agent.toolCalls.length - 1].tool
+    : null;
+  const statusLabel = isRunning && lastTool
+    ? lastTool
+    : agent.status === "idle" ? "thinking" : agent.status;
+
+  // Pulsing ring for active agents (running or idle/thinking)
+  if (isActive) {
+    const ring = g.append("circle")
+      .attr("r", GRAPH.glowRingRadius + 4)
+      .attr("fill", "none")
+      .attr("stroke", color)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-opacity", 0);
+    ring.append("animate")
+      .attr("attributeName", "stroke-opacity")
+      .attr("values", isRunning ? "0.1;0.5;0.1" : "0.05;0.25;0.05")
+      .attr("dur", isRunning ? "1.5s" : "2.5s")
+      .attr("repeatCount", "indefinite");
+    ring.append("animate")
+      .attr("attributeName", "r")
+      .attr("values", isRunning
+        ? `${GRAPH.glowRingRadius + 2};${GRAPH.glowRingRadius + 8};${GRAPH.glowRingRadius + 2}`
+        : `${GRAPH.glowRingRadius + 1};${GRAPH.glowRingRadius + 5};${GRAPH.glowRingRadius + 1}`)
+      .attr("dur", isRunning ? "1.5s" : "2.5s")
+      .attr("repeatCount", "indefinite");
+  }
+
+  // Outer glow ring for selected/active
+  if (isSelected || isActive) {
+    g.append("circle")
+      .attr("r", GRAPH.glowRingRadius)
+      .attr("fill", "none")
+      .attr("stroke", color)
+      .attr("stroke-width", isSelected ? 2 : 1)
+      .attr("stroke-opacity", isActive ? 0.4 : 0.3)
+      .attr("filter", "url(#glow)");
+  }
+
+  // Main circle
+  const mainCircle = g.append("circle")
+    .attr("r", GRAPH.nodeRadius)
+    .attr("fill", `${color}22`)
+    .attr("stroke", color)
+    .attr("stroke-width", 2);
+
+  // Subtle stroke pulse for running agents
+  if (isRunning) {
+    mainCircle.append("animate")
+      .attr("attributeName", "stroke-opacity")
+      .attr("values", "1;0.5;1")
+      .attr("dur", "1.5s")
+      .attr("repeatCount", "indefinite");
+  }
+
+  // Letter inside circle
+  g.append("text")
+    .attr("text-anchor", "middle")
+    .attr("dominant-baseline", "central")
+    .attr("fill", color)
+    .attr("font-family", "monospace")
+    .attr("font-size", 16)
+    .attr("font-weight", "bold")
+    .style("pointer-events", "none")
+    .text(label.charAt(0));
+
+  // Label below
+  g.append("text")
+    .attr("text-anchor", "middle")
+    .attr("y", 34)
+    .attr("fill", color)
+    .attr("font-family", "monospace")
+    .attr("font-size", 11)
+    .attr("font-weight", "bold")
+    .attr("letter-spacing", "2px")
+    .style("pointer-events", "none")
+    .text(label);
+
+  // Token bar
+  const barW = GRAPH.tokenBarWidth;
+  const barH = GRAPH.tokenBarHeight;
+  const barY = GRAPH.tokenBarY;
+  g.append("rect")
+    .attr("x", -barW / 2).attr("y", barY)
+    .attr("width", barW).attr("height", barH)
+    .attr("rx", 1).attr("fill", `${color}22`);
+  if (tokenPercent > 0) {
+    g.append("rect")
+      .attr("x", -barW / 2).attr("y", barY)
+      .attr("width", barW * tokenPercent / 100).attr("height", barH)
+      .attr("rx", 1).attr("fill", color);
+  }
+
+  // Status dot + label
+  const statusY = GRAPH.statusY;
+  g.append("circle")
+    .attr("cx", -14).attr("cy", statusY)
+    .attr("r", 3).attr("fill", statusColor);
+  g.append("text")
+    .attr("x", -7).attr("y", statusY + 4)
+    .attr("fill", statusColor)
+    .attr("font-family", "monospace")
+    .attr("font-size", 10)
+    .style("pointer-events", "none")
+    .text(statusLabel);
+
+}
+
+/* ── Update link stroke colors and dash styles ─────────── */
+function updateLinkVisuals(
+  linkGlow: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+  linkLine: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+  agents: Map<string, AgentState>,
+) {
+  const getTargetId = (d: SimLink) =>
+    typeof d.target === "string" ? d.target : d.target.id;
+
+  linkGlow.attr("stroke", (d) => {
+    const a = agents.get(getTargetId(d));
+    return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
+  });
+  linkLine
+    .attr("stroke", (d) => {
+      const a = agents.get(getTargetId(d));
+      return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
+    })
+    .attr("stroke-dasharray", (d) => {
+      const a = agents.get(getTargetId(d));
+      const active = a?.status === "running" || a?.status === "idle";
+      return active ? "8 4" : "none";
+    })
+    .each(function (d) {
+      const a = agents.get(getTargetId(d));
+      const active = a?.status === "running" || a?.status === "idle";
+      const line = d3.select(this);
+      // Remove existing animate children before adding new ones
+      line.selectAll("animate").remove();
+      if (active) {
+        line.append("animate")
+          .attr("attributeName", "stroke-dashoffset")
+          .attr("values", "24;0")
+          .attr("dur", a?.status === "running" ? "0.8s" : "1.6s")
+          .attr("repeatCount", "indefinite");
+      }
+    });
+}
+
+/* ── Component ─────────────────────────────────────────── */
+export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_props, ref) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
+  const nodesRef = useRef<SimNode[]>([]);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+
+  useImperativeHandle(ref, () => ({
+    fitToView() {
+      const svg = svgRef.current;
+      const container = containerRef.current;
+      const zoom = zoomRef.current;
+      const nodes = nodesRef.current;
+      if (!svg || !container || !zoom || nodes.length === 0) return;
+
+      const padding = 80;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      // Calculate bounding box of all nodes
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.x !== undefined && n.y !== undefined) {
+          minX = Math.min(minX, n.x);
+          minY = Math.min(minY, n.y);
+          maxX = Math.max(maxX, n.x);
+          maxY = Math.max(maxY, n.y);
+        }
+      }
+      if (!isFinite(minX)) return;
+
+      const bboxW = maxX - minX || 1;
+      const bboxH = maxY - minY || 1;
+      const scale = Math.min(
+        (width - padding * 2) / bboxW,
+        (height - padding * 2) / bboxH,
+        GRAPH.zoomExtent[1],
+      );
+      const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const transform = d3.zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(clampedScale)
+        .translate(-cx, -cy);
+
+      d3.select(svg)
+        .transition()
+        .duration(500)
+        .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
+    },
+  }));
 
   const agents = useAgentStore((s) => s.agents);
-  const storeEdges = useAgentStore((s) => s.edges);
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const filteredAgents = useFilteredAgents();
 
+  // Topology key — only changes when agents join/leave or parent links change.
+  // This controls when the force simulation is rebuilt.
+  const topologyKey = useMemo(() => {
+    return filteredAgents
+      .map((a) => `${a.id}:${a.parentId || ""}`)
+      .sort()
+      .join("|");
+  }, [filteredAgents]);
+
+  // ── Effect 1: Rebuild simulation when topology changes ──
   useEffect(() => {
     const svg = svgRef.current;
     const container = containerRef.current;
@@ -36,16 +262,32 @@ export function AgentGraph() {
 
     const width = container.clientWidth;
     const height = container.clientHeight;
-
     const d3svg = d3.select(svg).attr("width", width).attr("height", height);
     d3svg.selectAll("*").remove();
 
-    // Build data
     const agentIds = new Set(filteredAgents.map((a) => a.id));
-    const nodes: SimNode[] = filteredAgents.map((a) => ({ id: a.id, agent: a }));
-    const links: SimLink[] = storeEdges
-      .filter((e) => agentIds.has(e.source) && agentIds.has(e.target))
-      .map((e) => ({ source: e.source, target: e.target }));
+
+    // Carry forward positions from previous simulation so layout stays stable
+    const prevPositions = new Map<string, { x: number; y: number }>();
+    for (const n of nodesRef.current) {
+      if (n.x !== undefined && n.y !== undefined) {
+        prevPositions.set(n.id, { x: n.x, y: n.y });
+      }
+    }
+
+    const nodes: SimNode[] = filteredAgents.map((a) => {
+      const prev = prevPositions.get(a.id);
+      return {
+        id: a.id,
+        agent: a,
+        ...(prev ? { x: prev.x, y: prev.y } : {}),
+      };
+    });
+    const links: SimLink[] = filteredAgents
+      .filter((a) => a.parentId && agentIds.has(a.parentId))
+      .map((a) => ({ source: a.parentId!, target: a.id }));
+
+    nodesRef.current = nodes;
 
     if (nodes.length === 0) {
       d3svg.append("text")
@@ -70,217 +312,122 @@ export function AgentGraph() {
 
     // Canvas group for zoom/pan
     const canvas = d3svg.append("g").attr("class", "canvas");
-
-    // Zoom behavior
     const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.15, 4])
-      .on("zoom", (event) => {
-        canvas.attr("transform", event.transform);
-      });
+      .scaleExtent(GRAPH.zoomExtent)
+      .on("zoom", (event) => canvas.attr("transform", event.transform));
     d3svg.call(zoom);
+    zoomRef.current = zoom;
 
     // Link groups (glow + main line)
     const linkGroup = canvas.append("g").attr("class", "links");
-    const linkGlow = linkGroup.selectAll<SVGLineElement, SimLink>("line.glow")
-      .data(links)
-      .join("line")
-      .attr("class", "glow")
-      .attr("stroke", (d) => {
-        const t = typeof d.target === "string" ? d.target : d.target.id;
-        const a = agents.get(t);
-        return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
-      })
-      .attr("stroke-width", 6)
-      .attr("stroke-opacity", 0.1);
+    linkGroup.selectAll<SVGLineElement, SimLink>("line.glow")
+      .data(links).join("line").attr("class", "glow")
+      .attr("stroke-width", 6).attr("stroke-opacity", 0.1);
+    linkGroup.selectAll<SVGLineElement, SimLink>("line.main")
+      .data(links).join("line").attr("class", "main")
+      .attr("stroke-width", 2).attr("stroke-opacity", 0.6);
 
-    const linkLine = linkGroup.selectAll<SVGLineElement, SimLink>("line.main")
-      .data(links)
-      .join("line")
-      .attr("class", "main")
-      .attr("stroke", (d) => {
-        const t = typeof d.target === "string" ? d.target : d.target.id;
-        const a = agents.get(t);
-        return a ? AGENT_COLORS[a.agentType] : "#94a3b8";
-      })
-      .attr("stroke-width", 2)
-      .attr("stroke-opacity", 0.6)
-      .attr("stroke-dasharray", (d) => {
-        const t = typeof d.target === "string" ? d.target : d.target.id;
-        const a = agents.get(t);
-        return a?.status === "running" ? "8 4" : "none";
-      });
+    // Apply initial link colors
+    updateLinkVisuals(
+      linkGroup.selectAll<SVGLineElement, SimLink>("line.glow"),
+      linkGroup.selectAll<SVGLineElement, SimLink>("line.main"),
+      agents,
+    );
 
     // Node groups
     const nodeGroup = canvas.append("g").attr("class", "nodes");
-    const node = nodeGroup.selectAll<SVGGElement, SimNode>("g.node")
+    const nodeSelection = nodeGroup.selectAll<SVGGElement, SimNode>("g.node")
       .data(nodes, (d) => d.id)
       .join("g")
       .attr("class", "node")
       .attr("cursor", "pointer")
       .on("click", (_event, d) => selectAgent(d.agent.id));
 
-    // Draw each node's visuals
-    node.each(function (d) {
-      const g = d3.select(this);
-      const agent = d.agent;
-      const color = AGENT_COLORS[agent.agentType] || "#94a3b8";
-      const statusColor = STATUS_COLORS[agent.status] || "#6b7280";
-      const label = AGENT_LABELS[agent.agentType] || "AGENT";
-      const tokenPercent = getTokenPercent(agent);
-      const isSelected = agent.id === selectedAgentId;
-      const isActive = agent.status === "running";
-
-      const lastTool = agent.toolCalls.length > 0
-        ? agent.toolCalls[agent.toolCalls.length - 1].tool
-        : null;
-      const statusLabel = isActive && lastTool
-        ? lastTool
-        : agent.status === "idle" ? "sleep" : agent.status;
-
-      // Outer glow ring for selected/active
-      if (isSelected || isActive) {
-        g.append("circle")
-          .attr("r", 28)
-          .attr("fill", "none")
-          .attr("stroke", color)
-          .attr("stroke-width", isSelected ? 2 : 1)
-          .attr("stroke-opacity", 0.3)
-          .attr("filter", "url(#glow)");
-      }
-
-      // Main circle
-      g.append("circle")
-        .attr("r", 22)
-        .attr("fill", `${color}22`)
-        .attr("stroke", color)
-        .attr("stroke-width", 2);
-
-      // Letter inside circle
-      g.append("text")
-        .attr("text-anchor", "middle")
-        .attr("dominant-baseline", "central")
-        .attr("fill", color)
-        .attr("font-family", "monospace")
-        .attr("font-size", 16)
-        .attr("font-weight", "bold")
-        .style("pointer-events", "none")
-        .text(label.charAt(0));
-
-      // Label below
-      g.append("text")
-        .attr("text-anchor", "middle")
-        .attr("y", 34)
-        .attr("fill", color)
-        .attr("font-family", "monospace")
-        .attr("font-size", 11)
-        .attr("font-weight", "bold")
-        .attr("letter-spacing", "2px")
-        .style("pointer-events", "none")
-        .text(label);
-
-      // Token bar
-      const barW = 40;
-      const barH = 3;
-      const barY = 42;
-      g.append("rect")
-        .attr("x", -barW / 2).attr("y", barY)
-        .attr("width", barW).attr("height", barH)
-        .attr("rx", 1).attr("fill", `${color}22`);
-      if (tokenPercent > 0) {
-        g.append("rect")
-          .attr("x", -barW / 2).attr("y", barY)
-          .attr("width", barW * tokenPercent / 100).attr("height", barH)
-          .attr("rx", 1).attr("fill", color);
-      }
-
-      // Status dot + label
-      const statusY = 54;
-      g.append("circle")
-        .attr("cx", -14).attr("cy", statusY)
-        .attr("r", 3).attr("fill", statusColor);
-      g.append("text")
-        .attr("x", -7).attr("y", statusY + 4)
-        .attr("fill", statusColor)
-        .attr("font-family", "monospace")
-        .attr("font-size", 10)
-        .style("pointer-events", "none")
-        .text(statusLabel);
-
-      // Task tooltip (above node)
-      if (agent.task) {
-        const taskText = agent.task.slice(0, 36) + (agent.task.length > 36 ? "..." : "");
-        const estW = Math.min(taskText.length * 7 + 16, 280);
-        const tooltipG = g.append("g").attr("transform", "translate(0, -38)");
-        tooltipG.append("rect")
-          .attr("x", -estW / 2).attr("y", -12)
-          .attr("width", estW).attr("height", 22)
-          .attr("rx", 4)
-          .attr("fill", "#1a1a2e")
-          .attr("stroke", `${color}33`)
-          .attr("stroke-width", 1);
-        tooltipG.append("text")
-          .attr("text-anchor", "middle").attr("y", 3)
-          .attr("fill", "#c9d1d9")
-          .attr("font-family", "monospace")
-          .attr("font-size", 11)
-          .style("pointer-events", "none")
-          .text(taskText);
-      }
+    // Render initial node visuals
+    nodeSelection.each(function (d) {
+      renderNodeVisuals(d3.select(this), d.agent, selectedAgentId);
     });
 
     // Drag behavior
-    function dragstarted(event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>) {
-      if (!event.active) simulation.alphaTarget(0.3).restart();
-      event.subject.fx = event.subject.x;
-      event.subject.fy = event.subject.y;
-    }
-    function dragged(event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>) {
-      event.subject.fx = event.x;
-      event.subject.fy = event.y;
-    }
-    function dragended(event: d3.D3DragEvent<SVGGElement, SimNode, SimNode>) {
-      if (!event.active) simulation.alphaTarget(0);
-      event.subject.fx = null;
-      event.subject.fy = null;
-    }
-
-    node.call(
+    nodeSelection.call(
       d3.drag<SVGGElement, SimNode>()
-        .on("start", dragstarted)
-        .on("drag", dragged)
-        .on("end", dragended)
+        .on("start", (event) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          event.subject.fx = event.subject.x;
+          event.subject.fy = event.subject.y;
+        })
+        .on("drag", (event) => {
+          event.subject.fx = event.x;
+          event.subject.fy = event.y;
+        })
+        .on("end", (event) => {
+          if (!event.active) simulation.alphaTarget(0);
+          event.subject.fx = null;
+          event.subject.fy = null;
+        })
     );
 
-    // Force simulation
+    // Force simulation — use low alpha when restoring positions
+    const linkGlow = linkGroup.selectAll<SVGLineElement, SimLink>("line.glow");
+    const linkLine = linkGroup.selectAll<SVGLineElement, SimLink>("line.main");
+
     const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
-      .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(160))
-      .force("charge", d3.forceManyBody().strength(-400))
+      .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
+      .force("charge", d3.forceManyBody().strength(GRAPH.chargeStrength))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collide", d3.forceCollide<SimNode>().radius(60))
+      .force("collide", d3.forceCollide<SimNode>().radius(GRAPH.collideRadius))
+      .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
         linkGlow
           .attr("x1", (d) => (d.source as SimNode).x!)
           .attr("y1", (d) => (d.source as SimNode).y!)
           .attr("x2", (d) => (d.target as SimNode).x!)
           .attr("y2", (d) => (d.target as SimNode).y!);
-
         linkLine
           .attr("x1", (d) => (d.source as SimNode).x!)
           .attr("y1", (d) => (d.source as SimNode).y!)
           .attr("x2", (d) => (d.target as SimNode).x!)
           .attr("y2", (d) => (d.target as SimNode).y!);
-
-        node.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
+        nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
       });
 
     simulationRef.current = simulation;
+    return () => { simulation.stop(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyKey, selectAgent]);
 
-    return () => {
-      simulation.stop();
-    };
-  }, [filteredAgents, storeEdges, agents, selectedAgentId, selectAgent]);
+  // ── Effect 2: Update visuals in-place (no simulation restart) ──
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
 
-  // Handle resize
+    const d3svg = d3.select(svg);
+    const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
+    if (nodeGroup.empty()) return;
+
+    // Re-render each node's visual children without touching the <g> position
+    nodeGroup.selectAll<SVGGElement, SimNode>("g.node").each(function (d) {
+      const latest = agents.get(d.id);
+      if (latest) {
+        d.agent = latest;
+        const g = d3.select(this);
+        g.selectAll("*").remove();
+        renderNodeVisuals(g, latest, selectedAgentId);
+      }
+    });
+
+    // Update link colors / dash patterns
+    const linkGroup = d3svg.select<SVGGElement>("g.links");
+    if (!linkGroup.empty()) {
+      updateLinkVisuals(
+        linkGroup.selectAll<SVGLineElement, SimLink>("line.glow"),
+        linkGroup.selectAll<SVGLineElement, SimLink>("line.main"),
+        agents,
+      );
+    }
+  }, [agents, selectedAgentId]);
+
+  // ── Handle resize ──
   useEffect(() => {
     const container = containerRef.current;
     const svg = svgRef.current;
@@ -299,4 +446,4 @@ export function AgentGraph() {
       <svg ref={svgRef} style={{ display: "block" }} />
     </div>
   );
-}
+});
