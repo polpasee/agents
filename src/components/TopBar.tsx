@@ -1,7 +1,9 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
+import { UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
+import { calculateTotalCost, formatCost } from "@/lib/costs";
 
 export function TopBar() {
   const agents = useAgentStore((s) => s.agents);
@@ -28,12 +30,13 @@ export function TopBar() {
   ).length;
   const completed = filteredAgents.filter((a) => a.status === "completed").length;
   const errors = filteredAgents.filter((a) => a.status === "error").length;
+  const totalCost = calculateTotalCost(agents);
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b"
       style={{
         background: "var(--color-panel)",
-        borderColor: "#00f5ff33",
+        borderColor: `${UI.primary}33`,
       }}
     >
       {/* Left: Title + Session Selector */}
@@ -42,15 +45,15 @@ export function TopBar() {
           <div
             className="w-2 h-2 rounded-full"
             style={{
-              background: connected ? "#00f5ff" : "#ff4444",
+              background: connected ? UI.primary : UI.error,
               boxShadow: connected
-                ? "0 0 8px #00f5ff, 0 0 16px #00f5ff66"
-                : "0 0 8px #ff4444",
+                ? `0 0 8px ${UI.primary}, 0 0 16px ${UI.primary}66`
+                : `0 0 8px ${UI.error}`,
             }}
           />
           <span
             className="text-base font-bold tracking-widest"
-            style={{ color: "#00f5ff", textShadow: "0 0 8px #00f5ff66" }}
+            style={{ color: UI.primary, textShadow: `0 0 8px ${UI.primary}66` }}
           >
             AGENT MONITOR
           </span>
@@ -71,8 +74,8 @@ export function TopBar() {
             className="text-sm rounded px-2 py-1 outline-none cursor-pointer"
             style={{
               background: "var(--color-border)",
-              color: "#94a3b8",
-              border: "1px solid #00f5ff33",
+              color: UI.text.secondary,
+              border: `1px solid ${UI.primary}33`,
               maxWidth: 280,
             }}
           >
@@ -95,10 +98,11 @@ export function TopBar() {
 
       {/* Right: Stats */}
       <div className="flex gap-6 text-sm">
-        <Stat label="AGENTS" value={total} color="#94a3b8" />
+        <Stat label="AGENTS" value={total} color={UI.text.secondary} />
         <Stat label="ACTIVE" value={active} color="#00ff88" />
         <Stat label="DONE" value={completed} color="#6b7280" />
-        <Stat label="ERRORS" value={errors} color="#ff4444" />
+        <Stat label="ERRORS" value={errors} color={UI.error} />
+        <Stat label="COST" value={formatCost(totalCost.total)} color={UI.primary} />
       </div>
     </div>
   );
@@ -110,11 +114,11 @@ function Stat({
   color,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   color: string;
 }) {
   return (
-    <span style={{ color: "#666" }}>
+    <span style={{ color: UI.text.muted }}>
       {label}:{" "}
       <span style={{ color, textShadow: `0 0 6px ${color}66` }}>{value}</span>
     </span>
