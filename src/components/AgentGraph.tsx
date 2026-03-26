@@ -7,6 +7,7 @@ import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { getTokenPercent } from "@/lib/utils";
 import { GRAPH } from "@/lib/config";
+import { calculateCost, formatCost } from "@/lib/costs";
 import type { AgentState } from "@/lib/types";
 
 export interface AgentGraphHandle {
@@ -25,6 +26,32 @@ interface SimNode extends d3.SimulationNodeDatum {
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
+}
+
+/* ── Hexagonal path generator (flat-top hexagon) ────────── */
+function hexPath(r: number): string {
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    points.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
+  }
+  return `M${points.join("L")}Z`;
+}
+
+/* ── Bezier curve path between two points ───────────────── */
+function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const offset = dist * 0.3;
+  // Perpendicular offset for curve
+  const nx = -dy / (dist || 1) * offset;
+  const ny = dx / (dist || 1) * offset;
+  const cx1 = sx + dx * 0.25 + nx;
+  const cy1 = sy + dy * 0.25 + ny;
+  const cx2 = sx + dx * 0.75 + nx;
+  const cy2 = sy + dy * 0.75 + ny;
+  return `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
 }
 
 /* ── Render the visual elements inside a node <g> ──────── */
@@ -56,8 +83,8 @@ function renderNodeVisuals(
 
   // Pulsing ring for active agents (running or idle/thinking)
   if (isActive) {
-    const ring = g.append("circle")
-      .attr("r", GRAPH.glowRingRadius + 4)
+    const ring = g.append("path")
+      .attr("d", hexPath(GRAPH.glowRingRadius + 4))
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", 1.5)
@@ -67,19 +94,12 @@ function renderNodeVisuals(
       .attr("values", isRunning ? "0.1;0.5;0.1" : "0.05;0.25;0.05")
       .attr("dur", isRunning ? "1.5s" : "2.5s")
       .attr("repeatCount", "indefinite");
-    ring.append("animate")
-      .attr("attributeName", "r")
-      .attr("values", isRunning
-        ? `${GRAPH.glowRingRadius + 2};${GRAPH.glowRingRadius + 8};${GRAPH.glowRingRadius + 2}`
-        : `${GRAPH.glowRingRadius + 1};${GRAPH.glowRingRadius + 5};${GRAPH.glowRingRadius + 1}`)
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
   }
 
   // Outer glow ring for selected/active
   if (isSelected || isActive) {
-    g.append("circle")
-      .attr("r", GRAPH.glowRingRadius)
+    g.append("path")
+      .attr("d", hexPath(GRAPH.glowRingRadius))
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", isSelected ? 2 : 1)
@@ -87,23 +107,37 @@ function renderNodeVisuals(
       .attr("filter", "url(#glow)");
   }
 
-  // Main circle — solid dark background so links don't show through
-  const mainCircle = g.append("circle")
-    .attr("r", GRAPH.nodeRadius)
+  // Main hexagon — solid dark background so links don't show through
+  const mainHex = g.append("path")
+    .attr("d", hexPath(GRAPH.nodeRadius))
     .attr("fill", "var(--color-bg)")
     .attr("stroke", color)
     .attr("stroke-width", 2);
 
   // Subtle stroke pulse for running agents
   if (isRunning) {
-    mainCircle.append("animate")
+    mainHex.append("animate")
       .attr("attributeName", "stroke-opacity")
       .attr("values", "1;0.5;1")
       .attr("dur", "1.5s")
       .attr("repeatCount", "indefinite");
   }
 
-  // Letter inside circle
+  // Cost label above node
+  const cost = calculateCost(agent);
+  if (cost.total >= 0.01) {
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", -GRAPH.nodeRadius - 8)
+      .attr("fill", UI.primary)
+      .attr("font-family", "monospace")
+      .attr("font-size", 10)
+      .attr("font-weight", "bold")
+      .style("pointer-events", "none")
+      .text(formatCost(cost.total));
+  }
+
+  // Letter inside hexagon
   g.append("text")
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central")
@@ -181,12 +215,51 @@ function renderNodeVisuals(
     }
   }
 
+  // Tool call satellite
+  const lastToolCall = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : null;
+  if (lastToolCall && (agent.status === "running" || agent.status === "idle")) {
+    const satG = g.append("g").attr("transform", `translate(${GRAPH.nodeRadius + 50}, 0)`);
+    const toolText = lastToolCall.tool + (lastToolCall.args ? `: ${lastToolCall.args.slice(0, 30)}` : "");
+    const pillW = Math.min(toolText.length * 6 + 16, 180);
+
+    // Connection line to satellite
+    g.append("line")
+      .attr("x1", GRAPH.nodeRadius + 2)
+      .attr("y1", 0)
+      .attr("x2", GRAPH.nodeRadius + 50 - pillW / 2)
+      .attr("y2", 0)
+      .attr("stroke", `${color}44`)
+      .attr("stroke-width", 1)
+      .attr("stroke-dasharray", "3 3");
+
+    // Pill background
+    satG.append("rect")
+      .attr("x", -pillW / 2)
+      .attr("y", -11)
+      .attr("width", pillW)
+      .attr("height", 22)
+      .attr("rx", 11)
+      .attr("fill", "#0a0f1a")
+      .attr("stroke", `${color}44`)
+      .attr("stroke-width", 1);
+
+    // Pill text
+    satG.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", 4)
+      .attr("fill", `${color}cc`)
+      .attr("font-family", "monospace")
+      .attr("font-size", 9)
+      .style("pointer-events", "none")
+      .text(toolText.length > 28 ? toolText.slice(0, 28) + "..." : toolText);
+  }
+
 }
 
 /* ── Update link stroke colors and dash styles ─────────── */
 function updateLinkVisuals(
-  linkGlow: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
-  linkLine: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+  linkGlow: d3.Selection<SVGPathElement, SimLink, SVGGElement, unknown>,
+  linkLine: d3.Selection<SVGPathElement, SimLink, SVGGElement, unknown>,
   agents: Map<string, AgentState>,
 ) {
   const getTargetId = (d: SimLink) =>
@@ -387,19 +460,21 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     d3svg.call(zoom);
     zoomRef.current = zoom;
 
-    // Link groups (glow + main line)
+    // Link groups (glow + main path)
     const linkGroup = canvas.append("g").attr("class", "links");
-    linkGroup.selectAll<SVGLineElement, SimLink>("line.glow")
-      .data(links).join("line").attr("class", "glow")
+    linkGroup.selectAll<SVGPathElement, SimLink>("path.glow")
+      .data(links).join("path").attr("class", "glow")
+      .attr("fill", "none")
       .attr("stroke-width", 6).attr("stroke-opacity", 0.1);
-    linkGroup.selectAll<SVGLineElement, SimLink>("line.main")
-      .data(links).join("line").attr("class", "main")
+    linkGroup.selectAll<SVGPathElement, SimLink>("path.main")
+      .data(links).join("path").attr("class", "main")
+      .attr("fill", "none")
       .attr("stroke-width", 2).attr("stroke-opacity", 0.6);
 
     // Apply initial link colors
     updateLinkVisuals(
-      linkGroup.selectAll<SVGLineElement, SimLink>("line.glow"),
-      linkGroup.selectAll<SVGLineElement, SimLink>("line.main"),
+      linkGroup.selectAll<SVGPathElement, SimLink>("path.glow"),
+      linkGroup.selectAll<SVGPathElement, SimLink>("path.main"),
       agents,
     );
 
@@ -440,8 +515,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     );
 
     // Force simulation — use low alpha when restoring positions
-    const linkGlow = linkGroup.selectAll<SVGLineElement, SimLink>("line.glow");
-    const linkLine = linkGroup.selectAll<SVGLineElement, SimLink>("line.main");
+    const linkGlow = linkGroup.selectAll<SVGPathElement, SimLink>("path.glow");
+    const linkLine = linkGroup.selectAll<SVGPathElement, SimLink>("path.main");
 
     const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
       .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
@@ -450,16 +525,14 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .force("collide", d3.forceCollide<SimNode>().radius(GRAPH.collideRadius))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
-        linkGlow
-          .attr("x1", (d) => (d.source as SimNode).x!)
-          .attr("y1", (d) => (d.source as SimNode).y!)
-          .attr("x2", (d) => (d.target as SimNode).x!)
-          .attr("y2", (d) => (d.target as SimNode).y!);
-        linkLine
-          .attr("x1", (d) => (d.source as SimNode).x!)
-          .attr("y1", (d) => (d.source as SimNode).y!)
-          .attr("x2", (d) => (d.target as SimNode).x!)
-          .attr("y2", (d) => (d.target as SimNode).y!);
+        linkGlow.attr("d", (d) => bezierPath(
+          (d.source as SimNode).x!, (d.source as SimNode).y!,
+          (d.target as SimNode).x!, (d.target as SimNode).y!
+        ));
+        linkLine.attr("d", (d) => bezierPath(
+          (d.source as SimNode).x!, (d.source as SimNode).y!,
+          (d.target as SimNode).x!, (d.target as SimNode).y!
+        ));
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
       });
 
@@ -497,8 +570,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const linkGroup = d3svg.select<SVGGElement>("g.links");
     if (!linkGroup.empty()) {
       updateLinkVisuals(
-        linkGroup.selectAll<SVGLineElement, SimLink>("line.glow"),
-        linkGroup.selectAll<SVGLineElement, SimLink>("line.main"),
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow"),
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.main"),
         agents,
       );
     }
@@ -507,7 +580,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     if (!particleGroup.empty()) {
       particleGroup.selectAll("*").remove();
       const linkGroup = d3svg.select<SVGGElement>("g.links");
-      linkGroup.selectAll<SVGLineElement, SimLink>("line.main").each(function (d) {
+      linkGroup.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
         const targetId = typeof d.target === "string" ? d.target : d.target.id;
         const a = agents.get(targetId);
         if (!a || (a.status !== "running" && a.status !== "idle")) return;
@@ -517,21 +590,16 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         const target = d.target as SimNode;
         if (source.x == null || source.y == null || target.x == null || target.y == null) return;
 
+        const pathD = bezierPath(source.x, source.y, target.x, target.y);
+
         for (let i = 0; i < 2; i++) {
           const particle = particleGroup.append("circle")
             .attr("r", GRAPH.particleRadius)
             .attr("fill", color)
             .attr("opacity", 0);
 
-          particle.append("animate")
-            .attr("attributeName", "cx")
-            .attr("values", `${source.x};${target.x}`)
-            .attr("dur", `${GRAPH.particleSpeed}ms`)
-            .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
-            .attr("repeatCount", "indefinite");
-          particle.append("animate")
-            .attr("attributeName", "cy")
-            .attr("values", `${source.y};${target.y}`)
+          particle.append("animateMotion")
+            .attr("path", pathD)
             .attr("dur", `${GRAPH.particleSpeed}ms`)
             .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
             .attr("repeatCount", "indefinite");

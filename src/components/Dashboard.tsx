@@ -9,7 +9,7 @@ import { AgentList } from "./AgentList";
 import { AgentGraph } from "./AgentGraph";
 import type { AgentGraphHandle } from "./AgentGraph";
 import { AgentDetail } from "./AgentDetail";
-import { ActivityStream } from "./ActivityStream";
+import { TimelineBar } from "./TimelineBar";
 import { GraphControls } from "./GraphControls";
 import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
@@ -55,7 +55,7 @@ export function Dashboard() {
         </div>
         <AgentDetail />
       </div>
-      <ActivityStream />
+      <TimelineBar />
     </div>
   );
 }

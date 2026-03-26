@@ -2,9 +2,9 @@
 @import "../styles/neon.css";
 
 :root {
-  --color-bg: #0a0a1a;
-  --color-panel: #0d1117;
-  --color-border: #1a1a2e;
+  --color-bg: #060a14;
+  --color-panel: #0a0f1a;
+  --color-border: #141e30;
   --color-cyan: #00f5ff;
   --color-magenta: #ff00ff;
   --color-green: #00ff88;
