@@ -8,6 +8,8 @@ export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle 
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const agents = useAgentStore((s) => s.agents);
+  const toggleTranscript = useAgentStore((s) => s.toggleTranscript);
+  const toggleFileAttention = useAgentStore((s) => s.toggleFileAttention);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -20,6 +22,14 @@ export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle 
         case "f":
         case "F":
           graphRef.current?.fitToView();
+          break;
+        case "t":
+        case "T":
+          toggleTranscript();
+          break;
+        case "h":
+        case "H":
+          toggleFileAttention();
           break;
         case "ArrowDown":
         case "ArrowUp": {
@@ -38,5 +48,5 @@ export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectAgent, selectedAgentId, agents, graphRef]);
+  }, [selectAgent, selectedAgentId, agents, graphRef, toggleTranscript, toggleFileAttention]);
 }

@@ -31,6 +31,10 @@ interface AgentStore {
   setViewMode: (mode: "graph" | "timeline") => void;
   hiddenAgentTypes: Set<string>;
   toggleAgentType: (type: string) => void;
+  transcriptOpen: boolean;
+  fileAttentionOpen: boolean;
+  toggleTranscript: () => void;
+  toggleFileAttention: () => void;
 }
 
 let activityCounter = 0;
@@ -188,6 +192,11 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     else next.add(type);
     set({ hiddenAgentTypes: next });
   },
+
+  transcriptOpen: false,
+  fileAttentionOpen: false,
+  toggleTranscript: () => set((s) => ({ transcriptOpen: !s.transcriptOpen })),
+  toggleFileAttention: () => set((s) => ({ fileAttentionOpen: !s.fileAttentionOpen })),
 
   removeAgent: (agentId) => {
     const { agents, edges } = get();

@@ -13,6 +13,8 @@ import { TimelineBar } from "./TimelineBar";
 import { GraphControls } from "./GraphControls";
 import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
+import { TranscriptPanel } from "./TranscriptPanel";
+import { FileAttentionPanel } from "./FileAttentionPanel";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 
@@ -24,6 +26,10 @@ export function Dashboard() {
   const viewMode = useAgentStore((s) => s.viewMode);
   const connected = useAgentStore((s) => s.connected);
   const agentCount = useAgentStore((s) => s.agents.size);
+  const transcriptOpen = useAgentStore((s) => s.transcriptOpen);
+  const toggleTranscript = useAgentStore((s) => s.toggleTranscript);
+  const fileAttentionOpen = useAgentStore((s) => s.fileAttentionOpen);
+  const toggleFileAttention = useAgentStore((s) => s.toggleFileAttention);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
@@ -46,11 +52,21 @@ export function Dashboard() {
           ) : viewMode === "graph" ? (
             <>
               <AgentGraph ref={graphRef} />
-              <GraphControls onFitToView={() => graphRef.current?.fitToView()} />
+              <GraphControls
+                onFitToView={() => graphRef.current?.fitToView()}
+                onToggleTranscript={() => toggleTranscript()}
+                onToggleFileAttention={() => toggleFileAttention()}
+              />
               <MiniMap graphRef={graphRef} />
             </>
           ) : (
             <Timeline />
+          )}
+          {transcriptOpen && (
+            <TranscriptPanel open={transcriptOpen} onClose={() => toggleTranscript()} />
+          )}
+          {fileAttentionOpen && (
+            <FileAttentionPanel open={fileAttentionOpen} onClose={() => toggleFileAttention()} />
           )}
         </div>
         <AgentDetail />

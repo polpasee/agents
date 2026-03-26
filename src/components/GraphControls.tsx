@@ -8,9 +8,11 @@ const FILTER_TYPES = Object.keys(AGENT_COLORS) as AgentType[];
 
 interface GraphControlsProps {
   onFitToView: () => void;
+  onToggleTranscript?: () => void;
+  onToggleFileAttention?: () => void;
 }
 
-export function GraphControls({ onFitToView }: GraphControlsProps) {
+export function GraphControls({ onFitToView, onToggleTranscript, onToggleFileAttention }: GraphControlsProps) {
   const hiddenAgentTypes = useAgentStore((s) => s.hiddenAgentTypes);
   const toggleAgentType = useAgentStore((s) => s.toggleAgentType);
 
@@ -41,6 +43,44 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
       >
         FIT
       </button>
+      {onToggleTranscript && (
+        <button
+          onClick={onToggleTranscript}
+          title="Toggle transcript panel"
+          aria-label="Toggle transcript panel"
+          style={{
+            fontFamily: "monospace",
+            fontSize: 12,
+            color: UI.text.secondary,
+            background: "var(--color-panel)",
+            border: `1px solid ${UI.primary}44`,
+            borderRadius: 4,
+            padding: "4px 10px",
+            cursor: "pointer",
+          }}
+        >
+          TXT
+        </button>
+      )}
+      {onToggleFileAttention && (
+        <button
+          onClick={onToggleFileAttention}
+          title="Toggle file attention heatmap"
+          aria-label="Toggle file attention heatmap"
+          style={{
+            fontFamily: "monospace",
+            fontSize: 12,
+            color: UI.text.secondary,
+            background: "var(--color-panel)",
+            border: `1px solid ${UI.primary}44`,
+            borderRadius: 4,
+            padding: "4px 10px",
+            cursor: "pointer",
+          }}
+        >
+          FILES
+        </button>
+      )}
       <div style={{ display: "flex", gap: 2 }}>
         {FILTER_TYPES.map((type) => {
           const hidden = hiddenAgentTypes.has(type);
