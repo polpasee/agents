@@ -69,35 +69,41 @@ export function TopBar() {
           )}
         </div>
 
-        {/* Session dropdown */}
+        {/* Session tabs */}
         {sessions.length > 0 && (
-          <select
-            value={selectedSessionId || "__all__"}
-            onChange={(e) =>
-              selectSession(e.target.value === "__all__" ? null : e.target.value)
-            }
-            className="text-sm rounded px-2 py-1 outline-none cursor-pointer"
-            style={{
-              background: "var(--color-border)",
-              color: UI.text.secondary,
-              border: `1px solid ${UI.primary}33`,
-              maxWidth: 280,
-            }}
-          >
-            <option value="__all__">All Sessions ({sessions.length})</option>
+          <div className="flex gap-1 ml-2 overflow-x-auto" style={{ maxWidth: 400 }}>
+            <button
+              onClick={() => selectSession(null)}
+              className="px-2 py-0.5 rounded text-xs font-mono flex-shrink-0"
+              style={{
+                background: !selectedSessionId ? `${UI.primary}22` : "transparent",
+                border: `1px solid ${!selectedSessionId ? UI.primary : "var(--color-border)"}`,
+                color: !selectedSessionId ? UI.primary : UI.text.muted,
+              }}
+            >
+              All ({sessions.length})
+            </button>
             {sessions.map((s) => {
-              const label = s.projectName
-                .split("/")
-                .filter(Boolean)
-                .slice(-2)
-                .join("/");
+              const isActive = selectedSessionId === s.sessionId;
+              const label = s.projectName.split("/").filter(Boolean).slice(-2).join("/");
               return (
-                <option key={s.sessionId} value={s.sessionId}>
-                  {label} — {s.task.slice(0, 40)}
-                </option>
+                <button
+                  key={s.sessionId}
+                  onClick={() => selectSession(s.sessionId)}
+                  className="px-2 py-0.5 rounded text-xs font-mono truncate flex-shrink-0"
+                  style={{
+                    maxWidth: 160,
+                    background: isActive ? `${UI.primary}22` : "transparent",
+                    border: `1px solid ${isActive ? UI.primary : "var(--color-border)"}`,
+                    color: isActive ? UI.primary : UI.text.muted,
+                  }}
+                  title={s.task}
+                >
+                  {label}
+                </button>
               );
             })}
-          </select>
+          </div>
         )}
 
         <div className="flex gap-0.5 ml-2">
