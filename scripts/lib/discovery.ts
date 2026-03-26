@@ -11,12 +11,10 @@ import {
   parseAgentType,
   broadcast,
 } from "./agent-state";
-import { readNewLines, extractTaskFromJSONL } from "./file-reader";
+import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
+import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS } from "./config";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-const DISCOVERY_THRESHOLD = 30 * 60 * 1000; // 30 minutes
-const STALE_THRESHOLD = 5 * 60 * 1000; // 5 minutes
 
 export function discoverActiveSessions(projectsDir: string) {
   if (!fs.existsSync(projectsDir)) return;
@@ -53,10 +51,10 @@ export function discoverActiveSessions(projectsDir: string) {
         continue;
       }
       const age = Date.now() - stat.mtimeMs;
-      if (age > DISCOVERY_THRESHOLD) continue;
+      if (age > DISCOVERY_THRESHOLD_MS) continue;
 
       if (!agents.has(sessionId)) {
-        if (removedAgentIds.has(sessionId) && age > STALE_THRESHOLD) continue;
+        if (removedAgentIds.has(sessionId) && age > STALE_THRESHOLD_MS) continue;
         removedAgentIds.delete(sessionId);
 
         const info = extractTaskFromJSONL(filePath);
@@ -113,7 +111,7 @@ export function discoverActiveSessions(projectsDir: string) {
           continue;
         }
         const age = Date.now() - stat.mtimeMs;
-        if (age > DISCOVERY_THRESHOLD) continue;
+        if (age > DISCOVERY_THRESHOLD_MS) continue;
 
         const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
         if (!agentIdMatch) continue;
@@ -121,7 +119,7 @@ export function discoverActiveSessions(projectsDir: string) {
 
         if (agentId.startsWith("compact-")) continue;
 
-        let agentType = parseAgentType();
+        let agentType: ReturnType<typeof parseAgentType> = "generic";
         let description = "";
         const metaFile = `agent-${agentId}.meta.json`;
         if (metaFiles.includes(metaFile)) {
@@ -131,11 +129,18 @@ export function discoverActiveSessions(projectsDir: string) {
             );
             agentType = parseAgentType(meta.agentType);
             description = meta.description || "";
-          } catch { /* ignore */ }
+          } catch (err) {
+            console.warn(`Failed to read meta file ${metaFile}:`, err);
+          }
+        }
+
+        // If no meta file, try to infer type from description
+        if (agentType === "generic" && description) {
+          agentType = parseAgentType(description);
         }
 
         if (!agents.has(agentId)) {
-          if (removedAgentIds.has(agentId) && age > STALE_THRESHOLD) continue;
+          if (removedAgentIds.has(agentId) && age > STALE_THRESHOLD_MS) continue;
           removedAgentIds.delete(agentId);
 
           const info = extractTaskFromJSONL(filePath);
@@ -172,10 +177,10 @@ export function discoverActiveSessions(projectsDir: string) {
     if (agent.status === "running" || agent.status === "idle") {
       const lastMod = agentLastModified.get(agentId) || agent.startTime;
       const timeSinceModified = Date.now() - lastMod;
-      if (timeSinceModified > STALE_THRESHOLD) {
+      if (timeSinceModified > STALE_THRESHOLD_MS) {
         agents.delete(agentId);
         agentLastModified.delete(agentId);
-        removedAgentIds.add(agentId);
+        removedAgentIds.set(agentId, Date.now());
         for (let i = edges.length - 1; i >= 0; i--) {
           if (edges[i].source === agentId || edges[i].target === agentId) {
             edges.splice(i, 1);
@@ -185,4 +190,15 @@ export function discoverActiveSessions(projectsDir: string) {
       }
     }
   }
+
+  // Purge old entries from removedAgentIds to prevent memory leak
+  const now = Date.now();
+  for (const [id, removedAt] of removedAgentIds) {
+    if (now - removedAt > REMOVED_IDS_TTL_MS) {
+      removedAgentIds.delete(id);
+    }
+  }
+
+  // Clean up file offsets for deleted files
+  cleanupFileOffsets();
 }

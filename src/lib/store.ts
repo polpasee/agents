@@ -58,7 +58,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   handleEvent: (event, timestamp) => {
-    const { agents, edges, activity } = get();
+    const { agents, edges, activity, recording, recordedEvents } = get();
     const newAgents = new Map(agents);
     let newEdges = edges;
 
@@ -142,7 +142,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       { id: `act-${++activityCounter}`, timestamp, event },
     ].slice(-ACTIVITY_MAX_ENTRIES);
 
-    const { recording, recordedEvents } = get();
+    // recording/recordedEvents already destructured above
     set({
       agents: newAgents,
       edges: newEdges,

@@ -35,10 +35,10 @@ export function Timeline() {
         const color = AGENT_COLORS[agent.agentType];
         const statusColor = STATUS_COLORS[agent.status];
         const startPct = ((agent.startTime - earliest) / totalRange) * 100;
-        const endTime = agent.duration ? agent.startTime + agent.duration : now;
+        const endTime = agent.duration != null ? agent.startTime + agent.duration : now;
         const widthPct = Math.max(((endTime - agent.startTime) / totalRange) * 100, 1);
         const isSelected = agent.id === selectedAgentId;
-        const elapsed = agent.duration || now - agent.startTime;
+        const elapsed = agent.duration ?? (now - agent.startTime);
 
         return (
           <div
@@ -72,7 +72,7 @@ export function Timeline() {
                 }}
               >
                 {agent.toolCalls.map((tc, i) => {
-                  const tickPct = ((tc.timestamp - agent.startTime) / (endTime - agent.startTime)) * 100;
+                  const tickPct = ((tc.timestamp - agent.startTime) / (endTime - agent.startTime || 1)) * 100;
                   return (
                     <div
                       key={i}

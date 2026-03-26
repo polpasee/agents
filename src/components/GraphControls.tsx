@@ -11,6 +11,7 @@ const FILTER_TYPES: AgentType[] = [
   "build",
   "review",
   "test",
+  "team-lead",
   "generic",
 ];
 

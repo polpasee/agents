@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS } from "@/lib/colors";
+import { AGENT_COLORS, UI } from "@/lib/colors";
+import { truncateId } from "@/lib/utils";
 import type { AgentEvent } from "@/lib/types";
 
 export function ActivityStream() {
@@ -36,7 +37,7 @@ export function ActivityStream() {
         className="flex-1 overflow-y-auto custom-scrollbar px-3 py-1 space-y-0.5"
       >
         {activity.length === 0 && (
-          <div className="text-sm text-center py-4" style={{ color: "#444" }}>
+          <div className="text-sm text-center py-4" style={{ color: UI.text.empty }}>
             Waiting for agent activity...
           </div>
         )}
@@ -85,16 +86,16 @@ function ActivityLine({
           {event.parentId && (
             <>
               <span style={{ color: getAgentColor(event.parentId) }}>
-                {event.parentId.slice(0, 8)}
+                {truncateId(event.parentId)}
               </span>
               {" spawned "}
             </>
           )}
           <span style={{ color: getAgentColor(event.agentId) }}>
-            {event.agentType}:{event.agentId.slice(0, 8)}
+            {event.agentType}:{truncateId(event.agentId)}
           </span>
           {" — "}
-          <span style={{ color: "#666" }}>&quot;{event.task}&quot;</span>
+          <span style={{ color: UI.text.muted }}>&quot;{event.task}&quot;</span>
         </>
       );
       break;
@@ -102,12 +103,12 @@ function ActivityLine({
       content = (
         <>
           <span style={{ color: getAgentColor(event.agentId) }}>
-            {event.agentId.slice(0, 8)}
+            {truncateId(event.agentId)}
           </span>
           {" → "}
           <span className="capitalize">{event.status}</span>
           {event.message && (
-            <span style={{ color: "#666" }}> — {event.message}</span>
+            <span style={{ color: UI.text.muted }}> — {event.message}</span>
           )}
         </>
       );
@@ -116,12 +117,12 @@ function ActivityLine({
       content = (
         <>
           <span style={{ color: getAgentColor(event.agentId) }}>
-            {event.agentId.slice(0, 8)}
+            {truncateId(event.agentId)}
           </span>
           {" called "}
-          <span style={{ color: "#ffaa00" }}>{event.tool}</span>
+          <span style={{ color: UI.tool }}>{event.tool}</span>
           {event.args && (
-            <span style={{ color: "#666" }}> — {event.args}</span>
+            <span style={{ color: UI.text.muted }}> — {event.args}</span>
           )}
         </>
       );
@@ -130,14 +131,14 @@ function ActivityLine({
       content = (
         <>
           <span style={{ color: getAgentColor(event.fromId) }}>
-            {event.fromId.slice(0, 8)}
+            {truncateId(event.fromId)}
           </span>
           {" → "}
           <span style={{ color: getAgentColor(event.toId) }}>
-            {event.toId.slice(0, 8)}
+            {truncateId(event.toId)}
           </span>
           {" — "}
-          <span style={{ color: "#666" }}>&quot;{event.content}&quot;</span>
+          <span style={{ color: UI.text.muted }}>&quot;{event.content}&quot;</span>
         </>
       );
       break;
@@ -145,11 +146,11 @@ function ActivityLine({
       content = (
         <>
           <span style={{ color: getAgentColor(event.agentId) }}>
-            {event.agentId.slice(0, 8)}
+            {truncateId(event.agentId)}
           </span>
           {" completed"}
           {event.summary && (
-            <span style={{ color: "#666" }}> — {event.summary}</span>
+            <span style={{ color: UI.text.muted }}> — {event.summary}</span>
           )}
         </>
       );
@@ -162,7 +163,7 @@ function ActivityLine({
 
   return (
     <div className="text-sm leading-relaxed animate-fade-in-up" style={{ color: "#475569" }}>
-      <span style={{ color: "#00f5ff" }}>{time}</span> {content}
+      <span style={{ color: UI.primary }}>{time}</span> {content}
     </div>
   );
 }

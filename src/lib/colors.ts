@@ -1,5 +1,21 @@
 import type { AgentType, AgentStatus } from "./types";
 
+/** Semantic UI colors used across components */
+export const UI = {
+  primary: "#00f5ff",
+  error: "#ff4444",
+  tool: "#ffaa00",
+  cache: { read: "#00ff88", write: "#ffaa00" },
+  text: {
+    primary: "#e2e8f0",
+    secondary: "#94a3b8",
+    muted: "#666",
+    dimmed: "#555",
+    empty: "#444",
+  },
+  model: "#a78bfa",
+} as const;
+
 export const AGENT_COLORS: Record<AgentType, string> = {
   main: "#00f5ff",
   explore: "#ff00ff",

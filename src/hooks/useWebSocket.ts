@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
+import { WS_URL, WS_RECONNECT_DELAY_MS } from "@/lib/config";
 import type { ServerEvent } from "@/lib/types";
-
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4001";
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -13,8 +12,10 @@ export function useWebSocket() {
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout>;
+    let destroyed = false;
 
     function connect() {
+      if (destroyed) return;
       const ws = new WebSocket(`${WS_URL}?role=viewer`);
       wsRef.current = ws;
 
@@ -36,14 +37,16 @@ export function useWebSocket() {
               removeAgent(event.agentId);
               break;
           }
-        } catch {
-          // Ignore malformed messages
+        } catch (err) {
+          console.warn("Failed to parse WebSocket message:", err);
         }
       };
 
       ws.onclose = () => {
         setConnected(false);
-        reconnectTimer = setTimeout(connect, 2000);
+        if (!destroyed) {
+          reconnectTimer = setTimeout(connect, WS_RECONNECT_DELAY_MS);
+        }
       };
 
       ws.onerror = () => {
@@ -54,6 +57,7 @@ export function useWebSocket() {
     connect();
 
     return () => {
+      destroyed = true;
       clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };

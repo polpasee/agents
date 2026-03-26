@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
@@ -8,8 +9,16 @@ import { calculateCost, formatCost } from "@/lib/costs";
 export function AgentDetail() {
   const agents = useAgentStore((s) => s.agents);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
-
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
+
+  // Live timer for running agents — force re-render every second
+  const [, tick] = useState(0);
+  const isRunning = agent && agent.status !== "completed" && agent.status !== "error";
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
 
   if (!agent) {
     return (

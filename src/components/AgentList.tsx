@@ -1,7 +1,7 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 
 export function AgentList() {
@@ -21,13 +21,13 @@ export function AgentList() {
     >
       <div
         className="px-3 py-2 text-xs uppercase tracking-wider"
-        style={{ color: "#666", borderBottom: "1px solid var(--color-border)" }}
+        style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
       >
         Agents ({agentList.length})
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
         {agentList.length === 0 && (
-          <div className="text-sm text-center py-8" style={{ color: "#444" }}>
+          <div className="text-sm text-center py-8" style={{ color: UI.text.empty }}>
             No agents connected
           </div>
         )}
@@ -51,7 +51,7 @@ export function AgentList() {
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{ background: color, boxShadow: `0 0 4px ${color}` }}
                 />
-                <span className="text-sm truncate" style={{ color: isSelected ? color : "#94a3b8" }}>
+                <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
                   {AGENT_LABELS[agent.agentType]}
                 </span>
               </div>
@@ -66,7 +66,7 @@ export function AgentList() {
               </div>
               <div
                 className="text-xs truncate mt-0.5 ml-3"
-                style={{ color: "#555" }}
+                style={{ color: UI.text.dimmed }}
               >
                 {agent.task}
               </div>

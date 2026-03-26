@@ -7,13 +7,21 @@ import type {
   ServerEvent,
   ToolCallEntry,
 } from "../../src/lib/types";
+import {
+  STATUS_RUNNING_THRESHOLD_MS,
+  STATUS_IDLE_THRESHOLD_MS,
+  MAX_TOOL_CALLS_PER_AGENT,
+  INLINE_ARGS_MAX_KEYS,
+  MAX_ARG_PREVIEW_LENGTH,
+} from "./config";
 
 // ── State ──────────────────────────────────────────────
 export const agents = new Map<string, AgentState>();
 export const edges: EdgeState[] = [];
 export const viewers = new Set<WebSocket>();
 export const agentLastModified = new Map<string, number>();
-export const removedAgentIds = new Set<string>();
+/** Tracks when each agent was removed so we can purge old entries */
+export const removedAgentIds = new Map<string, number>();
 
 // ── Broadcast ──────────────────────────────────────────
 export function broadcast(event: ServerEvent) {
@@ -73,7 +81,7 @@ export function registerAgent(opts: {
 
   agents.set(opts.agentId, agent);
 
-  if (opts.parentId && agents.has(opts.parentId)) {
+  if (opts.parentId && !edges.some(e => e.source === opts.parentId && e.target === opts.agentId)) {
     edges.push({ source: opts.parentId, target: opts.agentId });
   }
 
@@ -99,7 +107,7 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
   if (mtimeMs > prev) agentLastModified.set(agentId, mtimeMs);
 
   const timeSinceModified = Date.now() - mtimeMs;
-  if (timeSinceModified < 10000) {
+  if (timeSinceModified < STATUS_RUNNING_THRESHOLD_MS) {
     if (agent.status !== "running") {
       agent.status = "running";
       broadcast({
@@ -108,7 +116,7 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
         timestamp: Date.now(),
       });
     }
-  } else if (timeSinceModified < 60000) {
+  } else if (timeSinceModified < STATUS_IDLE_THRESHOLD_MS) {
     if (agent.status === "running") {
       agent.status = "idle";
       broadcast({
@@ -139,12 +147,12 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
         let argsStr: string | undefined;
         if (input) {
           const keys = Object.keys(input);
-          if (keys.length <= 2) {
+          if (keys.length <= INLINE_ARGS_MAX_KEYS) {
             argsStr = keys
               .map((k) => {
                 const v = input[k];
                 const s = typeof v === "string" ? v : JSON.stringify(v);
-                return `${k}: ${s?.slice(0, 60)}`;
+                return `${k}: ${s?.slice(0, MAX_ARG_PREVIEW_LENGTH)}`;
               })
               .join(", ");
           } else {
@@ -163,8 +171,8 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
         if (agent) {
           const tc: ToolCallEntry = { tool: toolName, args: argsStr, timestamp };
           agent.toolCalls.push(tc);
-          if (agent.toolCalls.length > 20) {
-            agent.toolCalls = agent.toolCalls.slice(-20);
+          if (agent.toolCalls.length > MAX_TOOL_CALLS_PER_AGENT) {
+            agent.toolCalls = agent.toolCalls.slice(-MAX_TOOL_CALLS_PER_AGENT);
           }
           agent.status = "running";
         }

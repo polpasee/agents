@@ -1,31 +1,34 @@
 import * as fs from "fs";
+import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
 
 const fileOffsets = new Map<string, number>();
 
 /** Strip XML/HTML tags and clean up internal command markup from task text */
 function cleanTaskText(raw: string): string {
-  // Strip all XML/HTML tags
   let text = raw.replace(/<[^>]+>/g, " ");
-  // Collapse whitespace
   text = text.replace(/\s+/g, " ").trim();
   return text;
 }
+
+const READ_MAX_BYTES = 512 * 1024; // 512KB max per poll cycle
 
 export function readNewLines(filePath: string): string[] {
   const offset = fileOffsets.get(filePath) || 0;
   let stat: fs.Stats;
   try {
     stat = fs.statSync(filePath);
-  } catch {
+  } catch (err) {
+    console.warn(`Failed to stat ${filePath}:`, err);
     return [];
   }
   if (stat.size <= offset) return [];
 
+  const bytesToRead = Math.min(stat.size - offset, READ_MAX_BYTES);
   const fd = fs.openSync(filePath, "r");
-  const buf = Buffer.alloc(stat.size - offset);
+  const buf = Buffer.alloc(bytesToRead);
   fs.readSync(fd, buf, 0, buf.length, offset);
   fs.closeSync(fd);
-  fileOffsets.set(filePath, stat.size);
+  fileOffsets.set(filePath, offset + bytesToRead);
 
   return buf
     .toString("utf-8")
@@ -35,7 +38,7 @@ export function readNewLines(filePath: string): string[] {
 
 export function extractTaskFromJSONL(
   filePath: string,
-  maxBytes = 16384
+  maxBytes = JSONL_MAX_BYTES
 ): { task: string; slug: string; model: string; startTime?: number } {
   const result = { task: "", slug: "", model: "", startTime: undefined as number | undefined };
   try {
@@ -56,15 +59,28 @@ export function extractTaskFromJSONL(
         if (parsed.message?.role === "user" && !result.task) {
           const content = parsed.message.content;
           if (typeof content === "string") {
-            result.task = cleanTaskText(content).slice(0, 100);
+            result.task = cleanTaskText(content).slice(0, MAX_TASK_LENGTH);
           } else if (Array.isArray(content)) {
             const textBlock = content.find((b: Record<string, unknown>) => b.type === "text");
-            if (textBlock) result.task = cleanTaskText(textBlock.text as string).slice(0, 100);
+            if (textBlock && typeof textBlock.text === "string") {
+              result.task = cleanTaskText(textBlock.text).slice(0, MAX_TASK_LENGTH);
+            }
           }
         }
         if (result.task && result.model) break;
       } catch { /* skip malformed lines */ }
     }
-  } catch { /* ignore */ }
+  } catch (err) {
+    console.warn(`Failed to extract task from ${filePath}:`, err);
+  }
   return result;
+}
+
+/** Remove tracked offsets for files that no longer exist (prevents memory leak) */
+export function cleanupFileOffsets() {
+  for (const filePath of fileOffsets.keys()) {
+    if (!fs.existsSync(filePath)) {
+      fileOffsets.delete(filePath);
+    }
+  }
 }

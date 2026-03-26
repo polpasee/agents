@@ -3,9 +3,18 @@
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 
+let sharedCtx: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!sharedCtx || sharedCtx.state === "closed") {
+    sharedCtx = new AudioContext();
+  }
+  return sharedCtx;
+}
+
 function playTone(frequency: number, duration: number, volume = 0.1) {
   try {
-    const ctx = new AudioContext();
+    const ctx = getAudioContext();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
