@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useSoundNotifications } from "@/hooks/useSoundNotifications";
 import { TopBar } from "./TopBar";
 import { AgentList } from "./AgentList";
 import { AgentGraph } from "./AgentGraph";
@@ -12,6 +13,7 @@ import { GraphControls } from "./GraphControls";
 
 export function Dashboard() {
   useWebSocket();
+  useSoundNotifications();
   const graphRef = useRef<AgentGraphHandle>(null);
 
   return (
