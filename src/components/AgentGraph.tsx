@@ -123,6 +123,61 @@ function renderNodeVisuals(
       .attr("repeatCount", "indefinite");
   }
 
+  // Context usage ring
+  const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+  if (totalTokens > 0 && agent.contextWindow > 0) {
+    const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
+    const ringR = GRAPH.nodeRadius + 5;
+    const segments = [
+      { value: agent.inputTokens, color: UI.primary },           // cyan - input
+      { value: agent.outputTokens, color: "#00ff88" },            // green - output
+      { value: agent.cacheReadTokens, color: "#3b82f6" },         // blue - cache read
+      { value: agent.cacheCreateTokens, color: "#ffaa00" },       // amber - cache write
+    ].filter(s => s.value > 0);
+
+    let startAngle = -Math.PI / 2; // start from top
+
+    for (const seg of segments) {
+      const sweepAngle = (seg.value / agent.contextWindow) * Math.PI * 2;
+      if (sweepAngle < 0.01) continue;
+      const endAngle = startAngle + sweepAngle;
+      const x1 = ringR * Math.cos(startAngle);
+      const y1 = ringR * Math.sin(startAngle);
+      const x2 = ringR * Math.cos(endAngle);
+      const y2 = ringR * Math.sin(endAngle);
+      const largeArc = sweepAngle > Math.PI ? 1 : 0;
+
+      g.append("path")
+        .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
+        .attr("fill", "none")
+        .attr("stroke", seg.color)
+        .attr("stroke-width", 3)
+        .attr("stroke-opacity", 0.7)
+        .attr("stroke-linecap", "round");
+
+      startAngle = endAngle;
+    }
+
+    // Background track for remaining capacity
+    if (usagePct < 1) {
+      const remainAngle = startAngle;
+      const endAngle = -Math.PI / 2 + Math.PI * 2;
+      if (endAngle - remainAngle > 0.01) {
+        const x1 = ringR * Math.cos(remainAngle);
+        const y1 = ringR * Math.sin(remainAngle);
+        const x2 = ringR * Math.cos(endAngle);
+        const y2 = ringR * Math.sin(endAngle);
+        const largeArc = (endAngle - remainAngle) > Math.PI ? 1 : 0;
+        g.append("path")
+          .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
+          .attr("fill", "none")
+          .attr("stroke", UI.text.empty)
+          .attr("stroke-width", 2)
+          .attr("stroke-opacity", 0.15);
+      }
+    }
+  }
+
   // Cost label above node
   const cost = calculateCost(agent);
   if (cost.total >= 0.01) {
@@ -459,6 +514,31 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .on("zoom", (event) => canvas.attr("transform", event.transform));
     d3svg.call(zoom);
     zoomRef.current = zoom;
+
+    // Background hex grid pattern
+    const gridSize = 30;
+    const gridPattern = defs.append("pattern")
+      .attr("id", "hexGrid")
+      .attr("patternUnits", "userSpaceOnUse")
+      .attr("width", gridSize * Math.sqrt(3))
+      .attr("height", gridSize * 3)
+      .attr("patternTransform", "rotate(0)");
+
+    // Draw one hex cell in the pattern
+    const hx = gridSize * Math.sqrt(3) / 2;
+    const hy = gridSize;
+    gridPattern.append("path")
+      .attr("d", `M${hx},0 L${hx*2},${hy*0.5} L${hx*2},${hy*1.5} L${hx},${hy*2} L0,${hy*1.5} L0,${hy*0.5}Z`)
+      .attr("fill", "none")
+      .attr("stroke", "#141e30")
+      .attr("stroke-width", 0.5)
+      .attr("stroke-opacity", 0.3);
+
+    // Apply grid as background rect behind everything
+    canvas.append("rect")
+      .attr("x", -10000).attr("y", -10000)
+      .attr("width", 20000).attr("height", 20000)
+      .attr("fill", "url(#hexGrid)");
 
     // Link groups (glow + main path)
     const linkGroup = canvas.append("g").attr("class", "links");
