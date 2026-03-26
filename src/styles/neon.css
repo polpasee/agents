@@ -74,15 +74,6 @@
   animation: fade-in-up 0.3s ease-out forwards;
 }
 
-@keyframes pixel-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
-
-.animate-pixel-bounce {
-  animation: pixel-bounce 1s ease-in-out infinite;
-}
-
 /* Neon text glow */
 .neon-text {
   text-shadow: 0 0 8px currentColor, 0 0 16px currentColor;

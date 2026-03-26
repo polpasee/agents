@@ -2,6 +2,7 @@
 
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { getTokenPercent, formatNumber } from "@/lib/utils";
 
 export function AgentDetail() {
   const agents = useAgentStore((s) => s.agents);
@@ -14,12 +15,12 @@ export function AgentDetail() {
       <div
         className="flex flex-col h-full items-center justify-center"
         style={{
-          width: 250,
-          background: "#0d1117",
-          borderLeft: "1px solid #1a1a2e",
+          width: 300,
+          background: "var(--color-panel)",
+          borderLeft: "1px solid var(--color-border)",
         }}
       >
-        <span className="text-[11px]" style={{ color: "#444" }}>
+        <span className="text-sm" style={{ color: "#444" }}>
           Select an agent to inspect
         </span>
       </div>
@@ -29,10 +30,7 @@ export function AgentDetail() {
   const color = AGENT_COLORS[agent.agentType];
   const statusColor = STATUS_COLORS[agent.status];
   const totalTokens = agent.inputTokens + agent.outputTokens;
-  const tokenPercent =
-    agent.contextWindow > 0
-      ? Math.min((totalTokens / agent.contextWindow) * 100, 100)
-      : 0;
+  const tokenPercent = getTokenPercent(agent);
 
   const elapsed = agent.duration
     ? agent.duration
@@ -46,9 +44,9 @@ export function AgentDetail() {
     <div
       className="flex flex-col h-full overflow-hidden"
       style={{
-        width: 250,
-        background: "#0d1117",
-        borderLeft: "1px solid #1a1a2e",
+        width: 300,
+        background: "var(--color-panel)",
+        borderLeft: "1px solid var(--color-border)",
       }}
     >
       {/* Header */}
@@ -61,11 +59,11 @@ export function AgentDetail() {
             className="w-2 h-2 rounded-full"
             style={{ background: color, boxShadow: `0 0 6px ${color}` }}
           />
-          <span className="text-xs font-bold" style={{ color }}>
+          <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
         </div>
-        <div className="text-[9px] mt-0.5 truncate" style={{ color: "#555" }}>
+        <div className="text-xs mt-0.5 truncate" style={{ color: "#555" }}>
           {agent.id}
         </div>
       </div>
@@ -79,7 +77,7 @@ export function AgentDetail() {
               className="w-1.5 h-1.5 rounded-full"
               style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
             />
-            <span className="capitalize text-[11px]" style={{ color: statusColor }}>
+            <span className="capitalize text-sm" style={{ color: statusColor }}>
               {agent.status}
             </span>
           </div>
@@ -88,7 +86,7 @@ export function AgentDetail() {
         {/* Model */}
         {agent.model && (
           <DetailRow label="MODEL">
-            <span className="text-[11px]" style={{ color: "#a78bfa" }}>
+            <span className="text-sm" style={{ color: "#a78bfa" }}>
               {agent.model}
             </span>
           </DetailRow>
@@ -97,7 +95,7 @@ export function AgentDetail() {
         {/* Slug */}
         {agent.slug && (
           <DetailRow label="SLUG">
-            <span className="text-[10px]" style={{ color: "#666" }}>
+            <span className="text-xs" style={{ color: "#666" }}>
               {agent.slug}
             </span>
           </DetailRow>
@@ -105,7 +103,7 @@ export function AgentDetail() {
 
         {/* Task */}
         <DetailRow label="CURRENT TASK">
-          <span className="text-[11px]" style={{ color: "#e2e8f0" }}>
+          <span className="text-sm" style={{ color: "#e2e8f0" }}>
             {agent.task}
           </span>
         </DetailRow>
@@ -114,16 +112,16 @@ export function AgentDetail() {
         <DetailRow label="TOKENS">
           <div>
             <div className="flex items-baseline gap-1">
-              <span className="text-[11px]" style={{ color: "#00f5ff" }}>
+              <span className="text-sm" style={{ color: "#00f5ff" }}>
                 {formatNumber(totalTokens)}
               </span>
-              <span className="text-[10px]" style={{ color: "#555" }}>
+              <span className="text-xs" style={{ color: "#555" }}>
                 / {formatNumber(agent.contextWindow)}
               </span>
             </div>
             <div
               className="mt-1 h-1 rounded-full overflow-hidden"
-              style={{ background: "#1a1a2e" }}
+              style={{ background: "var(--color-border)" }}
             >
               <div
                 className="h-full rounded-full transition-all duration-500"
@@ -134,7 +132,7 @@ export function AgentDetail() {
                 }}
               />
             </div>
-            <div className="flex gap-3 mt-1.5 text-[9px]">
+            <div className="flex gap-3 mt-1.5 text-xs">
               <span style={{ color: "#555" }}>
                 in: <span style={{ color: "#94a3b8" }}>{formatNumber(agent.inputTokens)}</span>
               </span>
@@ -143,7 +141,7 @@ export function AgentDetail() {
               </span>
             </div>
             {(agent.cacheReadTokens > 0 || agent.cacheCreateTokens > 0) && (
-              <div className="flex gap-3 text-[9px]">
+              <div className="flex gap-3 text-xs">
                 <span style={{ color: "#555" }}>
                   cache read: <span style={{ color: "#00ff88" }}>{formatNumber(agent.cacheReadTokens)}</span>
                 </span>
@@ -157,7 +155,7 @@ export function AgentDetail() {
 
         {/* Duration */}
         <DetailRow label="DURATION">
-          <span className="text-[11px]" style={{ color: "#94a3b8" }}>
+          <span className="text-sm" style={{ color: "#94a3b8" }}>
             {minutes}m {seconds}s
           </span>
         </DetailRow>
@@ -166,14 +164,14 @@ export function AgentDetail() {
         <DetailRow label="RECENT TOOLS">
           <div className="space-y-1">
             {recentTools.length === 0 && (
-              <span className="text-[10px]" style={{ color: "#444" }}>
+              <span className="text-xs" style={{ color: "#444" }}>
                 No tool calls yet
               </span>
             )}
             {recentTools.map((tc, i) => (
               <div
                 key={i}
-                className="text-[10px] px-1.5 py-0.5 rounded"
+                className="text-xs px-1.5 py-0.5 rounded"
                 style={{ background: "#1a1a2e", color: "#ffaa00" }}
               >
                 {tc.tool}
@@ -188,7 +186,7 @@ export function AgentDetail() {
         {/* Summary (if completed) */}
         {agent.summary && (
           <DetailRow label="SUMMARY">
-            <span className="text-[10px]" style={{ color: "#94a3b8" }}>
+            <span className="text-xs" style={{ color: "#94a3b8" }}>
               {agent.summary}
             </span>
           </DetailRow>
@@ -208,7 +206,7 @@ function DetailRow({
   return (
     <div>
       <div
-        className="text-[8px] uppercase tracking-wider mb-0.5"
+        className="text-xs uppercase tracking-wider mb-0.5"
         style={{ color: "#555" }}
       >
         {label}
@@ -218,8 +216,3 @@ function DetailRow({
   );
 }
 
-function formatNumber(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}

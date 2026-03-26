@@ -1,6 +1,7 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
+import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 
 export function TopBar() {
   const agents = useAgentStore((s) => s.agents);
@@ -19,14 +20,7 @@ export function TopBar() {
       task: a.task,
     }));
 
-  // Filter agents by selected session
-  const filteredAgents = selectedSessionId
-    ? allAgents.filter((a) => {
-        const mainAgent = a.parentId ? agents.get(a.parentId) : a;
-        const sid = mainAgent?.sessionId || mainAgent?.id;
-        return sid === selectedSessionId;
-      })
-    : allAgents;
+  const filteredAgents = useFilteredAgents();
 
   const total = filteredAgents.length;
   const active = filteredAgents.filter(
@@ -36,9 +30,9 @@ export function TopBar() {
   const errors = filteredAgents.filter((a) => a.status === "error").length;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2 border-b"
+    <div className="flex items-center justify-between px-4 py-3 border-b"
       style={{
-        background: "#0d1117",
+        background: "var(--color-panel)",
         borderColor: "#00f5ff33",
       }}
     >
@@ -55,13 +49,13 @@ export function TopBar() {
             }}
           />
           <span
-            className="text-sm font-bold tracking-widest"
+            className="text-base font-bold tracking-widest"
             style={{ color: "#00f5ff", textShadow: "0 0 8px #00f5ff66" }}
           >
             AGENT MONITOR
           </span>
           {!connected && (
-            <span className="text-[10px] text-red-400 ml-2">
+            <span className="text-xs text-red-400 ml-2">
               DISCONNECTED
             </span>
           )}
@@ -74,9 +68,9 @@ export function TopBar() {
             onChange={(e) =>
               selectSession(e.target.value === "__all__" ? null : e.target.value)
             }
-            className="text-[11px] rounded px-2 py-1 outline-none cursor-pointer"
+            className="text-sm rounded px-2 py-1 outline-none cursor-pointer"
             style={{
-              background: "#1a1a2e",
+              background: "var(--color-border)",
               color: "#94a3b8",
               border: "1px solid #00f5ff33",
               maxWidth: 280,
@@ -100,7 +94,7 @@ export function TopBar() {
       </div>
 
       {/* Right: Stats */}
-      <div className="flex gap-6 text-xs">
+      <div className="flex gap-6 text-sm">
         <Stat label="AGENTS" value={total} color="#94a3b8" />
         <Stat label="ACTIVE" value={active} color="#00ff88" />
         <Stat label="DONE" value={completed} color="#6b7280" />

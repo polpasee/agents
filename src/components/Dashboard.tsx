@@ -11,7 +11,7 @@ export function Dashboard() {
   useWebSocket();
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "#0a0a1a" }}>
+    <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
       <TopBar />
       <div className="flex flex-1 min-h-0">
         <AgentList />
