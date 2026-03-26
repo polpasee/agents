@@ -162,7 +162,7 @@ function ActivityLine({
   }
 
   return (
-    <div className="text-sm leading-relaxed animate-fade-in-up" style={{ color: "#475569" }}>
+    <div className="text-sm leading-relaxed animate-fade-in-up" style={{ color: UI.text.secondary }}>
       <span style={{ color: UI.primary }}>{time}</span> {content}
     </div>
   );

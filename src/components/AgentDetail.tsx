@@ -41,7 +41,7 @@ export function AgentDetail() {
   const statusColor = STATUS_COLORS[agent.status];
   const totalTokens = agent.inputTokens + agent.outputTokens;
   const tokenPercent = getTokenPercent(agent);
-  const elapsed = agent.duration || Date.now() - agent.startTime;
+  const elapsed = agent.duration ?? (Date.now() - agent.startTime);
 
   const recentTools = agent.toolCalls.slice(-5).reverse();
 
@@ -184,7 +184,7 @@ export function AgentDetail() {
               <div
                 key={i}
                 className="text-xs px-1.5 py-0.5 rounded"
-                style={{ background: "#1a1a2e", color: UI.tool }}
+                style={{ background: "var(--color-border)", color: UI.tool }}
               >
                 {tc.tool}
                 {tc.args && (

@@ -135,6 +135,9 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         }
         break;
       }
+      case "agent:message":
+        // Message events are recorded in activity log but don't modify agent state
+        break;
     }
 
     const newActivity = [

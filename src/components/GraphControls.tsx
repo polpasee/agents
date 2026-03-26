@@ -4,16 +4,7 @@ import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import type { AgentType } from "@/lib/types";
 
-const FILTER_TYPES: AgentType[] = [
-  "main",
-  "explore",
-  "plan",
-  "build",
-  "review",
-  "test",
-  "team-lead",
-  "generic",
-];
+const FILTER_TYPES = Object.keys(AGENT_COLORS) as AgentType[];
 
 interface GraphControlsProps {
   onFitToView: () => void;
@@ -28,6 +19,7 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
       <button
         onClick={onFitToView}
         title="Fit all agents into view"
+        aria-label="Fit all agents into view"
         style={{
           fontFamily: "monospace",
           fontSize: 12,
@@ -59,6 +51,8 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
               key={type}
               onClick={() => toggleAgentType(type)}
               title={`${hidden ? "Show" : "Hide"} ${AGENT_LABELS[type]} agents`}
+              aria-label={`${hidden ? "Show" : "Hide"} ${AGENT_LABELS[type]} agents`}
+              aria-pressed={!hidden}
               style={{
                 fontFamily: "monospace",
                 fontSize: 10,

@@ -14,6 +14,7 @@ import { GraphControls } from "./GraphControls";
 import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
 import { useAgentStore } from "@/lib/store";
+import { UI } from "@/lib/colors";
 
 export function Dashboard() {
   useWebSocket();
@@ -21,6 +22,8 @@ export function Dashboard() {
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
   const viewMode = useAgentStore((s) => s.viewMode);
+  const connected = useAgentStore((s) => s.connected);
+  const agentCount = useAgentStore((s) => s.agents.size);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
@@ -28,7 +31,19 @@ export function Dashboard() {
       <div className="flex flex-1 min-h-0">
         <AgentList />
         <div className="relative flex-1 h-full">
-          {viewMode === "graph" ? (
+          {!connected && agentCount === 0 ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div
+                  className="inline-block w-6 h-6 rounded-full border-2 animate-spin mb-3"
+                  style={{ borderColor: `${UI.primary}33`, borderTopColor: UI.primary }}
+                />
+                <div className="text-sm font-mono" style={{ color: UI.text.muted }}>
+                  Connecting to agent monitor...
+                </div>
+              </div>
+            </div>
+          ) : viewMode === "graph" ? (
             <>
               <AgentGraph ref={graphRef} />
               <GraphControls onFitToView={() => graphRef.current?.fitToView()} />

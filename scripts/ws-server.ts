@@ -9,7 +9,7 @@ import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
 // ── WebSocket Server ───────────────────────────────────
-const wss = new WebSocketServer({ port: WS_PORT });
+const wss = new WebSocketServer({ port: WS_PORT, host: "127.0.0.1" });
 
 wss.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
@@ -33,6 +33,10 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify(syncEvent));
 
   ws.on("close", () => {
+    viewers.delete(ws);
+  });
+
+  ws.on("error", () => {
     viewers.delete(ws);
   });
 });

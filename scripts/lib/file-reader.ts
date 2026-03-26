@@ -25,9 +25,13 @@ export function readNewLines(filePath: string): string[] {
 
   const bytesToRead = Math.min(stat.size - offset, READ_MAX_BYTES);
   const fd = fs.openSync(filePath, "r");
-  const buf = Buffer.alloc(bytesToRead);
-  fs.readSync(fd, buf, 0, buf.length, offset);
-  fs.closeSync(fd);
+  let buf: Buffer;
+  try {
+    buf = Buffer.alloc(bytesToRead);
+    fs.readSync(fd, buf, 0, buf.length, offset);
+  } finally {
+    fs.closeSync(fd);
+  }
 
   // Find the last complete line boundary to avoid splitting a partial JSON line
   let usableBytes = bytesToRead;

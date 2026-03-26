@@ -477,15 +477,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
     if (nodeGroup.empty()) return;
 
-    // Re-render each node's visual children without touching the <g> position
+    // Re-render only nodes whose visual state has changed
     nodeGroup.selectAll<SVGGElement, SimNode>("g.node").each(function (d) {
       const latest = agents.get(d.id);
-      if (latest) {
-        d.agent = latest;
-        const g = d3.select(this);
-        g.selectAll("*").remove();
-        renderNodeVisuals(g, latest, selectedAgentId);
-      }
+      if (!latest) return;
+      // Build a lightweight hash of visual-relevant fields to skip unchanged nodes
+      const lastTool = latest.toolCalls.length > 0 ? latest.toolCalls[latest.toolCalls.length - 1].tool : "";
+      const hash = `${latest.status}|${latest.agentType}|${lastTool}|${latest.toolCalls.length}|${latest.inputTokens + latest.outputTokens}|${d.id === selectedAgentId}`;
+      const prev = d3.select(this).attr("data-hash");
+      d.agent = latest;
+      if (prev === hash) return; // skip re-render — nothing visual changed
+      const g = d3.select(this);
+      g.attr("data-hash", hash);
+      g.selectAll("*").remove();
+      renderNodeVisuals(g, latest, selectedAgentId);
     });
 
     // Update link colors / dash patterns
