@@ -166,7 +166,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     a.href = url;
     a.download = `agent-session-${new Date().toISOString().slice(0, 19)}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     set({ recording: false, recordedEvents: [] });
   },
 

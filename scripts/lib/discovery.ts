@@ -172,22 +172,29 @@ export function discoverActiveSessions(projectsDir: string) {
     }
   }
 
-  // Remove stale agents
+  // Remove stale agents — collect first, then apply, to avoid mutation during iteration
+  const staleIds: string[] = [];
   for (const [agentId, agent] of agents) {
     if (agent.status === "running" || agent.status === "idle") {
       const lastMod = agentLastModified.get(agentId) || agent.startTime;
-      const timeSinceModified = Date.now() - lastMod;
-      if (timeSinceModified > STALE_THRESHOLD_MS) {
-        agents.delete(agentId);
-        agentLastModified.delete(agentId);
-        removedAgentIds.set(agentId, Date.now());
-        for (let i = edges.length - 1; i >= 0; i--) {
-          if (edges[i].source === agentId || edges[i].target === agentId) {
-            edges.splice(i, 1);
-          }
-        }
-        broadcast({ type: "state:remove", agentId });
+      if (Date.now() - lastMod > STALE_THRESHOLD_MS) {
+        staleIds.push(agentId);
       }
+    }
+  }
+  for (const agentId of staleIds) {
+    agents.delete(agentId);
+    agentLastModified.delete(agentId);
+    removedAgentIds.set(agentId, Date.now());
+    for (let i = edges.length - 1; i >= 0; i--) {
+      if (edges[i].source === agentId || edges[i].target === agentId) {
+        edges.splice(i, 1);
+      }
+    }
+    try {
+      broadcast({ type: "state:remove", agentId });
+    } catch (err) {
+      console.warn(`Failed to broadcast removal of ${agentId}:`, err);
     }
   }
 

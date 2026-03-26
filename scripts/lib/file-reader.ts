@@ -28,9 +28,21 @@ export function readNewLines(filePath: string): string[] {
   const buf = Buffer.alloc(bytesToRead);
   fs.readSync(fd, buf, 0, buf.length, offset);
   fs.closeSync(fd);
-  fileOffsets.set(filePath, offset + bytesToRead);
+
+  // Find the last complete line boundary to avoid splitting a partial JSON line
+  let usableBytes = bytesToRead;
+  if (bytesToRead < stat.size - offset) {
+    // We didn't read the whole remaining file — find last newline
+    const lastNewline = buf.lastIndexOf(10); // 10 = '\n'
+    if (lastNewline >= 0) {
+      usableBytes = lastNewline + 1;
+    }
+    // If no newline found, read it all and let JSON.parse handle the error
+  }
+  fileOffsets.set(filePath, offset + usableBytes);
 
   return buf
+    .subarray(0, usableBytes)
     .toString("utf-8")
     .split("\n")
     .filter((l) => l.trim().length > 0);

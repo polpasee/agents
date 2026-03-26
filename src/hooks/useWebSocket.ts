@@ -7,8 +7,10 @@ import type { ServerEvent } from "@/lib/types";
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
-  const { setConnected, syncState, handleEvent, removeAgent } =
-    useAgentStore();
+  const setConnected = useAgentStore((s) => s.setConnected);
+  const syncState = useAgentStore((s) => s.syncState);
+  const handleEvent = useAgentStore((s) => s.handleEvent);
+  const removeAgent = useAgentStore((s) => s.removeAgent);
 
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout>;

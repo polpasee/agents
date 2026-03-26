@@ -12,57 +12,63 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
     if (!canvas) return;
 
     let timerId: ReturnType<typeof setTimeout>;
+    let stopped = false;
+
     function draw() {
+      if (stopped) return;
       const ctx = canvas!.getContext("2d");
       if (!ctx) return;
-      const data = graphRef.current?.getNodesAndViewport();
+
       const w = canvas!.width;
       const h = canvas!.height;
       ctx.clearRect(0, 0, w, h);
 
-      if (!data || data.nodes.length === 0) {
+      const data = graphRef.current?.getNodesAndViewport();
+      if (data && data.nodes.length > 0) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const n of data.nodes) {
+          minX = Math.min(minX, n.x);
+          minY = Math.min(minY, n.y);
+          maxX = Math.max(maxX, n.x);
+          maxY = Math.max(maxY, n.y);
+        }
+        const pad = 60;
+        minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+        const rangeX = maxX - minX || 1;
+        const rangeY = maxY - minY || 1;
+        const scale = Math.min(w / rangeX, h / rangeY);
+
+        for (const n of data.nodes) {
+          const x = (n.x - minX) * scale;
+          const y = (n.y - minY) * scale;
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = n.color;
+          ctx.fill();
+        }
+
+        const vp = data.viewport;
+        const rx = (vp.x - minX) * scale;
+        const ry = (vp.y - minY) * scale;
+        const rw = vp.width * scale;
+        const rh = vp.height * scale;
+        ctx.strokeStyle = UI.primary;
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = 0.5;
+        ctx.strokeRect(rx, ry, rw, rh);
+        ctx.globalAlpha = 1;
+      }
+
+      if (!stopped) {
         timerId = setTimeout(draw, 100);
-        return;
       }
-
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const n of data.nodes) {
-        minX = Math.min(minX, n.x);
-        minY = Math.min(minY, n.y);
-        maxX = Math.max(maxX, n.x);
-        maxY = Math.max(maxY, n.y);
-      }
-      const pad = 60;
-      minX -= pad; minY -= pad; maxX += pad; maxY += pad;
-      const rangeX = maxX - minX || 1;
-      const rangeY = maxY - minY || 1;
-      const scale = Math.min(w / rangeX, h / rangeY);
-
-      for (const n of data.nodes) {
-        const x = (n.x - minX) * scale;
-        const y = (n.y - minY) * scale;
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = n.color;
-        ctx.fill();
-      }
-
-      const vp = data.viewport;
-      const rx = (vp.x - minX) * scale;
-      const ry = (vp.y - minY) * scale;
-      const rw = vp.width * scale;
-      const rh = vp.height * scale;
-      ctx.strokeStyle = UI.primary;
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.5;
-      ctx.strokeRect(rx, ry, rw, rh);
-      ctx.globalAlpha = 1;
-
-      timerId = setTimeout(draw, 100);
     }
 
     draw();
-    return () => clearTimeout(timerId);
+    return () => {
+      stopped = true;
+      clearTimeout(timerId);
+    };
   }, [graphRef]);
 
   return (

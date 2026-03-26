@@ -3,9 +3,9 @@
 export const WS_PORT = Number(process.env.WS_PORT) || 4001;
 export const POLL_INTERVAL_MS = 1500;
 
-/** Mark agent as idle after this many ms without file writes */
+/** Agent is considered still-running if file modified within this window */
 export const STATUS_RUNNING_THRESHOLD_MS = 45_000;
-/** Transition from running → idle (but keep visible) */
+/** Agent transitions to idle if file modified between RUNNING and this threshold */
 export const STATUS_IDLE_THRESHOLD_MS = 60_000;
 /** Ignore JSONL files older than this */
 export const DISCOVERY_THRESHOLD_MS = 30 * 60 * 1000;

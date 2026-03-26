@@ -7,7 +7,7 @@ function createReporter() {
   return new Promise<{
     send: (event: AgentEvent) => void;
     close: () => void;
-  }>((resolve) => {
+  }>((resolve, reject) => {
     const ws = new WebSocket(WS_URL);
     ws.on("open", () => {
       resolve({
@@ -20,7 +20,10 @@ function createReporter() {
       });
     });
     ws.on("error", (err) => {
-      console.error("WebSocket error:", err.message);
+      reject(new Error(`WebSocket error: ${err.message}`));
+    });
+    ws.on("close", () => {
+      reject(new Error("WebSocket closed before connection established"));
     });
   });
 }
