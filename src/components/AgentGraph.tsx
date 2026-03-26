@@ -11,6 +11,10 @@ import type { AgentState } from "@/lib/types";
 
 export interface AgentGraphHandle {
   fitToView(): void;
+  getNodesAndViewport(): {
+    nodes: Array<{ x: number; y: number; color: string }>;
+    viewport: { x: number; y: number; width: number; height: number };
+  } | null;
 }
 
 interface SimNode extends d3.SimulationNodeDatum {
@@ -239,6 +243,27 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   useImperativeHandle(ref, () => ({
+    getNodesAndViewport() {
+      const svg = svgRef.current;
+      if (!svg || !zoomRef.current) return null;
+      const transform = d3.zoomTransform(svg);
+      const nodes = nodesRef.current
+        .filter((n) => n.x !== undefined && n.y !== undefined)
+        .map((n) => ({
+          x: n.x!,
+          y: n.y!,
+          color: AGENT_COLORS[n.agent.agentType] || "#94a3b8",
+        }));
+      return {
+        nodes,
+        viewport: {
+          x: -transform.x / transform.k,
+          y: -transform.y / transform.k,
+          width: svg.clientWidth / transform.k,
+          height: svg.clientHeight / transform.k,
+        },
+      };
+    },
     fitToView() {
       const svg = svgRef.current;
       const container = containerRef.current;

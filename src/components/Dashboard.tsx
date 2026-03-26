@@ -11,12 +11,16 @@ import type { AgentGraphHandle } from "./AgentGraph";
 import { AgentDetail } from "./AgentDetail";
 import { ActivityStream } from "./ActivityStream";
 import { GraphControls } from "./GraphControls";
+import { MiniMap } from "./MiniMap";
+import { Timeline } from "./Timeline";
+import { useAgentStore } from "@/lib/store";
 
 export function Dashboard() {
   useWebSocket();
   useSoundNotifications();
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
+  const viewMode = useAgentStore((s) => s.viewMode);
 
   return (
     <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
@@ -26,6 +30,7 @@ export function Dashboard() {
         <div className="relative flex-1 h-full">
           <AgentGraph ref={graphRef} />
           <GraphControls onFitToView={() => graphRef.current?.fitToView()} />
+          <MiniMap graphRef={graphRef} />
         </div>
         <AgentDetail />
       </div>
