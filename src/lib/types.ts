@@ -176,10 +176,5 @@ export interface CostProjectionData {
   percentOfBudget: number;
 }
 
-export interface BudgetConfig {
-  threshold: number;
-  warningPercent: number;
-}
-
 // ── Performance Heatmap ───────────────────────────────
 export type HeatmapMetric = "idleRatio" | "tokenEfficiency" | "timeToFirstTool" | "avgToolLatency";

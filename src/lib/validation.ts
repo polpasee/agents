@@ -50,8 +50,3 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
       return false;
   }
 }
-
-/** Sanitize a string for safe display (strip HTML tags, limit length) */
-export function sanitizeDisplayText(text: string, maxLength = 500): string {
-  return text.replace(/<[^>]*>/g, "").slice(0, maxLength);
-}
