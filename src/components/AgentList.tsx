@@ -19,6 +19,7 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
   return (
     <button
       onClick={onClick}
+      aria-selected={isSelected}
       className="w-full text-left rounded-md px-2 py-1.5 transition-colors animate-fade-in-up"
       style={{
         background: isSelected ? `${color}11` : "transparent",
@@ -79,6 +80,8 @@ export function AgentList() {
 
   return (
     <div
+      role="region"
+      aria-label="Agent list"
       className="flex flex-col h-full overflow-hidden"
       style={{
         width: 240,
@@ -110,6 +113,7 @@ export function AgentList() {
             <div key={team.id} className="space-y-0.5">
               <button
                 onClick={() => selectTeam(isTeamSelected ? null : team.id)}
+                aria-expanded={isTeamSelected}
                 className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
                 style={{
                   background: isTeamSelected ? `${UI.primary}11` : `${UI.primary}06`,

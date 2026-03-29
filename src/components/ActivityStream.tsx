@@ -35,6 +35,9 @@ export function ActivityStream() {
       </div>
       <div
         ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-label="Agent activity stream"
         className="flex-1 overflow-y-auto custom-scrollbar px-3 py-1 space-y-0.5"
       >
         {activity.length === 0 && (

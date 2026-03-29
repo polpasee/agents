@@ -16,6 +16,7 @@ import { Timeline } from "./Timeline";
 import { TeamPanel } from "./TeamPanel";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
   useWebSocket();
@@ -27,10 +28,14 @@ export function Dashboard() {
   const agentCount = useAgentStore((s) => s.agents.size);
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
-      <TopBar />
+    <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
+      <ErrorBoundary>
+        <TopBar />
+      </ErrorBoundary>
       <div className="flex flex-1 min-h-0">
-        <AgentList />
+        <ErrorBoundary>
+          <AgentList />
+        </ErrorBoundary>
         <div className="relative flex-1 h-full">
           {!connected && agentCount === 0 ? (
             <div className="flex items-center justify-center h-full">
@@ -45,19 +50,27 @@ export function Dashboard() {
               </div>
             </div>
           ) : viewMode === "graph" ? (
-            <>
+            <ErrorBoundary>
               <AgentGraph ref={graphRef} />
               <GraphControls onFitToView={() => graphRef.current?.fitToView()} />
               <MiniMap graphRef={graphRef} />
-            </>
+            </ErrorBoundary>
           ) : (
-            <Timeline />
+            <ErrorBoundary>
+              <Timeline />
+            </ErrorBoundary>
           )}
         </div>
-        <AgentDetail />
+        <ErrorBoundary>
+          <AgentDetail />
+        </ErrorBoundary>
       </div>
-      <TeamPanel />
-      <ActivityStream />
+      <ErrorBoundary>
+        <TeamPanel />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <ActivityStream />
+      </ErrorBoundary>
     </div>
   );
 }

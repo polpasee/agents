@@ -4,7 +4,9 @@ import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS } from "@/lib/config";
 import type { ServerEvent } from "@/lib/types";
+import { isValidServerEvent } from "@/lib/validation";
 
+/** Connect to the agent WebSocket server with exponential backoff reconnection. */
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const setConnected = useAgentStore((s) => s.setConnected);
@@ -29,7 +31,12 @@ export function useWebSocket() {
 
       ws.onmessage = (msg) => {
         try {
-          const event = JSON.parse(msg.data) as ServerEvent;
+          const data = JSON.parse(msg.data);
+          if (!isValidServerEvent(data)) {
+            console.warn("Invalid ServerEvent received:", data?.type);
+            return;
+          }
+          const event = data;
           switch (event.type) {
             case "state:sync":
               syncState(event.agents, event.edges, event.teams);

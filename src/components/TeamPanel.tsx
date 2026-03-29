@@ -26,6 +26,8 @@ export function TeamPanel() {
 
   return (
     <div
+      role="region"
+      aria-label="Team overview"
       className="flex flex-col"
       style={{
         background: "var(--color-panel)",

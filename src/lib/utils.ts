@@ -1,5 +1,6 @@
 import type { AgentState } from "./types";
 
+/** Calculate context window usage as a percentage (0–100). */
 export function getTokenPercent(agent: AgentState): number {
   const totalTokens = agent.inputTokens + agent.outputTokens;
   return agent.contextWindow > 0
@@ -7,18 +8,21 @@ export function getTokenPercent(agent: AgentState): number {
     : 0;
 }
 
+/** Format a number with k/M suffixes for compact display. */
 export function formatNumber(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toString();
 }
 
+/** Format milliseconds as "Xm Ys". */
 export function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
   return `${minutes}m ${seconds}s`;
 }
 
+/** Truncate an ID string to the given length for display. */
 export function truncateId(id: string, len = 8): string {
   return id.slice(0, len);
 }

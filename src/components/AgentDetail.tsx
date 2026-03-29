@@ -24,6 +24,8 @@ export function AgentDetail() {
   if (!agent) {
     return (
       <div
+        role="complementary"
+        aria-label="Agent details"
         className="flex flex-col h-full items-center justify-center"
         style={{
           width: 300,
@@ -48,6 +50,8 @@ export function AgentDetail() {
 
   return (
     <div
+      role="complementary"
+      aria-label="Agent details"
       className="flex flex-col h-full overflow-hidden"
       style={{
         width: 300,
