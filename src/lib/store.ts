@@ -7,6 +7,11 @@ import type {
   ToolCallEntry,
   TeamState,
   TeamStats,
+  ReplayState,
+  ReplaySpeed,
+  RecordedSession,
+  LogEntry,
+  HeatmapMetric,
 } from "./types";
 import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "./config";
 
@@ -37,6 +42,35 @@ interface AgentStore {
   setViewMode: (mode: "graph" | "timeline") => void;
   hiddenAgentTypes: Set<string>;
   toggleAgentType: (type: string) => void;
+
+  // Replay
+  replay: ReplayState;
+  loadReplaySession: (session: RecordedSession) => void;
+  replayPlay: () => void;
+  replayPause: () => void;
+  replaySeek: (timestamp: number) => void;
+  replaySetSpeed: (speed: ReplaySpeed) => void;
+  replayExit: () => void;
+  replayTick: (upToTimestamp: number) => void;
+
+  // Log Viewer
+  logEntries: Map<string, LogEntry[]>;
+  logLoading: Set<string>;
+  logViewerAgentId: string | null;
+  openLogViewer: (agentId: string) => void;
+  closeLogViewer: () => void;
+  setLogEntries: (agentId: string, entries: LogEntry[]) => void;
+  setLogLoading: (agentId: string, loading: boolean) => void;
+
+  // Cost Budget
+  budgetThreshold: number | null;
+  setBudgetThreshold: (amount: number | null) => void;
+
+  // Heatmap
+  heatmapEnabled: boolean;
+  heatmapMetric: HeatmapMetric;
+  toggleHeatmap: () => void;
+  setHeatmapMetric: (metric: HeatmapMetric) => void;
 }
 
 let activityCounter = 0;
@@ -308,4 +342,144 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     }
     set({ agents: newAgents, edges: newEdges, teams: newTeams });
   },
+
+  // ── Replay ────────────────────────────────────────────
+  replay: {
+    active: false,
+    session: null,
+    playing: false,
+    speed: 1,
+    currentIndex: 0,
+    currentTime: 0,
+    startTime: 0,
+    endTime: 0,
+  },
+
+  loadReplaySession: (session) => {
+    const endTime = session.events.length > 0
+      ? session.events[session.events.length - 1].timestamp
+      : session.startTime;
+    // Clear current state and enter replay mode
+    set({
+      agents: new Map(),
+      edges: [],
+      activity: [],
+      teams: new Map(),
+      selectedAgentId: null,
+      selectedTeamId: null,
+      replay: {
+        active: true,
+        session,
+        playing: false,
+        speed: 1,
+        currentIndex: 0,
+        currentTime: session.startTime,
+        startTime: session.startTime,
+        endTime,
+      },
+    });
+  },
+
+  replayPlay: () => {
+    const { replay } = get();
+    if (replay.active) set({ replay: { ...replay, playing: true } });
+  },
+
+  replayPause: () => {
+    const { replay } = get();
+    if (replay.active) set({ replay: { ...replay, playing: false } });
+  },
+
+  replaySeek: (timestamp) => {
+    const { replay } = get();
+    if (!replay.active || !replay.session) return;
+    // Reset state and replay from beginning to target timestamp
+    set({
+      agents: new Map(),
+      edges: [],
+      activity: [],
+      teams: new Map(),
+      replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
+    });
+    // Now tick up to the target
+    get().replayTick(timestamp);
+  },
+
+  replaySetSpeed: (speed) => {
+    const { replay } = get();
+    if (replay.active) set({ replay: { ...replay, speed } });
+  },
+
+  replayExit: () => {
+    set({
+      agents: new Map(),
+      edges: [],
+      activity: [],
+      teams: new Map(),
+      replay: {
+        active: false,
+        session: null,
+        playing: false,
+        speed: 1,
+        currentIndex: 0,
+        currentTime: 0,
+        startTime: 0,
+        endTime: 0,
+      },
+    });
+  },
+
+  replayTick: (upToTimestamp) => {
+    const { replay, handleEvent } = get();
+    if (!replay.active || !replay.session) return;
+    const events = replay.session.events;
+    let idx = replay.currentIndex;
+    while (idx < events.length && events[idx].timestamp <= upToTimestamp) {
+      handleEvent(events[idx].event, events[idx].timestamp);
+      idx++;
+    }
+    const newReplay = get().replay; // re-read after handleEvent calls
+    set({ replay: { ...newReplay, currentIndex: idx, currentTime: upToTimestamp } });
+  },
+
+  // ── Log Viewer ────────────────────────────────────────
+  logEntries: new Map(),
+  logLoading: new Set(),
+  logViewerAgentId: null,
+
+  openLogViewer: (agentId) => set({ logViewerAgentId: agentId }),
+  closeLogViewer: () => set({ logViewerAgentId: null }),
+
+  setLogEntries: (agentId, entries) => {
+    const logEntries = new Map(get().logEntries);
+    logEntries.set(agentId, entries);
+    const logLoading = new Set(get().logLoading);
+    logLoading.delete(agentId);
+    set({ logEntries, logLoading });
+  },
+
+  setLogLoading: (agentId, loading) => {
+    const logLoading = new Set(get().logLoading);
+    if (loading) logLoading.add(agentId);
+    else logLoading.delete(agentId);
+    set({ logLoading });
+  },
+
+  // ── Cost Budget ───────────────────────────────────────
+  budgetThreshold: null,
+
+  setBudgetThreshold: (amount) => {
+    if (typeof window !== "undefined") {
+      if (amount !== null) localStorage.setItem("budgetThreshold", String(amount));
+      else localStorage.removeItem("budgetThreshold");
+    }
+    set({ budgetThreshold: amount });
+  },
+
+  // ── Heatmap ───────────────────────────────────────────
+  heatmapEnabled: false,
+  heatmapMetric: "tokenEfficiency",
+
+  toggleHeatmap: () => set({ heatmapEnabled: !get().heatmapEnabled }),
+  setHeatmapMetric: (metric) => set({ heatmapMetric: metric }),
 }));

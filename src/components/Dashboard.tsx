@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useReplay } from "@/hooks/useReplay";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { TopBar } from "./TopBar";
@@ -14,18 +15,23 @@ import { GraphControls } from "./GraphControls";
 import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
 import { TeamPanel } from "./TeamPanel";
+import { ReplayBar } from "./ReplayBar";
+import LogViewer from "./LogViewer";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
   useWebSocket();
+  useReplay();
   useSoundNotifications();
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
   const viewMode = useAgentStore((s) => s.viewMode);
   const connected = useAgentStore((s) => s.connected);
   const agentCount = useAgentStore((s) => s.agents.size);
+  const replayActive = useAgentStore((s) => s.replay.active);
+  const logViewerAgentId = useAgentStore((s) => s.logViewerAgentId);
 
   return (
     <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
@@ -37,7 +43,7 @@ export function Dashboard() {
           <AgentList />
         </ErrorBoundary>
         <div className="relative flex-1 h-full">
-          {!connected && agentCount === 0 ? (
+          {!connected && agentCount === 0 && !replayActive ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div
@@ -68,9 +74,19 @@ export function Dashboard() {
       <ErrorBoundary>
         <TeamPanel />
       </ErrorBoundary>
+      {replayActive && (
+        <ErrorBoundary>
+          <ReplayBar />
+        </ErrorBoundary>
+      )}
       <ErrorBoundary>
         <ActivityStream />
       </ErrorBoundary>
+      {logViewerAgentId && (
+        <ErrorBoundary>
+          <LogViewer />
+        </ErrorBoundary>
+      )}
     </div>
   );
 }

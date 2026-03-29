@@ -1,8 +1,9 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, AGENT_LABELS, UI, HEATMAP_COLORS } from "@/lib/colors";
 import type { AgentType } from "@/lib/types";
+import { HeatmapControls } from "./HeatmapControls";
 
 const FILTER_TYPES = Object.keys(AGENT_COLORS) as AgentType[];
 
@@ -13,21 +14,39 @@ interface GraphControlsProps {
 export function GraphControls({ onFitToView }: GraphControlsProps) {
   const hiddenAgentTypes = useAgentStore((s) => s.hiddenAgentTypes);
   const toggleAgentType = useAgentStore((s) => s.toggleAgentType);
+  const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
+  const toggleHeatmap = useAgentStore((s) => s.toggleHeatmap);
 
   return (
     <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
-      <button
-        onClick={onFitToView}
-        title="Fit all agents into view"
-        aria-label="Fit all agents into view"
-        className="graph-control-btn"
-        style={{
-          color: UI.text.secondary,
-          border: `1px solid ${UI.primary}44`,
-        }}
-      >
-        FIT
-      </button>
+      <div style={{ display: "flex", gap: 4 }}>
+        <button
+          onClick={onFitToView}
+          title="Fit all agents into view"
+          aria-label="Fit all agents into view"
+          className="graph-control-btn"
+          style={{
+            color: UI.text.secondary,
+            border: `1px solid ${UI.primary}44`,
+          }}
+        >
+          FIT
+        </button>
+        <button
+          onClick={toggleHeatmap}
+          title={heatmapEnabled ? "Disable performance heatmap" : "Enable performance heatmap"}
+          aria-label="Toggle performance heatmap"
+          aria-pressed={heatmapEnabled}
+          className="graph-control-btn"
+          style={{
+            color: heatmapEnabled ? HEATMAP_COLORS.bottleneck : UI.text.secondary,
+            border: `1px solid ${heatmapEnabled ? HEATMAP_COLORS.bottleneck : UI.primary + "44"}`,
+            background: heatmapEnabled ? `${HEATMAP_COLORS.bottleneck}22` : "var(--color-panel)",
+          }}
+        >
+          HEAT
+        </button>
+      </div>
       <div style={{ display: "flex", gap: 2 }}>
         {FILTER_TYPES.map((type) => {
           const hidden = hiddenAgentTypes.has(type);
@@ -55,6 +74,7 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
           );
         })}
       </div>
+      {heatmapEnabled && <HeatmapControls />}
     </div>
   );
 }

@@ -35,6 +35,18 @@ export const STATUS_COLORS: Record<AgentStatus, string> = {
   error: "#ff4444",
 };
 
+export const BUDGET_COLORS = {
+  ok: "#00ff88",
+  warning: "#eab308",
+  critical: "#ff4444",
+} as const;
+
+export const HEATMAP_COLORS = {
+  healthy: "#00ff88",
+  moderate: "#eab308",
+  bottleneck: "#ff4444",
+} as const;
+
 export const AGENT_LABELS: Record<AgentType, string> = {
   main: "MAIN",
   explore: "EXPLORE",

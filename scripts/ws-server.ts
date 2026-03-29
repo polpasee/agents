@@ -1,8 +1,10 @@
 import { WebSocketServer } from "ws";
 import * as path from "path";
 import * as os from "os";
-import type { ServerEvent } from "../src/lib/types";
-import { agents, edges, teams, viewers } from "./lib/agent-state";
+import type { ServerEvent, ClientEvent } from "../src/lib/types";
+import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-state";
+import { isValidClientEvent } from "../src/lib/validation";
+import { readAgentLog } from "./lib/log-reader";
 import { discoverActiveSessions } from "./lib/discovery";
 import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
 
@@ -32,6 +34,45 @@ wss.on("connection", (ws) => {
     teams: Array.from(teams.values()),
   };
   ws.send(JSON.stringify(syncEvent));
+
+  ws.on("message", (raw) => {
+    try {
+      const data = JSON.parse(String(raw));
+      if (!isValidClientEvent(data)) return;
+
+      if (data.type === "log:request") {
+        const filePath = getAgentFilePath(data.agentId);
+        if (!filePath) {
+          const errEvent: ServerEvent = {
+            type: "log:error",
+            agentId: data.agentId,
+            error: "Agent not found or no log file available",
+          };
+          ws.send(JSON.stringify(errEvent));
+          return;
+        }
+
+        try {
+          const entries = readAgentLog(filePath);
+          const response: ServerEvent = {
+            type: "log:response",
+            agentId: data.agentId,
+            entries,
+          };
+          ws.send(JSON.stringify(response));
+        } catch (err) {
+          const errEvent: ServerEvent = {
+            type: "log:error",
+            agentId: data.agentId,
+            error: `Failed to read log: ${err}`,
+          };
+          ws.send(JSON.stringify(errEvent));
+        }
+      }
+    } catch {
+      // Ignore malformed messages
+    }
+  });
 
   ws.on("close", () => {
     viewers.delete(ws);

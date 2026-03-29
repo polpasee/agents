@@ -65,7 +65,9 @@ export type AgentEvent =
 export type ServerEvent =
   | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[] }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
-  | { type: "state:remove"; agentId: string };
+  | { type: "state:remove"; agentId: string }
+  | { type: "log:response"; agentId: string; entries: LogEntry[] }
+  | { type: "log:error"; agentId: string; error: string };
 
 export interface AgentState {
   id: string;
@@ -131,3 +133,53 @@ export interface RecordedSession {
   startTime: number;
   events: Array<{ timestamp: number; event: AgentEvent }>;
 }
+
+// ── Session Replay ────────────────────────────────────
+export type ReplaySpeed = 0.5 | 1 | 2 | 4;
+
+export interface ReplayState {
+  active: boolean;
+  session: RecordedSession | null;
+  playing: boolean;
+  speed: ReplaySpeed;
+  currentIndex: number;
+  currentTime: number;
+  startTime: number;
+  endTime: number;
+}
+
+// ── Agent Log Viewer ──────────────────────────────────
+export interface LogEntry {
+  timestamp: number;
+  role: "user" | "assistant" | "system";
+  content: string;
+  toolCalls?: LogToolCall[];
+}
+
+export interface LogToolCall {
+  id: string;
+  name: string;
+  input: string;
+  result?: string;
+}
+
+export interface ClientEvent {
+  type: "log:request";
+  agentId: string;
+}
+
+// ── Cost Projections ──────────────────────────────────
+export interface CostProjectionData {
+  burnRate: number;
+  projectedTotal: number;
+  timeToThreshold: number;
+  percentOfBudget: number;
+}
+
+export interface BudgetConfig {
+  threshold: number;
+  warningPercent: number;
+}
+
+// ── Performance Heatmap ───────────────────────────────
+export type HeatmapMetric = "idleRatio" | "tokenEfficiency" | "timeToFirstTool" | "avgToolLatency";

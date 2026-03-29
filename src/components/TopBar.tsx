@@ -1,9 +1,12 @@
 "use client";
 
+import { useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
+import { CostProjection } from "./CostProjection";
+import type { RecordedSession } from "@/lib/types";
 
 export function TopBar() {
   const agents = useAgentStore((s) => s.agents);
@@ -15,6 +18,31 @@ export function TopBar() {
   const recording = useAgentStore((s) => s.recording);
   const startRecording = useAgentStore((s) => s.startRecording);
   const downloadRecording = useAgentStore((s) => s.downloadRecording);
+  const replayActive = useAgentStore((s) => s.replay.active);
+  const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLoadReplay = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const session = JSON.parse(reader.result as string) as RecordedSession;
+        if (session.startTime && Array.isArray(session.events)) {
+          loadReplaySession(session);
+        }
+      } catch (err) {
+        console.warn("Failed to load replay file:", err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // Reset so same file can be reloaded
+  };
 
   const allAgents = Array.from(agents.values());
 
@@ -62,11 +90,15 @@ export function TopBar() {
           >
             AGENT MONITOR
           </span>
-          {!connected && (
+          {replayActive ? (
+            <span className="text-xs ml-2 animate-pulse-glow" style={{ color: "#eab308" }}>
+              REPLAY
+            </span>
+          ) : !connected ? (
             <span className="text-xs text-red-400 ml-2">
               DISCONNECTED
             </span>
-          )}
+          ) : null}
         </div>
 
         {/* Session dropdown */}
@@ -119,16 +151,39 @@ export function TopBar() {
 
         <button
           onClick={recording ? downloadRecording : startRecording}
+          disabled={replayActive}
           className="px-2 py-0.5 rounded text-xs font-mono ml-2"
           style={{
             background: recording ? `${UI.error}22` : "transparent",
             border: `1px solid ${recording ? UI.error : "var(--color-border)"}`,
             color: recording ? UI.error : UI.text.muted,
+            opacity: replayActive ? 0.3 : 1,
           }}
           title={recording ? "Stop & download recording" : "Start recording"}
         >
           REC
         </button>
+        <button
+          onClick={handleLoadReplay}
+          disabled={replayActive}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: `1px solid var(--color-border)`,
+            color: UI.text.muted,
+            opacity: replayActive ? 0.3 : 1,
+          }}
+          title="Load a recorded session for replay"
+        >
+          LOAD
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
       </div>
 
       {/* Right: Stats */}
@@ -137,7 +192,7 @@ export function TopBar() {
         <Stat label="ACTIVE" value={active} color={STATUS_COLORS.running} />
         <Stat label="DONE" value={completed} color={STATUS_COLORS.completed} />
         <Stat label="ERRORS" value={errors} color={UI.error} />
-        <Stat label="COST" value={formatCost(totalCost.total)} color={UI.primary} />
+        <CostProjection />
       </div>
     </div>
   );

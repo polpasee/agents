@@ -1,4 +1,4 @@
-import type { AgentEvent, ServerEvent } from "./types";
+import type { AgentEvent, ServerEvent, ClientEvent } from "./types";
 
 /** Validate that a parsed object is a well-formed ServerEvent */
 export function isValidServerEvent(data: unknown): data is ServerEvent {
@@ -12,9 +12,20 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
       return typeof obj.timestamp === "number" && isValidAgentEvent(obj.event);
     case "state:remove":
       return typeof obj.agentId === "string";
+    case "log:response":
+      return typeof obj.agentId === "string" && Array.isArray(obj.entries);
+    case "log:error":
+      return typeof obj.agentId === "string" && typeof obj.error === "string";
     default:
       return false;
   }
+}
+
+/** Validate a client-to-server event */
+export function isValidClientEvent(data: unknown): data is ClientEvent {
+  if (!data || typeof data !== "object") return false;
+  const obj = data as Record<string, unknown>;
+  return obj.type === "log:request" && typeof obj.agentId === "string";
 }
 
 /** Validate that a parsed object is a well-formed AgentEvent */
