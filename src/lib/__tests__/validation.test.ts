@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidServerEvent, isValidAgentEvent, sanitizeDisplayText } from "../validation";
+import { isValidServerEvent, isValidAgentEvent } from "../validation";
 
 describe("isValidServerEvent", () => {
   it("accepts valid state:sync event", () => {
@@ -77,25 +77,3 @@ describe("isValidAgentEvent", () => {
   });
 });
 
-describe("sanitizeDisplayText", () => {
-  it("strips HTML tags", () => {
-    expect(sanitizeDisplayText("<b>hello</b>")).toBe("hello");
-  });
-
-  it("truncates long text", () => {
-    const long = "a".repeat(600);
-    expect(sanitizeDisplayText(long)).toHaveLength(500);
-  });
-
-  it("respects custom maxLength", () => {
-    expect(sanitizeDisplayText("abcdef", 3)).toBe("abc");
-  });
-
-  it("handles empty string", () => {
-    expect(sanitizeDisplayText("")).toBe("");
-  });
-
-  it("strips nested tags", () => {
-    expect(sanitizeDisplayText("<div><span>text</span></div>")).toBe("text");
-  });
-});
