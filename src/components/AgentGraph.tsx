@@ -3,10 +3,11 @@
 import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
-import { getTokenPercent } from "@/lib/utils";
 import { GRAPH } from "@/lib/config";
+import { renderNodeVisuals, updateLinkVisuals } from "@/lib/d3";
+import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState } from "@/lib/types";
 
 export interface AgentGraphHandle {
@@ -15,223 +16,6 @@ export interface AgentGraphHandle {
     nodes: Array<{ x: number; y: number; color: string }>;
     viewport: { x: number; y: number; width: number; height: number };
   } | null;
-}
-
-interface SimNode extends d3.SimulationNodeDatum {
-  id: string;
-  agent: AgentState;
-}
-
-interface SimLink extends d3.SimulationLinkDatum<SimNode> {
-  source: string | SimNode;
-  target: string | SimNode;
-}
-
-/* ── Render the visual elements inside a node <g> ──────── */
-function renderNodeVisuals(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  g: d3.Selection<SVGGElement, any, any, any>,
-  agent: AgentState,
-  selectedAgentId: string | null,
-) {
-  const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
-  const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
-  const label = AGENT_LABELS[agent.agentType] || "AGENT";
-  const tokenPercent = getTokenPercent(agent);
-  const isSelected = agent.id === selectedAgentId;
-  const isActive = agent.status === "running" || agent.status === "idle";
-  const isRunning = agent.status === "running";
-
-  const isFinished = agent.status === "completed" || agent.status === "error";
-  if (isFinished) {
-    g.attr("opacity", 0.35);
-  }
-
-  const lastTool = agent.toolCalls.length > 0
-    ? agent.toolCalls[agent.toolCalls.length - 1].tool
-    : null;
-  const statusLabel = isRunning && lastTool
-    ? lastTool
-    : agent.status === "idle" ? "thinking" : agent.status;
-
-  // Pulsing ring for active agents (running or idle/thinking)
-  if (isActive) {
-    const ring = g.append("circle")
-      .attr("r", GRAPH.glowRingRadius + 4)
-      .attr("fill", "none")
-      .attr("stroke", color)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0);
-    ring.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", isRunning ? "0.1;0.5;0.1" : "0.05;0.25;0.05")
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
-    ring.append("animate")
-      .attr("attributeName", "r")
-      .attr("values", isRunning
-        ? `${GRAPH.glowRingRadius + 2};${GRAPH.glowRingRadius + 8};${GRAPH.glowRingRadius + 2}`
-        : `${GRAPH.glowRingRadius + 1};${GRAPH.glowRingRadius + 5};${GRAPH.glowRingRadius + 1}`)
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
-  }
-
-  // Outer glow ring for selected/active
-  if (isSelected || isActive) {
-    g.append("circle")
-      .attr("r", GRAPH.glowRingRadius)
-      .attr("fill", "none")
-      .attr("stroke", color)
-      .attr("stroke-width", isSelected ? 2 : 1)
-      .attr("stroke-opacity", isActive ? 0.4 : 0.3)
-      .attr("filter", "url(#glow)");
-  }
-
-  // Main circle — solid dark background so links don't show through
-  const mainCircle = g.append("circle")
-    .attr("r", GRAPH.nodeRadius)
-    .attr("fill", "var(--color-bg)")
-    .attr("stroke", color)
-    .attr("stroke-width", 2);
-
-  // Subtle stroke pulse for running agents
-  if (isRunning) {
-    mainCircle.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", "1;0.5;1")
-      .attr("dur", "1.5s")
-      .attr("repeatCount", "indefinite");
-  }
-
-  // Letter inside circle
-  g.append("text")
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "central")
-    .attr("fill", color)
-    .attr("font-family", "monospace")
-    .attr("font-size", 16)
-    .attr("font-weight", "bold")
-    .style("pointer-events", "none")
-    .text(label.charAt(0));
-
-  // Label below
-  g.append("text")
-    .attr("text-anchor", "middle")
-    .attr("y", 34)
-    .attr("fill", color)
-    .attr("font-family", "monospace")
-    .attr("font-size", 11)
-    .attr("font-weight", "bold")
-    .attr("letter-spacing", "2px")
-    .style("pointer-events", "none")
-    .text(label);
-
-  // Token bar
-  const barW = GRAPH.tokenBarWidth;
-  const barH = GRAPH.tokenBarHeight;
-  const barY = GRAPH.tokenBarY;
-  g.append("rect")
-    .attr("x", -barW / 2).attr("y", barY)
-    .attr("width", barW).attr("height", barH)
-    .attr("rx", 1).attr("fill", `${color}22`);
-  if (tokenPercent > 0) {
-    g.append("rect")
-      .attr("x", -barW / 2).attr("y", barY)
-      .attr("width", barW * tokenPercent / 100).attr("height", barH)
-      .attr("rx", 1).attr("fill", color);
-  }
-
-  // Status dot + label
-  const statusY = GRAPH.statusY;
-  g.append("circle")
-    .attr("cx", -14).attr("cy", statusY)
-    .attr("r", 3).attr("fill", statusColor);
-  g.append("text")
-    .attr("x", -7).attr("y", statusY + 4)
-    .attr("fill", statusColor)
-    .attr("font-family", "monospace")
-    .attr("font-size", 10)
-    .style("pointer-events", "none")
-    .text(statusLabel);
-
-  // Tool call sparkline
-  if (agent.toolCalls.length > 0) {
-    const now = Date.now();
-    const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
-    for (const tc of agent.toolCalls) {
-      const age = now - tc.timestamp;
-      const bucketIdx = GRAPH.sparklineBuckets - 1 - Math.floor(age / GRAPH.sparklineBucketMs);
-      if (bucketIdx >= 0 && bucketIdx < GRAPH.sparklineBuckets) {
-        buckets[bucketIdx]++;
-      }
-    }
-    const maxVal = Math.max(...buckets, 1);
-    const barW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
-    const sparkG = g.append("g")
-      .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${GRAPH.sparklineY})`);
-    for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
-      const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
-      sparkG.append("rect")
-        .attr("x", i * barW)
-        .attr("y", GRAPH.sparklineHeight - h)
-        .attr("width", barW - 0.5)
-        .attr("height", h)
-        .attr("fill", color)
-        .attr("opacity", 0.6);
-    }
-  }
-
-}
-
-/* ── Update link stroke colors and dash styles ─────────── */
-function updateLinkVisuals(
-  linkGlow: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
-  linkLine: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
-  agents: Map<string, AgentState>,
-) {
-  const getTargetId = (d: SimLink) =>
-    typeof d.target === "string" ? d.target : d.target.id;
-
-  linkGlow.attr("stroke", (d) => {
-    const a = agents.get(getTargetId(d));
-    return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
-  });
-  linkLine
-    .attr("stroke", (d) => {
-      const a = agents.get(getTargetId(d));
-      return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
-    })
-    .attr("stroke-dasharray", (d) => {
-      const a = agents.get(getTargetId(d));
-      const active = a?.status === "running" || a?.status === "idle";
-      return active ? "8 4" : "none";
-    })
-    .each(function (d) {
-      const a = agents.get(getTargetId(d));
-      const active = a?.status === "running" || a?.status === "idle";
-      const line = d3.select(this);
-      // Remove existing animate children before adding new ones
-      line.selectAll("animate").remove();
-      if (active) {
-        line.append("animate")
-          .attr("attributeName", "stroke-dashoffset")
-          .attr("values", "24;0")
-          .attr("dur", a?.status === "running" ? "0.8s" : "1.6s")
-          .attr("repeatCount", "indefinite");
-      }
-    });
-
-  linkLine.attr("stroke-opacity", (d) => {
-    const a = agents.get(getTargetId(d));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.2 : 0.6;
-  });
-
-  linkGlow.attr("stroke-opacity", (d) => {
-    const a = agents.get(getTargetId(d));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.03 : 0.1;
-  });
 }
 
 /* ── Component ─────────────────────────────────────────── */
@@ -305,23 +89,33 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       d3.select(svg)
         .transition()
         .duration(500)
+        // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
         .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
     },
   }));
 
   const agents = useAgentStore((s) => s.agents);
+  const edges = useAgentStore((s) => s.edges);
+  const teams = useAgentStore((s) => s.teams);
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
   const filteredAgents = useFilteredAgents();
 
-  // Topology key — only changes when agents join/leave or parent links change.
+  // Topology key — only changes when agents join/leave, parent links change, or edges change.
   // This controls when the force simulation is rebuilt.
   const topologyKey = useMemo(() => {
-    return filteredAgents
-      .map((a) => `${a.id}:${a.parentId || ""}`)
+    const agentKeys = filteredAgents
+      .map((a) => `${a.id}:${a.parentId || ""}:${a.teamId || ""}`)
       .sort()
       .join("|");
-  }, [filteredAgents]);
+    const edgeKeys = edges
+      .filter((e) => e.edgeType === "message")
+      .map((e) => `m:${e.source}:${e.target}`)
+      .sort()
+      .join("|");
+    return `${agentKeys}||${edgeKeys}`;
+  }, [filteredAgents, edges]);
 
   // ── Effect 1: Rebuild simulation when topology changes ──
   useEffect(() => {
@@ -352,9 +146,15 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         ...(prev ? { x: prev.x, y: prev.y } : {}),
       };
     });
-    const links: SimLink[] = filteredAgents
+    // Parent-child links
+    const parentLinks: SimLink[] = filteredAgents
       .filter((a) => a.parentId && agentIds.has(a.parentId))
-      .map((a) => ({ source: a.parentId!, target: a.id }));
+      .map((a) => ({ source: a.parentId!, target: a.id, edgeType: "parent" as const }));
+    // Peer-to-peer message links
+    const messageLinks: SimLink[] = edges
+      .filter((e) => e.edgeType === "message" && agentIds.has(e.source) && agentIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, edgeType: "message" as const }));
+    const links: SimLink[] = [...parentLinks, ...messageLinks];
 
     nodesRef.current = nodes;
 
@@ -387,14 +187,19 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     d3svg.call(zoom);
     zoomRef.current = zoom;
 
+    // Team cluster backgrounds (rendered first so they appear behind everything)
+    const teamClusterGroup = canvas.append("g").attr("class", "team-clusters");
+
     // Link groups (glow + main line)
     const linkGroup = canvas.append("g").attr("class", "links");
     linkGroup.selectAll<SVGLineElement, SimLink>("line.glow")
-      .data(links).join("line").attr("class", "glow")
+      .data(links).join("line").attr("class", (d) => `glow ${d.edgeType || "parent"}`)
       .attr("stroke-width", 6).attr("stroke-opacity", 0.1);
     linkGroup.selectAll<SVGLineElement, SimLink>("line.main")
-      .data(links).join("line").attr("class", "main")
-      .attr("stroke-width", 2).attr("stroke-opacity", 0.6);
+      .data(links).join("line").attr("class", (d) => `main ${d.edgeType || "parent"}`)
+      .attr("stroke-width", (d) => d.edgeType === "message" ? 1.5 : 2)
+      .attr("stroke-opacity", 0.6)
+      .attr("stroke-dasharray", (d) => d.edgeType === "message" ? "4 3" : "none");
 
     // Apply initial link colors
     updateLinkVisuals(
@@ -443,6 +248,16 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const linkGlow = linkGroup.selectAll<SVGLineElement, SimLink>("line.glow");
     const linkLine = linkGroup.selectAll<SVGLineElement, SimLink>("line.main");
 
+    // Build team-to-nodes lookup for cluster rendering
+    const teamNodeMap = new Map<string, SimNode[]>();
+    for (const node of nodes) {
+      if (node.agent.teamId) {
+        const list = teamNodeMap.get(node.agent.teamId) || [];
+        list.push(node);
+        teamNodeMap.set(node.agent.teamId, list);
+      }
+    }
+
     const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
       .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
       .force("charge", d3.forceManyBody().strength(GRAPH.chargeStrength))
@@ -461,6 +276,72 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           .attr("x2", (d) => (d.target as SimNode).x!)
           .attr("y2", (d) => (d.target as SimNode).y!);
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
+
+        // Update team cluster hulls
+        teamClusterGroup.selectAll("*").remove();
+        for (const [teamId, teamNodes] of teamNodeMap) {
+          const points = teamNodes
+            .filter((n) => n.x != null && n.y != null)
+            .map((n) => [n.x!, n.y!] as [number, number]);
+          if (points.length < 2) continue;
+          const team = teams.get(teamId);
+          const isSelectedTeam = teamId === selectedTeamId;
+          const leader = teamNodes.find((n) => n.agent.agentType === "team-lead");
+          const clusterColor = leader ? AGENT_COLORS[leader.agent.agentType] : UI.primary;
+
+          if (points.length === 2) {
+            // Draw an ellipse between two nodes
+            const cx = (points[0][0] + points[1][0]) / 2;
+            const cy = (points[0][1] + points[1][1]) / 2;
+            const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
+            const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
+            teamClusterGroup.append("ellipse")
+              .attr("cx", cx).attr("cy", cy)
+              .attr("rx", rx).attr("ry", ry)
+              .attr("fill", `${clusterColor}08`)
+              .attr("stroke", clusterColor)
+              .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
+              .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
+              .attr("stroke-dasharray", "6 3");
+          } else {
+            // Draw convex hull around team members
+            const hull = d3.polygonHull(points);
+            if (hull) {
+              // Expand hull by collideRadius for padding
+              const centroid = d3.polygonCentroid(hull);
+              const expanded = hull.map(([x, y]) => {
+                const dx = x - centroid[0];
+                const dy = y - centroid[1];
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const pad = GRAPH.collideRadius;
+                return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
+              });
+              teamClusterGroup.append("path")
+                .attr("d", `M${expanded.map((p) => p.join(",")).join("L")}Z`)
+                .attr("fill", `${clusterColor}08`)
+                .attr("stroke", clusterColor)
+                .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
+                .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
+                .attr("stroke-dasharray", "6 3")
+                .attr("stroke-linejoin", "round");
+            }
+          }
+          // Team label
+          if (team && points.length >= 2) {
+            const avgY = Math.min(...points.map((p) => p[1]));
+            const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
+            teamClusterGroup.append("text")
+              .attr("x", avgX)
+              .attr("y", avgY - GRAPH.collideRadius - 8)
+              .attr("text-anchor", "middle")
+              .attr("fill", clusterColor)
+              .attr("font-family", "monospace")
+              .attr("font-size", 10)
+              .attr("font-weight", "bold")
+              .attr("opacity", isSelectedTeam ? 0.8 : 0.4)
+              .text(team.name);
+          }
+        }
       });
 
     simulationRef.current = simulation;

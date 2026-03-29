@@ -8,6 +8,7 @@ import { calculateCost, formatCost } from "@/lib/costs";
 
 export function AgentDetail() {
   const agents = useAgentStore((s) => s.agents);
+  const teams = useAgentStore((s) => s.teams);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
 
@@ -23,6 +24,8 @@ export function AgentDetail() {
   if (!agent) {
     return (
       <div
+        role="complementary"
+        aria-label="Agent details"
         className="flex flex-col h-full items-center justify-center"
         style={{
           width: 300,
@@ -47,6 +50,8 @@ export function AgentDetail() {
 
   return (
     <div
+      role="complementary"
+      aria-label="Agent details"
       className="flex flex-col h-full overflow-hidden"
       style={{
         width: 300,
@@ -103,6 +108,23 @@ export function AgentDetail() {
             <span className="text-xs" style={{ color: UI.text.muted }}>
               {agent.slug}
             </span>
+          </DetailRow>
+        )}
+
+        {/* Team */}
+        {agent.teamId && teams.has(agent.teamId) && (
+          <DetailRow label="TEAM">
+            <div className="flex items-center gap-1">
+              <span
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{ color: UI.primary, background: `${UI.primary}15` }}
+              >
+                {teams.get(agent.teamId)!.name}
+              </span>
+              <span className="text-xs" style={{ color: UI.text.dimmed }}>
+                ({teams.get(agent.teamId)!.memberIds.length} members)
+              </span>
+            </div>
           </DetailRow>
         )}
 

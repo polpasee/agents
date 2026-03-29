@@ -3,6 +3,7 @@ import * as path from "path";
 import {
   agents,
   edges,
+  teams,
   agentLastModified,
   removedAgentIds,
   registerAgent,
@@ -121,6 +122,8 @@ export function discoverActiveSessions(projectsDir: string) {
 
         let agentType: ReturnType<typeof parseAgentType> = "generic";
         let description = "";
+        let teamId: string | undefined;
+        let teamName: string | undefined;
         const metaFile = `agent-${agentId}.meta.json`;
         if (metaFiles.includes(metaFile)) {
           try {
@@ -129,6 +132,8 @@ export function discoverActiveSessions(projectsDir: string) {
             );
             agentType = parseAgentType(meta.agentType);
             description = meta.description || "";
+            teamId = meta.teamId;
+            teamName = meta.teamName;
           } catch (err) {
             console.warn(`Failed to read meta file ${metaFile}:`, err);
           }
@@ -156,6 +161,8 @@ export function discoverActiveSessions(projectsDir: string) {
             slug: info.slug,
             model: info.model,
             startTime: info.startTime || stat.mtimeMs,
+            teamId,
+            teamName,
           });
         }
 
@@ -183,12 +190,23 @@ export function discoverActiveSessions(projectsDir: string) {
     }
   }
   for (const agentId of staleIds) {
+    const agent = agents.get(agentId);
     agents.delete(agentId);
     agentLastModified.delete(agentId);
     removedAgentIds.set(agentId, Date.now());
     for (let i = edges.length - 1; i >= 0; i--) {
       if (edges[i].source === agentId || edges[i].target === agentId) {
         edges.splice(i, 1);
+      }
+    }
+    // Remove agent from its team; delete team if empty
+    if (agent?.teamId) {
+      const team = teams.get(agent.teamId);
+      if (team) {
+        team.memberIds = team.memberIds.filter(id => id !== agentId);
+        if (team.memberIds.length === 0) {
+          teams.delete(agent.teamId);
+        }
       }
     }
     try {

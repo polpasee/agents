@@ -49,7 +49,7 @@ export function readNewLines(filePath: string): string[] {
     .subarray(0, usableBytes)
     .toString("utf-8")
     .split("\n")
-    .filter((l) => l.trim().length > 0);
+    .filter((l: string) => l.trim().length > 0);
 }
 
 export function extractTaskFromJSONL(
@@ -63,7 +63,7 @@ export function extractTaskFromJSONL(
     const fd = fs.openSync(filePath, "r");
     fs.readSync(fd, chunk, 0, chunk.length, 0);
     fs.closeSync(fd);
-    const lines = chunk.toString("utf-8").split("\n").filter(l => l.trim());
+    const lines = chunk.toString("utf-8").split("\n").filter((l: string) => l.trim());
     for (const line of lines) {
       try {
         const parsed = JSON.parse(line);

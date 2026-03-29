@@ -2,7 +2,7 @@ import { WebSocketServer } from "ws";
 import * as path from "path";
 import * as os from "os";
 import type { ServerEvent } from "../src/lib/types";
-import { agents, edges, viewers } from "./lib/agent-state";
+import { agents, edges, teams, viewers } from "./lib/agent-state";
 import { discoverActiveSessions } from "./lib/discovery";
 import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
 
@@ -29,6 +29,7 @@ wss.on("connection", (ws) => {
     type: "state:sync",
     agents: Array.from(agents.values()),
     edges: [...edges],
+    teams: Array.from(teams.values()),
   };
   ws.send(JSON.stringify(syncEvent));
 

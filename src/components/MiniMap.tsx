@@ -11,7 +11,7 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    let timerId: ReturnType<typeof setTimeout>;
+    let frameId: ReturnType<typeof requestAnimationFrame>;
     let stopped = false;
 
     function draw() {
@@ -60,14 +60,14 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
       }
 
       if (!stopped) {
-        timerId = setTimeout(draw, 100);
+        frameId = requestAnimationFrame(draw);
       }
     }
 
-    draw();
+    frameId = requestAnimationFrame(draw);
     return () => {
       stopped = true;
-      clearTimeout(timerId);
+      cancelAnimationFrame(frameId);
     };
   }, [graphRef]);
 

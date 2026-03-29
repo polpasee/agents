@@ -5,6 +5,7 @@ import type {
   AgentType,
   EdgeState,
   ServerEvent,
+  TeamState,
   ToolCallEntry,
 } from "../../src/lib/types";
 import {
@@ -18,6 +19,7 @@ import {
 // ── State ──────────────────────────────────────────────
 export const agents = new Map<string, AgentState>();
 export const edges: EdgeState[] = [];
+export const teams = new Map<string, TeamState>();
 export const viewers = new Set<WebSocket>();
 export const agentLastModified = new Map<string, number>();
 /** Tracks when each agent was removed so we can purge old entries */
@@ -57,6 +59,8 @@ export function registerAgent(opts: {
   slug: string;
   model: string;
   startTime: number;
+  teamId?: string;
+  teamName?: string;
 }) {
   const projectName = opts.projectDir.replace(/-/g, "/").replace(/^\//, "");
 
@@ -69,6 +73,7 @@ export function registerAgent(opts: {
     sessionId: opts.sessionId,
     slug: opts.slug,
     model: opts.model,
+    teamId: opts.teamId,
     toolCalls: [],
     inputTokens: 0,
     outputTokens: 0,
@@ -80,6 +85,30 @@ export function registerAgent(opts: {
   };
 
   agents.set(opts.agentId, agent);
+
+  // Handle team membership
+  if (opts.teamId) {
+    let team = teams.get(opts.teamId);
+    if (!team) {
+      team = {
+        id: opts.teamId,
+        name: opts.teamName || opts.teamId,
+        memberIds: [opts.agentId],
+        status: "forming",
+        task: opts.task || "",
+        startTime: opts.startTime,
+      };
+      teams.set(opts.teamId, team);
+    } else {
+      if (!team.memberIds.includes(opts.agentId)) {
+        team.memberIds.push(opts.agentId);
+      }
+    }
+    if (opts.agentType === "team-lead") {
+      team.leaderId = opts.agentId;
+      team.status = "active";
+    }
+  }
 
   if (opts.parentId && !edges.some(e => e.source === opts.parentId && e.target === opts.agentId)) {
     edges.push({ source: opts.parentId, target: opts.agentId });
@@ -94,8 +123,23 @@ export function registerAgent(opts: {
     sessionId: opts.sessionId,
     slug: opts.slug,
     model: opts.model,
+    teamId: opts.teamId,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
+}
+
+// ── Update team status based on member states ────────
+export function updateTeamStatus(teamId: string) {
+  const team = teams.get(teamId);
+  if (!team) return;
+  const members = team.memberIds.map(id => agents.get(id)).filter(Boolean);
+  if (members.length === 0) return;
+  const allCompleted = members.every(a => a!.status === "completed");
+  const anyError = members.some(a => a!.status === "error");
+  const anyRunning = members.some(a => a!.status === "running" || a!.status === "idle");
+  if (anyError) team.status = "error";
+  else if (allCompleted) team.status = "completed";
+  else if (anyRunning) team.status = "active";
 }
 
 // ── Update agent status based on file recency ────────

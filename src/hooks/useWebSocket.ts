@@ -2,9 +2,11 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { WS_URL, WS_RECONNECT_DELAY_MS } from "@/lib/config";
+import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS } from "@/lib/config";
 import type { ServerEvent } from "@/lib/types";
+import { isValidServerEvent } from "@/lib/validation";
 
+/** Connect to the agent WebSocket server with exponential backoff reconnection. */
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const setConnected = useAgentStore((s) => s.setConnected);
@@ -15,6 +17,7 @@ export function useWebSocket() {
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let destroyed = false;
+    let reconnectDelay = WS_RECONNECT_DELAY_MS;
 
     function connect() {
       if (destroyed) return;
@@ -22,15 +25,21 @@ export function useWebSocket() {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        reconnectDelay = WS_RECONNECT_DELAY_MS;
         setConnected(true);
       };
 
       ws.onmessage = (msg) => {
         try {
-          const event = JSON.parse(msg.data) as ServerEvent;
+          const data = JSON.parse(msg.data);
+          if (!isValidServerEvent(data)) {
+            console.warn("Invalid ServerEvent received:", data?.type);
+            return;
+          }
+          const event = data;
           switch (event.type) {
             case "state:sync":
-              syncState(event.agents, event.edges);
+              syncState(event.agents, event.edges, event.teams);
               break;
             case "state:update":
               handleEvent(event.event, event.timestamp);
@@ -47,7 +56,8 @@ export function useWebSocket() {
       ws.onclose = () => {
         setConnected(false);
         if (!destroyed) {
-          reconnectTimer = setTimeout(connect, WS_RECONNECT_DELAY_MS);
+          reconnectTimer = setTimeout(connect, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
         }
       };
 
