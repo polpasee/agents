@@ -5,12 +5,25 @@ import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
+import { sendWsMessage } from "@/hooks/useWebSocket";
 
 export function AgentDetail() {
   const agents = useAgentStore((s) => s.agents);
   const teams = useAgentStore((s) => s.teams);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
+  const openLogViewer = useAgentStore((s) => s.openLogViewer);
+  const setLogLoading = useAgentStore((s) => s.setLogLoading);
+  const logEntries = useAgentStore((s) => s.logEntries);
+
+  const handleViewLog = () => {
+    if (!agent) return;
+    openLogViewer(agent.id);
+    if (!logEntries.has(agent.id)) {
+      setLogLoading(agent.id, true);
+      sendWsMessage({ type: "log:request", agentId: agent.id });
+    }
+  };
 
   // Live timer for running agents — force re-render every second
   const [, tick] = useState(0);
@@ -72,6 +85,18 @@ export function AgentDetail() {
           <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
+          <button
+            onClick={handleViewLog}
+            className="ml-auto px-1.5 py-0.5 rounded text-xs font-mono"
+            style={{
+              background: `${UI.primary}11`,
+              border: `1px solid ${UI.primary}44`,
+              color: UI.primary,
+            }}
+            title="View conversation log"
+          >
+            LOG
+          </button>
         </div>
         <div className="text-xs mt-0.5 truncate" style={{ color: UI.text.dimmed }}>
           {agent.id}

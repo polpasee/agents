@@ -6,6 +6,7 @@ import {
   teams,
   agentLastModified,
   removedAgentIds,
+  agentFilePaths,
   registerAgent,
   updateAgentStatus,
   processEntry,
@@ -59,6 +60,7 @@ export function discoverActiveSessions(projectsDir: string) {
         removedAgentIds.delete(sessionId);
 
         const info = extractTaskFromJSONL(filePath);
+        agentFilePaths.set(sessionId, filePath);
         registerAgent({
           agentId: sessionId,
           sessionId,
@@ -148,6 +150,7 @@ export function discoverActiveSessions(projectsDir: string) {
           if (removedAgentIds.has(agentId) && age > STALE_THRESHOLD_MS) continue;
           removedAgentIds.delete(agentId);
 
+          agentFilePaths.set(agentId, filePath);
           const info = extractTaskFromJSONL(filePath);
           const parentId = sessionId;
 
@@ -193,6 +196,7 @@ export function discoverActiveSessions(projectsDir: string) {
     const agent = agents.get(agentId);
     agents.delete(agentId);
     agentLastModified.delete(agentId);
+    agentFilePaths.delete(agentId);
     removedAgentIds.set(agentId, Date.now());
     for (let i = edges.length - 1; i >= 0; i--) {
       if (edges[i].source === agentId || edges[i].target === agentId) {
