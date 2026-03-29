@@ -305,6 +305,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       d3.select(svg)
         .transition()
         .duration(500)
+        // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
         .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
     },
   }));

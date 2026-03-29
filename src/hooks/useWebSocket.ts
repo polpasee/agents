@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { WS_URL, WS_RECONNECT_DELAY_MS } from "@/lib/config";
+import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS } from "@/lib/config";
 import type { ServerEvent } from "@/lib/types";
 
 export function useWebSocket() {
@@ -15,6 +15,7 @@ export function useWebSocket() {
   useEffect(() => {
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let destroyed = false;
+    let reconnectDelay = WS_RECONNECT_DELAY_MS;
 
     function connect() {
       if (destroyed) return;
@@ -22,6 +23,7 @@ export function useWebSocket() {
       wsRef.current = ws;
 
       ws.onopen = () => {
+        reconnectDelay = WS_RECONNECT_DELAY_MS;
         setConnected(true);
       };
 
@@ -47,7 +49,8 @@ export function useWebSocket() {
       ws.onclose = () => {
         setConnected(false);
         if (!destroyed) {
-          reconnectTimer = setTimeout(connect, WS_RECONNECT_DELAY_MS);
+          reconnectTimer = setTimeout(connect, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, WS_RECONNECT_MAX_DELAY_MS);
         }
       };
 

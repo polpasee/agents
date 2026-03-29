@@ -177,7 +177,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set({ recording: false, recordedEvents: [] });
   },
 
-  viewMode: "graph" as "graph" | "timeline",
+  viewMode: "graph",
   setViewMode: (mode) => set({ viewMode: mode }),
 
   hiddenAgentTypes: new Set(),
