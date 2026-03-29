@@ -329,7 +329,106 @@ async function runSimulation() {
   console.log(`[MAIN] Completed`);
   console.log("\nSimulation complete! Dashboard should show the full agent tree.");
 
-  await sleep(5000);
+  await sleep(3000);
+
+  // --- Team simulation ---
+  console.log("\n--- Starting team simulation ---\n");
+
+  const teamLeadId = `lead-${randomId()}`;
+  const teamId = `team-auth-${randomId()}`;
+
+  reporter.send({
+    type: "agent:register",
+    agentId: teamLeadId,
+    parentId: mainId,
+    agentType: "team-lead",
+    task: "Coordinate auth implementation team",
+    teamId,
+  });
+  console.log(`[TEAM-LEAD] Registered: ${teamLeadId} (team: ${teamId})`);
+  await sleep(1000);
+
+  const teamBuildId = `build-${randomId()}`;
+  reporter.send({
+    type: "agent:register",
+    agentId: teamBuildId,
+    parentId: teamLeadId,
+    agentType: "build",
+    task: "Implement JWT middleware",
+    teamId,
+  });
+  console.log(`[TEAM-BUILD] Spawned: ${teamBuildId}`);
+  await sleep(500);
+
+  const teamTestId = `test-${randomId()}`;
+  reporter.send({
+    type: "agent:register",
+    agentId: teamTestId,
+    parentId: teamLeadId,
+    agentType: "test",
+    task: "Write auth integration tests",
+    teamId,
+  });
+  console.log(`[TEAM-TEST] Spawned: ${teamTestId}`);
+  await sleep(500);
+
+  const teamReviewId = `review-${randomId()}`;
+  reporter.send({
+    type: "agent:register",
+    agentId: teamReviewId,
+    parentId: teamLeadId,
+    agentType: "review",
+    task: "Review auth code quality",
+    teamId,
+  });
+  console.log(`[TEAM-REVIEW] Spawned: ${teamReviewId}`);
+  await sleep(1000);
+
+  // Team members work in parallel
+  reporter.send({ type: "agent:tool_call", agentId: teamBuildId, tool: "Edit", args: "src/auth/jwt.ts" });
+  reporter.send({ type: "agent:tool_call", agentId: teamTestId, tool: "Bash", args: "npm test -- auth" });
+  await sleep(1500);
+
+  // Peer-to-peer message between team members
+  reporter.send({ type: "agent:message", fromId: teamBuildId, toId: teamTestId, content: "JWT module ready for testing" });
+  await sleep(1000);
+
+  reporter.send({
+    type: "agent:tokens",
+    agentId: teamBuildId,
+    inputTokens: 30000,
+    outputTokens: 8000,
+    cacheReadTokens: 0,
+    cacheCreateTokens: 0,
+    contextWindow: 200000,
+  });
+
+  reporter.send({ type: "agent:tool_call", agentId: teamTestId, tool: "Bash", args: "npm test -- auth --coverage" });
+  await sleep(1200);
+
+  reporter.send({ type: "agent:message", fromId: teamTestId, toId: teamReviewId, content: "Tests passing, ready for review" });
+  await sleep(800);
+
+  reporter.send({ type: "agent:tool_call", agentId: teamReviewId, tool: "Read", args: "src/auth/jwt.ts" });
+  await sleep(1000);
+
+  reporter.send({ type: "agent:complete", agentId: teamBuildId, summary: "JWT middleware implemented", duration: 12000 });
+  console.log(`[TEAM-BUILD] Completed`);
+  await sleep(500);
+
+  reporter.send({ type: "agent:complete", agentId: teamTestId, summary: "All auth tests passing (100% coverage)", duration: 10000 });
+  console.log(`[TEAM-TEST] Completed`);
+  await sleep(500);
+
+  reporter.send({ type: "agent:complete", agentId: teamReviewId, summary: "Code reviewed, no issues", duration: 8000 });
+  console.log(`[TEAM-REVIEW] Completed`);
+  await sleep(500);
+
+  reporter.send({ type: "agent:complete", agentId: teamLeadId, summary: "Team auth implementation complete", duration: 18000 });
+  console.log(`[TEAM-LEAD] Completed`);
+  console.log("\nTeam simulation complete!");
+
+  await sleep(3000);
 
   // --- Second wave: demonstrate error handling ---
   console.log("\n--- Starting second simulation (with error) ---\n");

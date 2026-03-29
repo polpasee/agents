@@ -32,7 +32,7 @@ export function useWebSocket() {
           const event = JSON.parse(msg.data) as ServerEvent;
           switch (event.type) {
             case "state:sync":
-              syncState(event.agents, event.edges);
+              syncState(event.agents, event.edges, event.teams);
               break;
             case "state:update":
               handleEvent(event.event, event.timestamp);

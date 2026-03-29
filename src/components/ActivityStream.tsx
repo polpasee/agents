@@ -4,11 +4,12 @@ import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { truncateId } from "@/lib/utils";
-import type { AgentEvent, AgentType } from "@/lib/types";
+import type { AgentEvent, AgentType, TeamState } from "@/lib/types";
 
 export function ActivityStream() {
   const activity = useAgentStore((s) => s.activity);
   const agents = useAgentStore((s) => s.agents);
+  const teams = useAgentStore((s) => s.teams);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export function ActivityStream() {
             timestamp={entry.timestamp}
             event={entry.event}
             agents={agents}
+            teams={teams}
           />
         ))}
       </div>
@@ -58,10 +60,12 @@ function ActivityLine({
   timestamp,
   event,
   agents,
+  teams,
 }: {
   timestamp: number;
   event: AgentEvent;
-  agents: Map<string, { agentType: AgentType }>;
+  agents: Map<string, { agentType: AgentType; teamId?: string }>;
+  teams: Map<string, { name: string }>;
 }) {
   const time = new Date(timestamp).toLocaleTimeString("en-US", {
     hour12: false,
@@ -78,7 +82,8 @@ function ActivityLine({
   let content: React.ReactNode;
 
   switch (event.type) {
-    case "agent:register":
+    case "agent:register": {
+      const teamName = event.teamId ? teams.get(event.teamId)?.name : null;
       content = (
         <>
           {event.parentId && (
@@ -92,11 +97,20 @@ function ActivityLine({
           <span style={{ color: getAgentColor(event.agentId) }}>
             {event.agentType}:{truncateId(event.agentId)}
           </span>
+          {teamName && (
+            <span
+              className="ml-1 px-1 rounded text-xs"
+              style={{ color: UI.primary, background: `${UI.primary}15`, fontSize: 10 }}
+            >
+              {teamName}
+            </span>
+          )}
           {" — "}
           <span style={{ color: UI.text.muted }}>&quot;{event.task}&quot;</span>
         </>
       );
       break;
+    }
     case "agent:status":
       content = (
         <>

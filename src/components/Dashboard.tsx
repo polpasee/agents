@@ -13,6 +13,7 @@ import { ActivityStream } from "./ActivityStream";
 import { GraphControls } from "./GraphControls";
 import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
+import { TeamPanel } from "./TeamPanel";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 
@@ -55,6 +56,7 @@ export function Dashboard() {
         </div>
         <AgentDetail />
       </div>
+      <TeamPanel />
       <ActivityStream />
     </div>
   );

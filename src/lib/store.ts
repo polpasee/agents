@@ -5,6 +5,8 @@ import type {
   ActivityEntry,
   AgentEvent,
   ToolCallEntry,
+  TeamState,
+  TeamStats,
 } from "./types";
 import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "./config";
 
@@ -15,12 +17,16 @@ interface AgentStore {
   selectedAgentId: string | null;
   selectedSessionId: string | null; // null = "All Sessions"
   connected: boolean;
+  teams: Map<string, TeamState>;
+  selectedTeamId: string | null;
 
   // Actions
   setConnected: (connected: boolean) => void;
   selectAgent: (id: string | null) => void;
   selectSession: (sessionId: string | null) => void;
-  syncState: (agents: AgentState[], edges: EdgeState[]) => void;
+  selectTeam: (teamId: string | null) => void;
+  getTeamStats: (teamId: string) => TeamStats;
+  syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[]) => void;
   handleEvent: (event: AgentEvent, timestamp: number) => void;
   removeAgent: (agentId: string) => void;
   recording: boolean;
@@ -42,6 +48,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   selectedAgentId: null,
   selectedSessionId: null,
   connected: false,
+  teams: new Map(),
+  selectedTeamId: null,
 
   setConnected: (connected) => set({ connected }),
 
@@ -49,18 +57,43 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   selectSession: (sessionId) => set({ selectedSessionId: sessionId, selectedAgentId: null }),
 
-  syncState: (agentsList, edges) => {
+  selectTeam: (teamId) => set({ selectedTeamId: teamId }),
+
+  getTeamStats: (teamId) => {
+    const { agents, teams } = get();
+    const team = teams.get(teamId);
+    if (!team) return { totalTokens: 0, totalCost: 0, memberCount: 0, completedCount: 0, errorCount: 0, activeCount: 0 };
+    const members = team.memberIds.map(id => agents.get(id)).filter(Boolean) as AgentState[];
+    let totalTokens = 0;
+    let completedCount = 0;
+    let errorCount = 0;
+    let activeCount = 0;
+    for (const m of members) {
+      totalTokens += m.inputTokens + m.outputTokens;
+      if (m.status === "completed") completedCount++;
+      else if (m.status === "error") errorCount++;
+      else if (m.status === "running" || m.status === "idle") activeCount++;
+    }
+    return { totalTokens, totalCost: 0, memberCount: members.length, completedCount, errorCount, activeCount };
+  },
+
+  syncState: (agentsList, edges, teamsList) => {
     const agents = new Map<string, AgentState>();
     for (const agent of agentsList) {
       agents.set(agent.id, agent);
     }
-    set({ agents, edges });
+    const teams = new Map<string, TeamState>();
+    for (const team of teamsList) {
+      teams.set(team.id, team);
+    }
+    set({ agents, edges, teams });
   },
 
   handleEvent: (event, timestamp) => {
     const { agents, edges, activity, recording, recordedEvents } = get();
     const newAgents = new Map(agents);
     let newEdges = edges;
+    let newTeamsUpdate: Map<string, TeamState> | null = null;
 
     switch (event.type) {
       case "agent:register": {
@@ -73,6 +106,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
           sessionId: event.sessionId,
           slug: event.slug,
           model: event.model,
+          teamId: event.teamId,
           toolCalls: [],
           inputTokens: 0,
           outputTokens: 0,
@@ -86,12 +120,52 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         if (event.parentId) {
           newEdges = [...edges, { source: event.parentId, target: event.agentId }];
         }
+        if (event.teamId) {
+          const { teams } = get();
+          const newTeams = new Map(teams);
+          let team = newTeams.get(event.teamId);
+          if (!team) {
+            team = {
+              id: event.teamId,
+              name: event.teamId,
+              memberIds: [event.agentId],
+              status: "forming",
+              task: event.task,
+              startTime: timestamp,
+            };
+          } else {
+            team = { ...team, memberIds: [...team.memberIds, event.agentId] };
+          }
+          if (event.agentType === "team-lead") {
+            team = { ...team, leaderId: event.agentId, status: "active" };
+          }
+          newTeams.set(event.teamId, team);
+          newTeamsUpdate = newTeams;
+        }
         break;
       }
       case "agent:status": {
         const agent = newAgents.get(event.agentId);
         if (agent) {
           newAgents.set(event.agentId, { ...agent, status: event.status });
+        }
+        const updatedAgentStatus = newAgents.get(event.agentId);
+        if (updatedAgentStatus?.teamId) {
+          const { teams } = get();
+          const newTeams = new Map(teams);
+          const team = newTeams.get(updatedAgentStatus.teamId);
+          if (team) {
+            const members = team.memberIds.map(id => newAgents.get(id)).filter(Boolean);
+            const anyError = members.some(a => a!.status === "error");
+            const allCompleted = members.every(a => a!.status === "completed");
+            const anyRunning = members.some(a => a!.status === "running" || a!.status === "idle");
+            let newStatus = team.status;
+            if (anyError) newStatus = "error";
+            else if (allCompleted) newStatus = "completed";
+            else if (anyRunning) newStatus = "active";
+            newTeams.set(team.id, { ...team, status: newStatus });
+            newTeamsUpdate = newTeams;
+          }
         }
         break;
       }
@@ -133,11 +207,33 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             summary: event.summary,
           });
         }
+        const updatedAgentComplete = newAgents.get(event.agentId);
+        if (updatedAgentComplete?.teamId) {
+          const { teams } = get();
+          const newTeams = new Map(teams);
+          const team = newTeams.get(updatedAgentComplete.teamId);
+          if (team) {
+            const members = team.memberIds.map(id => newAgents.get(id)).filter(Boolean);
+            const anyError = members.some(a => a!.status === "error");
+            const allCompleted = members.every(a => a!.status === "completed");
+            const anyRunning = members.some(a => a!.status === "running" || a!.status === "idle");
+            let newStatus = team.status;
+            if (anyError) newStatus = "error";
+            else if (allCompleted) newStatus = "completed";
+            else if (anyRunning) newStatus = "active";
+            newTeams.set(team.id, { ...team, status: newStatus });
+            newTeamsUpdate = newTeams;
+          }
+        }
         break;
       }
-      case "agent:message":
-        // Message events are recorded in activity log but don't modify agent state
+      case "agent:message": {
+        const messageEdge = { source: event.fromId, target: event.toId, edgeType: "message" as const };
+        if (!newEdges.some(e => e.source === event.fromId && e.target === event.toId && e.edgeType === "message")) {
+          newEdges = [...newEdges, messageEdge];
+        }
         break;
+      }
     }
 
     const newActivity = [
@@ -150,6 +246,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       agents: newAgents,
       edges: newEdges,
       activity: newActivity,
+      ...(newTeamsUpdate ? { teams: newTeamsUpdate } : {}),
       ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
@@ -190,12 +287,25 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   removeAgent: (agentId) => {
-    const { agents, edges } = get();
+    const { agents, edges, teams } = get();
+    const agent = agents.get(agentId);
     const newAgents = new Map(agents);
     newAgents.delete(agentId);
     const newEdges = edges.filter(
       (e) => e.source !== agentId && e.target !== agentId
     );
-    set({ agents: newAgents, edges: newEdges });
+    const newTeams = new Map(teams);
+    if (agent?.teamId) {
+      const team = newTeams.get(agent.teamId);
+      if (team) {
+        const updatedMembers = team.memberIds.filter(id => id !== agentId);
+        if (updatedMembers.length === 0) {
+          newTeams.delete(agent.teamId);
+        } else {
+          newTeams.set(agent.teamId, { ...team, memberIds: updatedMembers });
+        }
+      }
+    }
+    set({ agents: newAgents, edges: newEdges, teams: newTeams });
   },
 }));

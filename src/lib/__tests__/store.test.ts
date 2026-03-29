@@ -78,7 +78,7 @@ describe("syncState", () => {
     ];
     const edges: EdgeState[] = [{ source: "a1", target: "a2" }];
 
-    useAgentStore.getState().syncState(agents, edges);
+    useAgentStore.getState().syncState(agents, edges, []);
     const state = useAgentStore.getState();
 
     expect(state.agents.size).toBe(2);
@@ -103,7 +103,7 @@ describe("syncState", () => {
         startTime: 0,
       },
     ];
-    useAgentStore.getState().syncState(first, []);
+    useAgentStore.getState().syncState(first, [], []);
     expect(useAgentStore.getState().agents.has("old")).toBe(true);
 
     const second: AgentState[] = [
@@ -121,7 +121,7 @@ describe("syncState", () => {
         startTime: 0,
       },
     ];
-    useAgentStore.getState().syncState(second, []);
+    useAgentStore.getState().syncState(second, [], []);
     const state = useAgentStore.getState();
     expect(state.agents.has("old")).toBe(false);
     expect(state.agents.has("new")).toBe(true);
