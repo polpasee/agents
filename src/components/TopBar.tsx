@@ -21,6 +21,8 @@ export function TopBar() {
   const downloadRecording = useAgentStore((s) => s.downloadRecording);
   const replayActive = useAgentStore((s) => s.replay.active);
   const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
+  const showLiveMetrics = useAgentStore((s) => s.showLiveMetrics);
+  const toggleLiveMetrics = useAgentStore((s) => s.toggleLiveMetrics);
   const theme = useAgentStore((s) => s.theme);
   const toggleTheme = useAgentStore((s) => s.toggleTheme);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,9 +170,20 @@ export function TopBar() {
         </div>
 
         <button
+          onClick={toggleLiveMetrics}
+          className="px-2 py-0.5 rounded text-xs font-mono ml-2"
+          style={{
+            background: showLiveMetrics ? `${UI.primary}22` : "transparent",
+            border: `1px solid ${showLiveMetrics ? UI.primary : "var(--color-border)"}`,
+            color: showLiveMetrics ? UI.primary : UI.text.muted,
+          }}
+        >
+          METRICS
+        </button>
+        <button
           onClick={recording ? downloadRecording : startRecording}
           disabled={replayActive}
-          className="px-2 py-0.5 rounded text-xs font-mono ml-2"
+          className="px-2 py-0.5 rounded text-xs font-mono"
           style={{
             background: recording ? `${UI.error}22` : "transparent",
             border: `1px solid ${recording ? UI.error : "var(--color-border)"}`,
