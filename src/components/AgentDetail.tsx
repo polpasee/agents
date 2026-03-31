@@ -8,6 +8,7 @@ import { calculateCost, formatCost } from "@/lib/costs";
 import { calculateEfficiency } from "@/lib/efficiency";
 import type { AgentState } from "@/lib/types";
 import { sendWsMessage } from "@/hooks/useWebSocket";
+import { AnnotationOverlay } from "./AnnotationOverlay";
 
 export function AgentDetail() {
   const agents = useAgentStore((s) => s.agents);
@@ -292,6 +293,11 @@ export function AgentDetail() {
               </div>
             ))}
           </div>
+        </DetailRow>
+
+        {/* Annotations */}
+        <DetailRow label="ANNOTATIONS">
+          <AnnotationOverlay agentId={agent.id} />
         </DetailRow>
 
         {/* Summary (if completed) */}
