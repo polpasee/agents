@@ -17,6 +17,7 @@ import { Timeline } from "./Timeline";
 import { TeamPanel } from "./TeamPanel";
 import { ReplayBar } from "./ReplayBar";
 import LogViewer from "./LogViewer";
+import { ErrorDrillDown } from "./ErrorDrillDown";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -87,6 +88,7 @@ export function Dashboard() {
           <LogViewer />
         </ErrorBoundary>
       )}
+      <ErrorDrillDown />
     </div>
   );
 }

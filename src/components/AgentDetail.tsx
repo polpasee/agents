@@ -18,6 +18,7 @@ export function AgentDetail() {
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
   const logEntries = useAgentStore((s) => s.logEntries);
   const agentTypeBudgets = useAgentStore((s) => s.agentTypeBudgets);
+  const openErrorDrillDown = useAgentStore((s) => s.openErrorDrillDown);
 
   const handleViewLog = () => {
     if (!agent) return;
@@ -118,6 +119,19 @@ export function AgentDetail() {
             <span className="capitalize text-sm" style={{ color: statusColor }}>
               {agent.status}
             </span>
+            {agent.status === "error" && (
+              <button
+                onClick={() => openErrorDrillDown(agent.id)}
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-mono cursor-pointer"
+                style={{
+                  background: `${STATUS_COLORS.error}22`,
+                  border: `1px solid ${STATUS_COLORS.error}44`,
+                  color: STATUS_COLORS.error,
+                }}
+              >
+                VIEW ERROR
+              </button>
+            )}
           </div>
         </DetailRow>
 
