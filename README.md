@@ -67,12 +67,42 @@ Agents and SDK applications connect to a standalone WebSocket server on port 400
 - **Sound Notifications** — Audio alerts for agent events.
 - **Error Boundaries** — React error boundaries around every major component for graceful failure handling.
 
-### Advanced
+### Advanced (Foundation)
 
 - **Session Replay** — Load recorded JSON session files and replay with transport controls (play/pause/seek), speed control (0.5x / 1x / 2x / 4x), and a progress slider. Use the LOAD button in the top bar.
 - **Agent Log Viewer** — Modal viewer for full conversation logs (user/assistant/system messages) with collapsible tool calls showing args and results, plus search functionality. Triggered via the LOG button in the agent detail panel. Uses client-to-server WebSocket messaging.
 - **Cost Projections & Alerts** — Real-time burn rate ($/min), projected total cost, and a configurable budget threshold persisted in localStorage. Visual warnings pulse amber at 80% and red at 95% of budget.
 - **Performance Heatmap** — Graph overlay mode coloring nodes by performance metric (green = healthy, red = bottleneck). Metrics include idle ratio, token efficiency, time to first tool, and average tool latency. Toggle via the HEAT button.
+
+### Monitoring & Observability (F1–F4)
+
+- **F1: Blocking Edge Visualizations** — Red dashed edges with animated stroke and pulsing opacity to indicate blocked dependencies in the agent graph. Includes arrowhead markers and a topology key legend.
+- **F2: Error Drill-Down** — Modal showing error message, cascade chain (agents affected by an error), and last tool calls for errored agents. Triggered via VIEW ERROR button in agent detail panel.
+- **F3: Agent Efficiency Scoring** — Per-agent 0-100 efficiency score combining token efficiency, tool success rate, and completion speed. Displayed in agent detail with a color-coded progress ring.
+- **F4: Live Metrics Dashboard** — Collapsible panel with 4 D3 sparkline area charts showing active agent count, tokens/sec, cost/min, and total cost over time. Toggle via METRICS button in top bar.
+
+### Collaboration (F5–F7)
+
+- **F5: Multi-Session Support** — Session selector in top bar for filtering agents by session. Supports all-session or per-session views.
+- **F6: Annotation Overlay** — Per-agent text annotations synced via WebSocket. Add/remove annotations in the agent detail panel with real-time broadcast to all connected viewers.
+- **F7: Team Workflow Visualization** — Animated inter-agent message edges with directional particles showing team communication flow in the graph.
+
+### Developer Experience (F8–F10)
+
+- **F8: Diff Viewer** — Modal showing file modifications per agent (created/edited/deleted files) with operation badges. Triggered via DIFFS button in agent detail.
+- **F9: Context Window Gauge** — Visual progress bar in agent detail showing context window utilization with color-coded thresholds (green/amber/red).
+- **F10: Session Export** — Export current session data as JSON, CSV, or Markdown reports. Includes agent counts, token totals, cost summaries, and per-agent details. Toggle via EXPORT button.
+
+### Performance & UX (F11–F13)
+
+- **F11: Smooth Layout Transitions** — Animated node position transitions when switching graph layouts or applying filters, using D3 transitions with easing.
+- **F12: Graph Layout Modes** — Four layout options: Force (default physics simulation), Tree (top-down hierarchy), Radial (polar projection), and Hierarchical (left-to-right). Pill buttons in graph controls.
+- **F13: Responsive Design** — Mobile-first responsive layout with slide-over sidebars (<768px), reduced sidebar widths for tablet (768-1024px), and full layout for desktop. Mobile toggle buttons and backdrop.
+
+### Advanced Analytics (F14–F15)
+
+- **F14: Session Comparison** — Side-by-side comparison of two sessions with metrics grid (agents, tokens, cost, duration), delta coloring (green=better, red=worse), and per-session agent cards. Toggle via COMPARE button.
+- **F15: Agent Efficiency Score** — Composite performance scoring with breakdown by token efficiency, tool success rate, and completion speed.
 
 ## Scripts
 
@@ -209,13 +239,20 @@ agents/
 │   │   ├── ReplayBar.tsx           # Session replay transport controls
 │   │   ├── LogViewer.tsx           # Modal conversation log viewer
 │   │   ├── CostProjection.tsx      # Cost burn rate and budget alerts
-│   │   └── HeatmapControls.tsx     # Heatmap metric selector
+│   │   ├── HeatmapControls.tsx     # Heatmap metric selector
+│   │   ├── ErrorDrillDown.tsx      # F2: Error cascade drill-down modal
+│   │   ├── LiveMetrics.tsx         # F4: Real-time sparkline metrics panel
+│   │   ├── AnnotationOverlay.tsx   # F6: Per-agent annotation overlay
+│   │   ├── DiffViewer.tsx          # F8: File modification viewer
+│   │   ├── ExportModal.tsx         # F10: Session export (JSON/CSV/MD)
+│   │   └── SessionComparison.tsx   # F14: Side-by-side session comparison
 │   ├── hooks/
 │   │   ├── useWebSocket.ts         # WebSocket client with reconnection
 │   │   ├── useReplay.ts            # Replay engine tick loop
 │   │   ├── useKeyboardShortcuts.ts # Global keyboard shortcuts
 │   │   ├── useFilteredAgents.ts    # Agent filtering logic
-│   │   └── useSoundNotifications.ts # Audio alert hook
+│   │   ├── useSoundNotifications.ts # Audio alert hook
+│   │   └── useMetricSampler.ts     # F4: Live metrics sampling hook
 │   ├── lib/
 │   │   ├── types.ts                # TypeScript types and interfaces
 │   │   ├── store.ts                # Zustand store
@@ -229,10 +266,12 @@ agents/
 │   │   │   ├── index.ts            # D3 barrel exports
 │   │   │   ├── renderNode.ts       # D3 node rendering
 │   │   │   ├── updateLinks.ts      # D3 edge/link rendering
-│   │   │   └── heatmap.ts          # D3 heatmap color scale and rendering
+│   │   │   ├── heatmap.ts          # D3 heatmap color scale and rendering
+│   │   │   └── layouts.ts          # F12: Tree, radial, hierarchical layouts
 │   │   └── __tests__/              # 11 test files, 191 tests
 │   └── styles/
-│       └── neon.css                # Custom neon glow CSS utilities
+│       ├── neon.css                # Custom neon glow CSS utilities
+│       └── responsive.css          # F13: Responsive breakpoint styles
 ├── scripts/
 │   ├── ws-server.ts                # Standalone WebSocket server
 │   ├── mock-agents.ts              # Mock agent simulator
