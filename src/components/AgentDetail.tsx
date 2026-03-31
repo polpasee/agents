@@ -20,6 +20,8 @@ export function AgentDetail() {
   const logEntries = useAgentStore((s) => s.logEntries);
   const agentTypeBudgets = useAgentStore((s) => s.agentTypeBudgets);
   const openErrorDrillDown = useAgentStore((s) => s.openErrorDrillDown);
+  const agentDiffs = useAgentStore((s) => s.agentDiffs);
+  const openDiffViewer = useAgentStore((s) => s.openDiffViewer);
 
   const handleViewLog = () => {
     if (!agent) return;
@@ -102,6 +104,20 @@ export function AgentDetail() {
           >
             LOG
           </button>
+          {agentDiffs.has(agent.id) && (
+            <button
+              onClick={() => openDiffViewer(agent.id)}
+              className="px-1.5 py-0.5 rounded text-xs font-mono"
+              style={{
+                background: `${UI.primary}11`,
+                border: `1px solid ${UI.primary}44`,
+                color: UI.primary,
+              }}
+              title="View file changes"
+            >
+              DIFFS
+            </button>
+          )}
         </div>
         <div className="text-xs mt-0.5 truncate" style={{ color: UI.text.dimmed }}>
           {agent.id}
