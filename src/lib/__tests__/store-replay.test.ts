@@ -57,7 +57,7 @@ beforeEach(() => {
     edges: [],
     activity: [],
     selectedAgentId: null,
-    selectedSessionId: null,
+    selectedSessionIds: new Set(),
     connected: false,
     teams: new Map(),
     selectedTeamId: null,

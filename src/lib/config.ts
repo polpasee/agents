@@ -45,3 +45,7 @@ export const HEATMAP = {
   legendPadding: 16,
   colors: ["#00ff88", "#eab308", "#ff4444"] as [string, string, string],
 } as const;
+
+/** F4: Live metrics configuration */
+export const METRIC_HISTORY_MAX = 120; // 2 min at 1 sample/sec
+export const METRIC_SAMPLE_INTERVAL_MS = 1000;

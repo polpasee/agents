@@ -11,8 +11,9 @@ import type { RecordedSession } from "@/lib/types";
 export function TopBar() {
   const agents = useAgentStore((s) => s.agents);
   const connected = useAgentStore((s) => s.connected);
-  const selectedSessionId = useAgentStore((s) => s.selectedSessionId);
-  const selectSession = useAgentStore((s) => s.selectSession);
+  const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
+  const toggleSession = useAgentStore((s) => s.toggleSession);
+  const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
   const viewMode = useAgentStore((s) => s.viewMode);
   const setViewMode = useAgentStore((s) => s.setViewMode);
   const recording = useAgentStore((s) => s.recording);
@@ -101,35 +102,50 @@ export function TopBar() {
           ) : null}
         </div>
 
-        {/* Session dropdown */}
+        {/* F5: Multi-session selector */}
         {sessions.length > 0 && (
-          <select
-            value={selectedSessionId || "__all__"}
-            onChange={(e) =>
-              selectSession(e.target.value === "__all__" ? null : e.target.value)
-            }
-            className="text-sm rounded px-2 py-1 outline-none cursor-pointer"
-            style={{
-              background: "var(--color-border)",
-              color: UI.text.secondary,
-              border: `1px solid ${UI.primary}33`,
-              maxWidth: 280,
-            }}
-          >
-            <option value="__all__">All Sessions ({sessions.length})</option>
-            {sessions.map((s) => {
-              const label = s.projectName
-                .split("/")
-                .filter(Boolean)
-                .slice(-2)
-                .join("/");
-              return (
-                <option key={s.sessionId} value={s.sessionId}>
-                  {label} — {s.task.slice(0, 40)}
-                </option>
-              );
-            })}
-          </select>
+          <div className="relative" style={{ maxWidth: 280 }}>
+            <button
+              onClick={selectAllSessions}
+              className="text-sm rounded px-2 py-1 cursor-pointer"
+              style={{
+                background: selectedSessionIds.size === 0 ? `${UI.primary}22` : "var(--color-border)",
+                color: selectedSessionIds.size === 0 ? UI.primary : UI.text.secondary,
+                border: `1px solid ${UI.primary}33`,
+              }}
+              title="Show all sessions"
+            >
+              {selectedSessionIds.size === 0
+                ? `All Sessions (${sessions.length})`
+                : `${selectedSessionIds.size} of ${sessions.length} sessions`}
+            </button>
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {sessions.map((s) => {
+                const label = s.projectName
+                  .split("/")
+                  .filter(Boolean)
+                  .slice(-2)
+                  .join("/");
+                const isSelected = selectedSessionIds.has(s.sessionId);
+                return (
+                  <button
+                    key={s.sessionId}
+                    onClick={() => toggleSession(s.sessionId)}
+                    className="text-xs rounded px-1.5 py-0.5 truncate"
+                    style={{
+                      maxWidth: 140,
+                      background: isSelected ? `${UI.primary}22` : "transparent",
+                      border: `1px solid ${isSelected ? UI.primary : "var(--color-border)"}`,
+                      color: isSelected ? UI.primary : UI.text.muted,
+                    }}
+                    title={`${label} — ${s.task.slice(0, 60)}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         <div className="flex gap-0.5 ml-2">

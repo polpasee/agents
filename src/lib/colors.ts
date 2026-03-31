@@ -57,3 +57,22 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   "team-lead": "LEAD",
   generic: "AGENT",
 };
+
+// F1: Dependency/blocking edge colors
+export const EDGE_COLORS = {
+  blocking: "#ff4444",
+  dependency: "#eab308",
+} as const;
+
+// F11: Theme color palettes
+export const THEME_COLORS = {
+  dark: { bg: "#0a0a1a", panel: "#0d1117", border: "#1a1a2e", text: "#e2e8f0" },
+  light: { bg: "#f8fafc", panel: "#ffffff", border: "#e2e8f0", text: "#1e293b" },
+} as const;
+
+// F15: Efficiency score colors
+export const EFFICIENCY_COLORS = {
+  excellent: "#00ff88",
+  good: "#eab308",
+  poor: "#ff4444",
+} as const;

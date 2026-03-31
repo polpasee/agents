@@ -12,15 +12,24 @@ import type {
   RecordedSession,
   LogEntry,
   HeatmapMetric,
+  ErrorDetail,
+  AgentTypeBudgets,
+  MetricSample,
+  Annotation,
+  FileModification,
+  ThemeMode,
+  GraphLayout,
+  ComparisonState,
+  AgentType,
 } from "./types";
-import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "./config";
+import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW, METRIC_HISTORY_MAX } from "./config";
 
 interface AgentStore {
   agents: Map<string, AgentState>;
   edges: EdgeState[];
   activity: ActivityEntry[];
   selectedAgentId: string | null;
-  selectedSessionId: string | null; // null = "All Sessions"
+  selectedSessionIds: Set<string>; // F5: multi-session (empty = all)
   connected: boolean;
   teams: Map<string, TeamState>;
   selectedTeamId: string | null;
@@ -28,7 +37,8 @@ interface AgentStore {
   // Actions
   setConnected: (connected: boolean) => void;
   selectAgent: (id: string | null) => void;
-  selectSession: (sessionId: string | null) => void;
+  toggleSession: (sessionId: string) => void; // F5
+  selectAllSessions: () => void; // F5
   selectTeam: (teamId: string | null) => void;
   getTeamStats: (teamId: string) => TeamStats;
   syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[]) => void;
@@ -71,16 +81,71 @@ interface AgentStore {
   heatmapMetric: HeatmapMetric;
   toggleHeatmap: () => void;
   setHeatmapMetric: (metric: HeatmapMetric) => void;
+
+  // F2: Error Drill-Down
+  errorDetails: Map<string, ErrorDetail>;
+  errorDrillDownAgentId: string | null;
+  setErrorDetail: (agentId: string, detail: ErrorDetail) => void;
+  openErrorDrillDown: (agentId: string) => void;
+  closeErrorDrillDown: () => void;
+
+  // F3: Token Budget Per-Agent
+  agentTypeBudgets: AgentTypeBudgets;
+  setAgentTypeBudget: (type: AgentType, limit: number | null) => void;
+
+  // F4: Live Metrics
+  metricHistory: MetricSample[];
+  showLiveMetrics: boolean;
+  pushMetricSample: (sample: MetricSample) => void;
+  toggleLiveMetrics: () => void;
+
+  // F6: Annotations
+  annotations: Map<string, Annotation>;
+  addAnnotation: (annotation: Annotation) => void;
+  removeAnnotation: (id: string) => void;
+  updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
+
+  // F8: Diff View
+  agentDiffs: Map<string, FileModification[]>;
+  diffViewerAgentId: string | null;
+  setAgentDiffs: (agentId: string, diffs: FileModification[]) => void;
+  openDiffViewer: (agentId: string) => void;
+  closeDiffViewer: () => void;
+
+  // F10: Export Report
+  showExportModal: boolean;
+  toggleExportModal: () => void;
+
+  // F11: Theme
+  theme: ThemeMode;
+  toggleTheme: () => void;
+
+  // F12: Graph Layout
+  graphLayout: GraphLayout;
+  setGraphLayout: (layout: GraphLayout) => void;
+
+  // F14: Session Comparison
+  comparison: ComparisonState;
+  loadComparison: (left: RecordedSession, right: RecordedSession) => void;
+  exitComparison: () => void;
 }
 
 let activityCounter = 0;
+
+function loadLocalStorage<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const val = localStorage.getItem(key);
+    return val !== null ? JSON.parse(val) : fallback;
+  } catch { return fallback; }
+}
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   agents: new Map(),
   edges: [],
   activity: [],
   selectedAgentId: null,
-  selectedSessionId: null,
+  selectedSessionIds: new Set(), // F5: empty = all sessions
   connected: false,
   teams: new Map(),
   selectedTeamId: null,
@@ -89,7 +154,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   selectAgent: (id) => set({ selectedAgentId: id }),
 
-  selectSession: (sessionId) => set({ selectedSessionId: sessionId, selectedAgentId: null }),
+  // F5: multi-session toggle
+  toggleSession: (sessionId) => {
+    const { selectedSessionIds } = get();
+    const next = new Set(selectedSessionIds);
+    if (next.has(sessionId)) next.delete(sessionId);
+    else next.add(sessionId);
+    set({ selectedSessionIds: next, selectedAgentId: null });
+  },
+
+  selectAllSessions: () => set({ selectedSessionIds: new Set(), selectedAgentId: null }),
 
   selectTeam: (teamId) => set({ selectedTeamId: teamId }),
 
@@ -124,7 +198,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   handleEvent: (event, timestamp) => {
-    const { agents, edges, activity, recording, recordedEvents } = get();
+    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets } = get();
     const newAgents = new Map(agents);
     let newEdges = edges;
     let newTeamsUpdate: Map<string, TeamState> | null = null;
@@ -181,7 +255,41 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       case "agent:status": {
         const agent = newAgents.get(event.agentId);
         if (agent) {
-          newAgents.set(event.agentId, { ...agent, status: event.status });
+          const updates: Partial<AgentState> = { status: event.status };
+          // F1: dependency tracking
+          if (event.waitingOn) {
+            updates.waitingOn = event.waitingOn;
+            const blockingEdge: EdgeState = { source: event.waitingOn, target: event.agentId, edgeType: "blocking" };
+            if (!newEdges.some(e => e.source === event.waitingOn && e.target === event.agentId && e.edgeType === "blocking")) {
+              newEdges = [...newEdges, blockingEdge];
+            }
+          } else if (agent.waitingOn && event.status !== "waiting") {
+            // Clear blocking edge when no longer waiting
+            updates.waitingOn = undefined;
+            newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
+          }
+          // F2: error detail extraction
+          if (event.status === "error") {
+            const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : undefined;
+            const { errorDetails } = get();
+            const newErrors = new Map(errorDetails);
+            // Find cascading errors (parent/child with errors)
+            const cascadeIds: string[] = [];
+            for (const [id, a] of newAgents) {
+              if (id !== event.agentId && a.status === "error" && (a.parentId === event.agentId || agent.parentId === id)) {
+                cascadeIds.push(id);
+              }
+            }
+            newErrors.set(event.agentId, {
+              agentId: event.agentId,
+              message: event.message || "Agent encountered an error",
+              lastToolCall: lastTool,
+              cascadeIds,
+              timestamp,
+            });
+            set({ errorDetails: newErrors });
+          }
+          newAgents.set(event.agentId, { ...agent, ...updates });
         }
         const updatedAgentStatus = newAgents.get(event.agentId);
         if (updatedAgentStatus?.teamId) {
@@ -220,6 +328,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       case "agent:tokens": {
         const agent = newAgents.get(event.agentId);
         if (agent) {
+          const totalTokens = event.inputTokens + event.outputTokens;
+          // F3: check token budget
+          const budgetLimit = agentTypeBudgets[agent.agentType];
+          const budgetExceeded = budgetLimit != null && totalTokens > budgetLimit;
           newAgents.set(event.agentId, {
             ...agent,
             inputTokens: event.inputTokens,
@@ -227,6 +339,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             cacheReadTokens: event.cacheReadTokens,
             cacheCreateTokens: event.cacheCreateTokens,
             contextWindow: event.contextWindow,
+            budgetExceeded,
           });
         }
         break;
@@ -239,7 +352,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
             status: "completed",
             duration: event.duration,
             summary: event.summary,
+            waitingOn: undefined,
           });
+          // Clear any blocking edges
+          newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
         }
         const updatedAgentComplete = newAgents.get(event.agentId);
         if (updatedAgentComplete?.teamId) {
@@ -275,7 +391,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       { id: `act-${++activityCounter}`, timestamp, event },
     ].slice(-ACTIVITY_MAX_ENTRIES);
 
-    // recording/recordedEvents already destructured above
     set({
       agents: newAgents,
       edges: newEdges,
@@ -359,7 +474,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const endTime = session.events.length > 0
       ? session.events[session.events.length - 1].timestamp
       : session.startTime;
-    // Clear current state and enter replay mode
     set({
       agents: new Map(),
       edges: [],
@@ -393,7 +507,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   replaySeek: (timestamp) => {
     const { replay } = get();
     if (!replay.active || !replay.session) return;
-    // Reset state and replay from beginning to target timestamp
     set({
       agents: new Map(),
       edges: [],
@@ -401,7 +514,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       teams: new Map(),
       replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
     });
-    // Now tick up to the target
     get().replayTick(timestamp);
   },
 
@@ -438,7 +550,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       handleEvent(events[idx].event, events[idx].timestamp);
       idx++;
     }
-    const newReplay = get().replay; // re-read after handleEvent calls
+    const newReplay = get().replay;
     set({ replay: { ...newReplay, currentIndex: idx, currentTime: upToTimestamp } });
   },
 
@@ -482,4 +594,109 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   toggleHeatmap: () => set({ heatmapEnabled: !get().heatmapEnabled }),
   setHeatmapMetric: (metric) => set({ heatmapMetric: metric }),
+
+  // ── F2: Error Drill-Down ──────────────────────────────
+  errorDetails: new Map(),
+  errorDrillDownAgentId: null,
+
+  setErrorDetail: (agentId, detail) => {
+    const errorDetails = new Map(get().errorDetails);
+    errorDetails.set(agentId, detail);
+    set({ errorDetails });
+  },
+
+  openErrorDrillDown: (agentId) => set({ errorDrillDownAgentId: agentId }),
+  closeErrorDrillDown: () => set({ errorDrillDownAgentId: null }),
+
+  // ── F3: Token Budget Per-Agent ────────────────────────
+  agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
+
+  setAgentTypeBudget: (type, limit) => {
+    const { agentTypeBudgets } = get();
+    const next = { ...agentTypeBudgets };
+    if (limit === null) delete next[type];
+    else next[type] = limit;
+    if (typeof window !== "undefined") {
+      localStorage.setItem("agentTypeBudgets", JSON.stringify(next));
+    }
+    set({ agentTypeBudgets: next });
+  },
+
+  // ── F4: Live Metrics ──────────────────────────────────
+  metricHistory: [],
+  showLiveMetrics: false,
+
+  pushMetricSample: (sample) => {
+    const history = [...get().metricHistory, sample].slice(-METRIC_HISTORY_MAX);
+    set({ metricHistory: history });
+  },
+
+  toggleLiveMetrics: () => set({ showLiveMetrics: !get().showLiveMetrics }),
+
+  // ── F6: Annotations ───────────────────────────────────
+  annotations: new Map(),
+
+  addAnnotation: (annotation) => {
+    const annotations = new Map(get().annotations);
+    annotations.set(annotation.id, annotation);
+    set({ annotations });
+  },
+
+  removeAnnotation: (id) => {
+    const annotations = new Map(get().annotations);
+    annotations.delete(id);
+    set({ annotations });
+  },
+
+  updateAnnotation: (id, updates) => {
+    const annotations = new Map(get().annotations);
+    const existing = annotations.get(id);
+    if (existing) {
+      annotations.set(id, { ...existing, ...updates });
+      set({ annotations });
+    }
+  },
+
+  // ── F8: Diff View ─────────────────────────────────────
+  agentDiffs: new Map(),
+  diffViewerAgentId: null,
+
+  setAgentDiffs: (agentId, diffs) => {
+    const agentDiffs = new Map(get().agentDiffs);
+    agentDiffs.set(agentId, diffs);
+    set({ agentDiffs });
+  },
+
+  openDiffViewer: (agentId) => set({ diffViewerAgentId: agentId }),
+  closeDiffViewer: () => set({ diffViewerAgentId: null }),
+
+  // ── F10: Export Report ────────────────────────────────
+  showExportModal: false,
+  toggleExportModal: () => set({ showExportModal: !get().showExportModal }),
+
+  // ── F11: Theme ────────────────────────────────────────
+  theme: loadLocalStorage<ThemeMode>("theme", "dark"),
+
+  toggleTheme: () => {
+    const next = get().theme === "dark" ? "light" : "dark";
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", JSON.stringify(next));
+    }
+    set({ theme: next });
+  },
+
+  // ── F12: Graph Layout ─────────────────────────────────
+  graphLayout: "force",
+  setGraphLayout: (layout) => set({ graphLayout: layout }),
+
+  // ── F14: Session Comparison ───────────────────────────
+  comparison: { active: false, leftSession: null, rightSession: null },
+
+  loadComparison: (left, right) => set({
+    comparison: { active: true, leftSession: left, rightSession: right },
+  }),
+
+  exitComparison: () => set({
+    comparison: { active: false, leftSession: null, rightSession: null },
+  }),
 }));

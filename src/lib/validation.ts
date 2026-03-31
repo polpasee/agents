@@ -16,6 +16,10 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
       return typeof obj.agentId === "string" && Array.isArray(obj.entries);
     case "log:error":
       return typeof obj.agentId === "string" && typeof obj.error === "string";
+    case "annotation:sync":
+      return Array.isArray(obj.annotations);
+    case "annotation:update":
+      return obj.annotation != null && (obj.action === "add" || obj.action === "remove");
     default:
       return false;
   }
@@ -25,7 +29,16 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
 export function isValidClientEvent(data: unknown): data is ClientEvent {
   if (!data || typeof data !== "object") return false;
   const obj = data as Record<string, unknown>;
-  return obj.type === "log:request" && typeof obj.agentId === "string";
+  switch (obj.type) {
+    case "log:request":
+      return typeof obj.agentId === "string";
+    case "annotation:add":
+      return obj.annotation != null && typeof obj.annotation === "object";
+    case "annotation:remove":
+      return typeof obj.annotationId === "string";
+    default:
+      return false;
+  }
 }
 
 /** Validate that a parsed object is a well-formed AgentEvent */
