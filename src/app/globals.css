@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "../styles/neon.css";
+@import "../styles/light.css";
 
 :root {
   --color-bg: #0a0a1a;

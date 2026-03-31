@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Agent Monitor",
@@ -15,7 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="antialiased">
         <a href="#main-content" className="skip-link">Skip to main content</a>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

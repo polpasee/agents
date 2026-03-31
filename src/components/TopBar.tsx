@@ -21,6 +21,8 @@ export function TopBar() {
   const downloadRecording = useAgentStore((s) => s.downloadRecording);
   const replayActive = useAgentStore((s) => s.replay.active);
   const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
+  const theme = useAgentStore((s) => s.theme);
+  const toggleTheme = useAgentStore((s) => s.toggleTheme);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLoadReplay = () => {
@@ -192,6 +194,18 @@ export function TopBar() {
           title="Load a recorded session for replay"
         >
           LOAD
+        </button>
+        <button
+          onClick={toggleTheme}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--color-border)",
+            color: UI.text.muted,
+          }}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? "LIGHT" : "DARK"}
         </button>
         <input
           ref={fileInputRef}

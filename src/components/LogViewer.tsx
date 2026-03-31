@@ -12,6 +12,7 @@ export default function LogViewer() {
   const closeLogViewer = useAgentStore((s) => s.closeLogViewer);
 
   const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "system" | "user" | "assistant" | "tools">("all");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   if (!logViewerAgentId) return null;
@@ -19,8 +20,14 @@ export default function LogViewer() {
   const entries = logEntries.get(logViewerAgentId) || [];
   const isLoading = logLoading.has(logViewerAgentId);
 
+  const roleFiltered = roleFilter === "all"
+    ? entries
+    : roleFilter === "tools"
+      ? entries.filter((e) => e.toolCalls && e.toolCalls.length > 0)
+      : entries.filter((e) => e.role === roleFilter);
+
   const filtered = search
-    ? entries.filter(
+    ? roleFiltered.filter(
         (e) =>
           e.content.toLowerCase().includes(search.toLowerCase()) ||
           e.toolCalls?.some(
@@ -30,7 +37,7 @@ export default function LogViewer() {
               (tc.result && tc.result.toLowerCase().includes(search.toLowerCase()))
           )
       )
-    : entries;
+    : roleFiltered;
 
   const toggleTool = (id: string) => {
     setExpandedTools((prev) => {
@@ -134,6 +141,33 @@ export default function LogViewer() {
           />
         </div>
 
+        {/* Role filter tabs */}
+        <div style={{ display: "flex", gap: 4, padding: "8px 16px", borderBottom: "1px solid var(--color-border, #1e293b)" }}>
+          {(["all", "system", "user", "assistant", "tools"] as const).map((role) => {
+            const isActive = roleFilter === role;
+            const color = role === "all" ? "#94a3b8" : role === "tools" ? UI.tool : roleBadgeColor(role);
+            return (
+              <button
+                key={role}
+                onClick={() => setRoleFilter(role)}
+                style={{
+                  fontSize: 11,
+                  fontFamily: "monospace",
+                  padding: "2px 8px",
+                  borderRadius: 9999,
+                  cursor: "pointer",
+                  textTransform: "capitalize",
+                  background: isActive ? `${color}22` : "transparent",
+                  color: isActive ? color : UI.text.muted,
+                  border: isActive ? `1px solid ${color}` : "1px solid var(--color-border, #1e293b)",
+                }}
+              >
+                {role === "all" ? "All" : role.charAt(0).toUpperCase() + role.slice(1)}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Entries */}
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px" }}>
           {isLoading ? (
@@ -169,7 +203,7 @@ export default function LogViewer() {
                 style={{
                   marginBottom: 8,
                   padding: "8px 10px",
-                  backgroundColor: "var(--color-bg, #010409)",
+                  backgroundColor: entry.role === "system" ? `${UI.text.muted}11` : "var(--color-bg, #010409)",
                   borderRadius: 4,
                   border: "1px solid var(--color-border, #1e293b)",
                 }}
@@ -200,6 +234,22 @@ export default function LogViewer() {
                   >
                     {entry.role}
                   </span>
+                  {entry.role === "system" && (
+                    <button
+                      onClick={() => navigator.clipboard.writeText(entry.content)}
+                      style={{
+                        fontSize: 10,
+                        padding: "1px 4px",
+                        borderRadius: 3,
+                        background: `${UI.text.muted}22`,
+                        color: UI.text.secondary,
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Copy
+                    </button>
+                  )}
                 </div>
 
                 {/* Content */}

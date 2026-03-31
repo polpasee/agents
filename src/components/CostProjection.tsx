@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { UI, BUDGET_COLORS } from "@/lib/colors";
+import { UI, BUDGET_COLORS, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
+import type { AgentType } from "@/lib/types";
 import { COST_WARNING_PERCENT, COST_CRITICAL_PERCENT } from "@/lib/config";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 import { calculateBurnRate, calculateProjection } from "@/lib/costProjection";
@@ -12,6 +13,8 @@ export function CostProjection() {
   const activity = useAgentStore((s) => s.activity);
   const budgetThreshold = useAgentStore((s) => s.budgetThreshold);
   const setBudgetThreshold = useAgentStore((s) => s.setBudgetThreshold);
+  const agentTypeBudgets = useAgentStore((s) => s.agentTypeBudgets);
+  const setAgentTypeBudget = useAgentStore((s) => s.setAgentTypeBudget);
 
   const [open, setOpen] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
@@ -292,6 +295,62 @@ export function CostProjection() {
               )}
             </div>
           </div>
+
+          {/* F3: Per-Type Token Budgets */}
+          {(() => {
+            const activeTypes = new Set<AgentType>();
+            for (const a of agents.values()) {
+              if (a.status !== "completed" && a.status !== "error") {
+                activeTypes.add(a.agentType);
+              }
+            }
+            if (activeTypes.size === 0) return null;
+            return (
+              <>
+                <div
+                  className="my-2"
+                  style={{ borderTop: `1px solid var(--color-border)` }}
+                />
+                <div>
+                  <label
+                    className="block mb-1"
+                    style={{ color: UI.text.secondary, fontSize: 10 }}
+                  >
+                    PER-TYPE TOKEN BUDGETS
+                  </label>
+                  <div className="space-y-1">
+                    {Array.from(activeTypes).sort().map((type) => (
+                      <div key={type} className="flex items-center gap-1">
+                        <span
+                          className="text-xs w-14 truncate"
+                          style={{ color: AGENT_COLORS[type] }}
+                        >
+                          {AGENT_LABELS[type]}
+                        </span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1000"
+                          value={agentTypeBudgets[type] ?? ""}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            setAgentTypeBudget(type, isNaN(val) || val <= 0 ? null : val);
+                          }}
+                          placeholder="tokens"
+                          className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none"
+                          style={{
+                            background: "var(--color-border)",
+                            color: UI.text.primary,
+                            border: `1px solid ${AGENT_COLORS[type]}33`,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
