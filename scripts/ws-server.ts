@@ -1,7 +1,7 @@
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
 import * as path from "path";
 import * as os from "os";
-import type { ServerEvent, ClientEvent } from "../src/lib/types";
+import type { ServerEvent, ClientEvent, Annotation } from "../src/lib/types";
 import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-state";
 import { isValidClientEvent } from "../src/lib/validation";
 import { readAgentLog } from "./lib/log-reader";
@@ -10,6 +10,18 @@ import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
 import { loadWebhookConfig } from "./lib/webhooks";
 
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+
+// ── Annotation storage ───────────────────────────────
+const annotationStore = new Map<string, Annotation>();
+
+function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: unknown }) {
+  const data = JSON.stringify(event);
+  for (const viewer of viewers) {
+    if ((viewer as WebSocket).readyState === WebSocket.OPEN) {
+      viewer.send(data);
+    }
+  }
+}
 
 // ── WebSocket Server ───────────────────────────────────
 const wss = new WebSocketServer({ port: WS_PORT, host: "127.0.0.1" });
@@ -36,10 +48,36 @@ wss.on("connection", (ws) => {
   };
   ws.send(JSON.stringify(syncEvent));
 
+  // Send annotation sync on connect
+  if (annotationStore.size > 0) {
+    const annSync: ServerEvent = {
+      type: "annotation:sync",
+      annotations: Array.from(annotationStore.values()),
+    };
+    ws.send(JSON.stringify(annSync));
+  }
+
   ws.on("message", (raw) => {
     try {
       const data = JSON.parse(String(raw));
       if (!isValidClientEvent(data)) return;
+
+      if (data.type === "annotation:add") {
+        const ann = (data as Extract<ClientEvent, { type: "annotation:add" }>).annotation;
+        annotationStore.set(ann.id, ann);
+        broadcastToViewers({ type: "annotation:update", action: "add", annotation: ann });
+        return;
+      }
+
+      if (data.type === "annotation:remove") {
+        const annId = (data as Extract<ClientEvent, { type: "annotation:remove" }>).annotationId;
+        const ann = annotationStore.get(annId);
+        if (ann) {
+          annotationStore.delete(annId);
+          broadcastToViewers({ type: "annotation:update", action: "remove", annotation: ann });
+        }
+        return;
+      }
 
       if (data.type === "log:request") {
         const filePath = getAgentFilePath(data.agentId);
