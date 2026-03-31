@@ -2,6 +2,7 @@
 
 import { useAgentStore } from "@/lib/store";
 import { UI, STATUS_COLORS, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 export function ErrorDrillDown() {
   const errorDrillDownAgentId = useAgentStore((s) => s.errorDrillDownAgentId);
@@ -25,13 +26,7 @@ export function ErrorDrillDown() {
   const cascadeIds = detail?.cascadeIds ?? [];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0, 0, 0, 0.7)" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) closeErrorDrillDown();
-      }}
-    >
+    <ModalBackdrop onClose={closeErrorDrillDown}>
       <div
         className="flex flex-col max-h-[80vh] w-[480px] rounded-lg overflow-hidden"
         style={{
@@ -169,7 +164,7 @@ export function ErrorDrillDown() {
               ) : (
                 recentTools.map((tc, i) => (
                   <div
-                    key={i}
+                    key={`${tc.tool}-${tc.timestamp}`}
                     className="text-xs px-2 py-1 rounded"
                     style={{ background: "var(--color-border)", color: UI.tool }}
                   >
@@ -184,7 +179,7 @@ export function ErrorDrillDown() {
           </div>
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }
 

@@ -208,6 +208,7 @@ export interface MetricSample {
   costPerMin: number;
   activeCount: number;
   totalCost: number;
+  totalTokens: number;
 }
 
 // ── F6: Shared Annotations ───────────────────────────

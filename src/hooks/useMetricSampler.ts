@@ -26,20 +26,22 @@ export function useMetricSampler() {
 
       const totalCost = calculateTotalCost(agents).total;
 
-      // Approximate tokens/sec from recent growth
+      // Calculate rates from previous sample
       const { metricHistory } = useAgentStore.getState();
       const prev = metricHistory.length > 0 ? metricHistory[metricHistory.length - 1] : null;
-      const tokensPerSec = prev ? Math.max(0, (totalTokens - (prev.tokensPerSec * metricHistory.length)) / 1) : 0;
-      const costPerMin = totalCost > 0 && metricHistory.length > 0
-        ? (totalCost / (metricHistory.length * METRIC_SAMPLE_INTERVAL_MS / 60000))
+      const intervalSec = METRIC_SAMPLE_INTERVAL_MS / 1000;
+      const tokensPerSec = prev ? Math.max(0, (totalTokens - prev.totalTokens) / intervalSec) : 0;
+      const costPerMin = prev && prev.totalCost > 0
+        ? Math.max(0, (totalCost - prev.totalCost) / (METRIC_SAMPLE_INTERVAL_MS / 60000))
         : 0;
 
       pushMetricSample({
         timestamp: Date.now(),
         activeCount,
-        tokensPerSec: totalTokens, // store cumulative, display will diff
+        tokensPerSec,
         costPerMin,
         totalCost,
+        totalTokens,
       });
     }, METRIC_SAMPLE_INTERVAL_MS);
 
