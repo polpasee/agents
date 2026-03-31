@@ -75,6 +75,22 @@ export function renderNodeVisuals(
     .attr("stroke", color)
     .attr("stroke-width", 2);
 
+  // F3: Budget exceeded warning ring
+  if (agent.budgetExceeded) {
+    const warningRing = g.append("circle")
+      .attr("r", GRAPH.glowRingRadius + 2)
+      .attr("fill", "none")
+      .attr("stroke", "#eab308")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "4 3")
+      .attr("stroke-opacity", 0.8);
+    warningRing.append("animate")
+      .attr("attributeName", "stroke-opacity")
+      .attr("values", "0.4;0.9;0.4")
+      .attr("dur", "1s")
+      .attr("repeatCount", "indefinite");
+  }
+
   // Subtle stroke pulse for running agents
   if (isRunning) {
     mainCircle.append("animate")

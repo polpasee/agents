@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, EFFICIENCY_COLORS, BUDGET_COLORS } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
+import { calculateEfficiency } from "@/lib/efficiency";
+import type { AgentState } from "@/lib/types";
 import { sendWsMessage } from "@/hooks/useWebSocket";
 
 export function AgentDetail() {
@@ -15,6 +17,7 @@ export function AgentDetail() {
   const openLogViewer = useAgentStore((s) => s.openLogViewer);
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
   const logEntries = useAgentStore((s) => s.logEntries);
+  const agentTypeBudgets = useAgentStore((s) => s.agentTypeBudgets);
 
   const handleViewLog = () => {
     if (!agent) return;
@@ -205,6 +208,38 @@ export function AgentDetail() {
           </div>
         </DetailRow>
 
+        {/* F3: Token Budget */}
+        {(() => {
+          const budgetLimit = agentTypeBudgets[agent.agentType];
+          if (budgetLimit == null) return null;
+          const totalTokens = agent.inputTokens + agent.outputTokens;
+          const budgetPercent = Math.min((totalTokens / budgetLimit) * 100, 100);
+          const exceeded = agent.budgetExceeded;
+          const barColor = exceeded ? BUDGET_COLORS.critical : budgetPercent > 80 ? BUDGET_COLORS.warning : BUDGET_COLORS.ok;
+          return (
+            <DetailRow label="TOKEN BUDGET">
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm" style={{ color: barColor }}>
+                    {formatNumber(totalTokens)}
+                  </span>
+                  <span className="text-xs" style={{ color: UI.text.dimmed }}>
+                    / {formatNumber(budgetLimit)}
+                  </span>
+                  {exceeded && (
+                    <span className="text-xs font-bold" style={{ color: BUDGET_COLORS.critical }}>
+                      EXCEEDED
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${budgetPercent}%`, background: barColor }} />
+                </div>
+              </div>
+            </DetailRow>
+          );
+        })()}
+
         {/* Duration */}
         <DetailRow label="DURATION">
           <span className="text-sm" style={{ color: UI.text.secondary }}>
@@ -218,6 +253,9 @@ export function AgentDetail() {
             {formatCost(calculateCost(agent).total)}
           </span>
         </DetailRow>
+
+        {/* Efficiency Score (F15) */}
+        <EfficiencyDisplay agent={agent} agents={agents} />
 
         {/* Recent Tool Calls */}
         <DetailRow label="RECENT TOOLS">
@@ -252,6 +290,62 @@ export function AgentDetail() {
         )}
       </div>
     </div>
+  );
+}
+
+function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<string, AgentState> }) {
+  const score = calculateEfficiency(agent, Array.from(agents.values()));
+  const color = score.overall >= 70
+    ? EFFICIENCY_COLORS.excellent
+    : score.overall >= 40
+      ? EFFICIENCY_COLORS.good
+      : EFFICIENCY_COLORS.poor;
+
+  const bars: { label: string; value: number }[] = [
+    { label: "Token Eff.", value: score.tokenEfficiency },
+    { label: "Tool Success", value: score.toolSuccessRate },
+    { label: "Speed", value: score.completionSpeed },
+  ];
+
+  return (
+    <DetailRow label="EFFICIENCY">
+      <div>
+        <span className="text-sm font-bold" style={{ color }}>
+          {score.overall}
+        </span>
+        <span className="text-xs" style={{ color: UI.text.dimmed }}> / 100</span>
+        <div className="mt-1.5 space-y-1">
+          {bars.map((bar) => {
+            const barColor = bar.value >= 70
+              ? EFFICIENCY_COLORS.excellent
+              : bar.value >= 40
+                ? EFFICIENCY_COLORS.good
+                : EFFICIENCY_COLORS.poor;
+            return (
+              <div key={bar.label}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span style={{ color: UI.text.dimmed }}>{bar.label}</span>
+                  <span style={{ color: UI.text.secondary }}>{bar.value}</span>
+                </div>
+                <div
+                  className="h-[3px] rounded-full overflow-hidden"
+                  style={{ background: "var(--color-border)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${bar.value}%`,
+                      background: barColor,
+                      boxShadow: `0 0 4px ${barColor}`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </DetailRow>
   );
 }
 

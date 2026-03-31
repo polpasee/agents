@@ -7,6 +7,7 @@ import { isValidClientEvent } from "../src/lib/validation";
 import { readAgentLog } from "./lib/log-reader";
 import { discoverActiveSessions } from "./lib/discovery";
 import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
+import { loadWebhookConfig } from "./lib/webhooks";
 
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
@@ -86,6 +87,7 @@ wss.on("connection", (ws) => {
 // ── Polling loop ───────────────────────────────────────
 console.log(`Agent Monitor WebSocket server running on ws://localhost:${WS_PORT}`);
 console.log(`Watching: ${PROJECTS_DIR}`);
+loadWebhookConfig();
 console.log(`Poll interval: ${POLL_INTERVAL_MS}ms\n`);
 
 discoverActiveSessions(PROJECTS_DIR);
