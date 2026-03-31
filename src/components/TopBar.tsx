@@ -72,7 +72,7 @@ export function TopBar() {
   const totalCost = calculateTotalCost(agents);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b"
+    <div className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"
       style={{
         background: "var(--color-panel)",
         borderColor: `${UI.primary}33`,
@@ -243,7 +243,7 @@ export function TopBar() {
       </div>
 
       {/* Right: Stats */}
-      <div className="flex gap-6 text-sm">
+      <div className="flex gap-6 text-sm topbar-stats">
         <Stat label="AGENTS" value={total} color={UI.text.secondary} />
         <Stat label="ACTIVE" value={active} color={STATUS_COLORS.running} />
         <Stat label="DONE" value={completed} color={STATUS_COLORS.completed} />
