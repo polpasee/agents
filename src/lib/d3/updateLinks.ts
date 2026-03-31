@@ -10,7 +10,7 @@ export interface SimNode extends d3.SimulationNodeDatum {
 export interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
-  edgeType?: "parent" | "message";
+  edgeType?: "parent" | "message" | "blocking";
 }
 
 /**

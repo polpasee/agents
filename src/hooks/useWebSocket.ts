@@ -27,6 +27,8 @@ export function useWebSocket() {
   const removeAgent = useAgentStore((s) => s.removeAgent);
   const setLogEntries = useAgentStore((s) => s.setLogEntries);
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
+  const addAnnotation = useAgentStore((s) => s.addAnnotation);
+  const removeAnnotation = useAgentStore((s) => s.removeAnnotation);
   const replayActive = useAgentStore((s) => s.replay.active);
 
   useEffect(() => {
@@ -73,6 +75,13 @@ export function useWebSocket() {
               setLogLoading(event.agentId, false);
               console.warn("Log fetch error for agent", event.agentId, ":", event.error);
               break;
+            case "annotation:sync":
+              for (const ann of event.annotations) addAnnotation(ann);
+              break;
+            case "annotation:update":
+              if (event.action === "add") addAnnotation(event.annotation);
+              else removeAnnotation(event.annotation.id);
+              break;
           }
         } catch (err) {
           console.warn("Failed to parse WebSocket message:", err);
@@ -101,5 +110,5 @@ export function useWebSocket() {
       activeWs = null;
       wsRef.current?.close();
     };
-  }, [setConnected, syncState, handleEvent, removeAgent, setLogEntries, setLogLoading, replayActive]);
+  }, [setConnected, syncState, handleEvent, removeAgent, setLogEntries, setLogLoading, addAnnotation, removeAnnotation, replayActive]);
 }

@@ -9,7 +9,7 @@ beforeEach(() => {
     edges: [],
     activity: [],
     selectedAgentId: null,
-    selectedSessionId: null,
+    selectedSessionIds: new Set(),
     connected: false,
     hiddenAgentTypes: new Set(),
     recording: false,
@@ -373,20 +373,27 @@ describe("selectAgent", () => {
   });
 });
 
-describe("selectSession", () => {
-  it("sets selectedSessionId and clears selectedAgentId", () => {
+describe("toggleSession (F5: multi-session)", () => {
+  it("adds session to selectedSessionIds and clears selectedAgentId", () => {
     useAgentStore.getState().selectAgent("a1");
-    useAgentStore.getState().selectSession("session-1");
+    useAgentStore.getState().toggleSession("session-1");
 
     const state = useAgentStore.getState();
-    expect(state.selectedSessionId).toBe("session-1");
+    expect(state.selectedSessionIds.has("session-1")).toBe(true);
     expect(state.selectedAgentId).toBeNull();
   });
 
-  it("sets to null for all sessions", () => {
-    useAgentStore.getState().selectSession("s1");
-    useAgentStore.getState().selectSession(null);
-    expect(useAgentStore.getState().selectedSessionId).toBeNull();
+  it("removes session when toggled again", () => {
+    useAgentStore.getState().toggleSession("s1");
+    useAgentStore.getState().toggleSession("s1");
+    expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
+  });
+
+  it("selectAllSessions clears the set", () => {
+    useAgentStore.getState().toggleSession("s1");
+    useAgentStore.getState().toggleSession("s2");
+    useAgentStore.getState().selectAllSessions();
+    expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
   });
 });
 
