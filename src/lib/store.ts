@@ -126,7 +126,7 @@ interface AgentStore {
 
   // F14: Session Comparison
   comparison: ComparisonState;
-  loadComparison: (left: RecordedSession, right: RecordedSession) => void;
+  loadComparison: (left: string, right: string) => void;
   exitComparison: () => void;
 }
 

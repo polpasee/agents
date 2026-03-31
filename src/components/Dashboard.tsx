@@ -21,6 +21,7 @@ import { ErrorDrillDown } from "./ErrorDrillDown";
 import { LiveMetrics } from "./LiveMetrics";
 import { ExportModal } from "./ExportModal";
 import { DiffViewer } from "./DiffViewer";
+import { SessionComparison } from "./SessionComparison";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
@@ -38,6 +39,9 @@ export function Dashboard() {
   const agentCount = useAgentStore((s) => s.agents.size);
   const replayActive = useAgentStore((s) => s.replay.active);
   const logViewerAgentId = useAgentStore((s) => s.logViewerAgentId);
+  const comparison = useAgentStore((s) => s.comparison);
+  const exitComparison = useAgentStore((s) => s.exitComparison);
+  const agents = useAgentStore((s) => s.agents);
 
   const [mobileAgentList, setMobileAgentList] = useState(false);
   const [mobileAgentDetail, setMobileAgentDetail] = useState(false);
@@ -53,6 +57,15 @@ export function Dashboard() {
       </ErrorBoundary>
       <LiveMetrics />
 
+      {comparison.active && comparison.leftSession && comparison.rightSession ? (
+        <SessionComparison
+          leftSession={comparison.leftSession}
+          rightSession={comparison.rightSession}
+          agents={agents}
+          onExit={exitComparison}
+        />
+      ) : (
+      <>
       {/* Mobile toggle buttons */}
       <div className="mobile-toggle-btn items-center gap-2 px-2 py-1" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
         <button
@@ -137,6 +150,8 @@ export function Dashboard() {
         <ErrorBoundary>
           <LogViewer />
         </ErrorBoundary>
+      )}
+      </>
       )}
       <ErrorDrillDown />
       <ExportModal />
