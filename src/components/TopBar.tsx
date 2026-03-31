@@ -23,6 +23,7 @@ export function TopBar() {
   const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
   const showLiveMetrics = useAgentStore((s) => s.showLiveMetrics);
   const toggleLiveMetrics = useAgentStore((s) => s.toggleLiveMetrics);
+  const toggleExportModal = useAgentStore((s) => s.toggleExportModal);
   const theme = useAgentStore((s) => s.theme);
   const toggleTheme = useAgentStore((s) => s.toggleTheme);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -207,6 +208,18 @@ export function TopBar() {
           title="Load a recorded session for replay"
         >
           LOAD
+        </button>
+        <button
+          onClick={toggleExportModal}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: `1px solid var(--color-border)`,
+            color: UI.text.muted,
+          }}
+          title="Export agent report"
+        >
+          EXPORT
         </button>
         <button
           onClick={toggleTheme}

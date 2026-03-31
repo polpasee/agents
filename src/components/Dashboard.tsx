@@ -19,6 +19,7 @@ import { ReplayBar } from "./ReplayBar";
 import LogViewer from "./LogViewer";
 import { ErrorDrillDown } from "./ErrorDrillDown";
 import { LiveMetrics } from "./LiveMetrics";
+import { ExportModal } from "./ExportModal";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
@@ -93,6 +94,7 @@ export function Dashboard() {
         </ErrorBoundary>
       )}
       <ErrorDrillDown />
+      <ExportModal />
     </div>
   );
 }
