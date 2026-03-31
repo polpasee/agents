@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import type { AgentGraphHandle } from "@/components/AgentGraph";
 
+/** Register global keyboard shortcuts for graph navigation (Esc, F, Arrow keys). */
 export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle | null>) {
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);

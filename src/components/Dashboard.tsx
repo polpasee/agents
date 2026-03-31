@@ -15,8 +15,11 @@ import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
+import { TeamPanel } from "./TeamPanel";
+import { ActivityStream } from "./ActivityStream";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
   useWebSocket();
@@ -32,10 +35,14 @@ export function Dashboard() {
   const toggleFileAttention = useAgentStore((s) => s.toggleFileAttention);
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
-      <TopBar />
+    <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
+      <ErrorBoundary>
+        <TopBar />
+      </ErrorBoundary>
       <div className="flex flex-1 min-h-0">
-        <AgentList />
+        <ErrorBoundary>
+          <AgentList />
+        </ErrorBoundary>
         <div className="relative flex-1 h-full">
           {!connected && agentCount === 0 ? (
             <div className="flex items-center justify-center h-full">
@@ -50,7 +57,7 @@ export function Dashboard() {
               </div>
             </div>
           ) : viewMode === "graph" ? (
-            <>
+            <ErrorBoundary>
               <AgentGraph ref={graphRef} />
               <GraphControls
                 onFitToView={() => graphRef.current?.fitToView()}
@@ -58,9 +65,11 @@ export function Dashboard() {
                 onToggleFileAttention={() => toggleFileAttention()}
               />
               <MiniMap graphRef={graphRef} />
-            </>
+            </ErrorBoundary>
           ) : (
-            <Timeline />
+            <ErrorBoundary>
+              <Timeline />
+            </ErrorBoundary>
           )}
           {transcriptOpen && (
             <TranscriptPanel open={transcriptOpen} onClose={() => toggleTranscript()} />
@@ -69,9 +78,17 @@ export function Dashboard() {
             <FileAttentionPanel open={fileAttentionOpen} onClose={() => toggleFileAttention()} />
           )}
         </div>
-        <AgentDetail />
+        <ErrorBoundary>
+          <AgentDetail />
+        </ErrorBoundary>
       </div>
       <TimelineBar />
+      <ErrorBoundary>
+        <TeamPanel />
+      </ErrorBoundary>
+      <ErrorBoundary>
+        <ActivityStream />
+      </ErrorBoundary>
     </div>
   );
 }

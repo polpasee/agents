@@ -27,6 +27,7 @@ export interface CostBreakdown {
   total: number;
 }
 
+/** Calculate per-agent token cost breakdown based on model pricing. */
 export function calculateCost(agent: AgentState): CostBreakdown {
   const rates = getRates(agent.model);
   const input = (agent.inputTokens / 1_000_000) * rates.input;
@@ -36,11 +37,13 @@ export function calculateCost(agent: AgentState): CostBreakdown {
   return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
 }
 
+/** Format a dollar amount for display (e.g. "$1.23" or "<$0.01"). */
 export function formatCost(dollars: number): string {
   if (dollars < 0.01) return "<$0.01";
   return `$${dollars.toFixed(2)}`;
 }
 
+/** Sum cost breakdowns across all agents. */
 export function calculateTotalCost(agents: Map<string, AgentState>): CostBreakdown {
   const totals: CostBreakdown = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
   for (const agent of agents.values()) {

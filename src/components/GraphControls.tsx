@@ -22,23 +22,10 @@ export function GraphControls({ onFitToView, onToggleTranscript, onToggleFileAtt
         onClick={onFitToView}
         title="Fit all agents into view"
         aria-label="Fit all agents into view"
+        className="graph-control-btn"
         style={{
-          fontFamily: "monospace",
-          fontSize: 12,
           color: UI.text.secondary,
-          background: "var(--color-panel)",
           border: `1px solid ${UI.primary}44`,
-          borderRadius: 4,
-          padding: "4px 10px",
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.borderColor = UI.primary;
-          e.currentTarget.style.color = UI.primary;
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = `${UI.primary}44`;
-          e.currentTarget.style.color = UI.text.secondary;
         }}
       >
         FIT
@@ -93,24 +80,14 @@ export function GraphControls({ onFitToView, onToggleTranscript, onToggleFileAtt
               title={`${hidden ? "Show" : "Hide"} ${AGENT_LABELS[type]} agents`}
               aria-label={`${hidden ? "Show" : "Hide"} ${AGENT_LABELS[type]} agents`}
               aria-pressed={!hidden}
+              className="filter-toggle-btn"
               style={{
-                fontFamily: "monospace",
-                fontSize: 10,
-                fontWeight: 700,
-                width: 22,
-                height: 22,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
                 color: hidden ? UI.text.muted : color,
                 background: hidden
                   ? "var(--color-panel)"
                   : `${color}18`,
                 border: `1px solid ${hidden ? "var(--color-border)" : color}`,
-                borderRadius: 4,
-                cursor: "pointer",
                 opacity: hidden ? 0.5 : 1,
-                transition: "all 0.15s ease",
               }}
             >
               {label}

@@ -3,9 +3,8 @@
 import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
-import { getTokenPercent } from "@/lib/utils";
 import { GRAPH } from "@/lib/config";
 import { calculateCost, formatCost } from "@/lib/costs";
 import type { AgentState } from "@/lib/types";
@@ -26,6 +25,7 @@ interface SimNode extends d3.SimulationNodeDatum {
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
+  edgeType?: "parent" | "message";
 }
 
 /* ── Hexagonal path generator (flat-top hexagon) ────────── */
@@ -53,6 +53,10 @@ function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
   const cy2 = sy + dy * 0.75 + ny;
   return `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
 }
+
+/* ── Status colors & agent labels (used by inline renderNodeVisuals) ── */
+import { STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { getTokenPercent } from "@/lib/utils";
 
 /* ── Render the visual elements inside a node <g> ──────── */
 function renderNodeVisuals(
@@ -321,15 +325,22 @@ function updateLinkVisuals(
     typeof d.target === "string" ? d.target : d.target.id;
 
   linkGlow.attr("stroke", (d) => {
+    if (d.edgeType === "message") {
+      return UI.tool; // amber for message edges
+    }
     const a = agents.get(getTargetId(d));
     return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
   });
   linkLine
     .attr("stroke", (d) => {
+      if (d.edgeType === "message") {
+        return UI.tool;
+      }
       const a = agents.get(getTargetId(d));
       return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
     })
     .attr("stroke-dasharray", (d) => {
+      if (d.edgeType === "message") return "4 3";
       const a = agents.get(getTargetId(d));
       const active = a?.status === "running" || a?.status === "idle";
       return active ? "8 4" : "none";
@@ -340,7 +351,7 @@ function updateLinkVisuals(
       const line = d3.select(this);
       // Remove existing animate children before adding new ones
       line.selectAll("animate").remove();
-      if (active) {
+      if (d.edgeType !== "message" && active) {
         line.append("animate")
           .attr("attributeName", "stroke-dashoffset")
           .attr("values", "24;0")
@@ -350,12 +361,14 @@ function updateLinkVisuals(
     });
 
   linkLine.attr("stroke-opacity", (d) => {
+    if (d.edgeType === "message") return 0.5;
     const a = agents.get(getTargetId(d));
     const finished = a?.status === "completed" || a?.status === "error";
     return finished ? 0.2 : 0.6;
   });
 
   linkGlow.attr("stroke-opacity", (d) => {
+    if (d.edgeType === "message") return 0.05;
     const a = agents.get(getTargetId(d));
     const finished = a?.status === "completed" || a?.status === "error";
     return finished ? 0.03 : 0.1;
@@ -442,24 +455,34 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       d3.select(svg)
         .transition()
         .duration(500)
+        // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
         .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
     },
   }));
 
   const agents = useAgentStore((s) => s.agents);
+  const edges = useAgentStore((s) => s.edges);
+  const teams = useAgentStore((s) => s.teams);
   const selectAgent = useAgentStore((s) => s.selectAgent);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const activity = useAgentStore((s) => s.activity);
+  const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
   const filteredAgents = useFilteredAgents();
 
-  // Topology key — only changes when agents join/leave or parent links change.
+  // Topology key — only changes when agents join/leave, parent links change, or edges change.
   // This controls when the force simulation is rebuilt.
   const topologyKey = useMemo(() => {
-    return filteredAgents
-      .map((a) => `${a.id}:${a.parentId || ""}`)
+    const agentKeys = filteredAgents
+      .map((a) => `${a.id}:${a.parentId || ""}:${a.teamId || ""}`)
       .sort()
       .join("|");
-  }, [filteredAgents]);
+    const edgeKeys = edges
+      .filter((e) => e.edgeType === "message")
+      .map((e) => `m:${e.source}:${e.target}`)
+      .sort()
+      .join("|");
+    return `${agentKeys}||${edgeKeys}`;
+  }, [filteredAgents, edges]);
 
   // ── Effect 1: Rebuild simulation when topology changes ──
   useEffect(() => {
@@ -490,9 +513,15 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         ...(prev ? { x: prev.x, y: prev.y } : {}),
       };
     });
-    const links: SimLink[] = filteredAgents
+    // Parent-child links
+    const parentLinks: SimLink[] = filteredAgents
       .filter((a) => a.parentId && agentIds.has(a.parentId))
-      .map((a) => ({ source: a.parentId!, target: a.id }));
+      .map((a) => ({ source: a.parentId!, target: a.id, edgeType: "parent" as const }));
+    // Peer-to-peer message links
+    const messageLinks: SimLink[] = edges
+      .filter((e) => e.edgeType === "message" && agentIds.has(e.source) && agentIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, edgeType: "message" as const }));
+    const links: SimLink[] = [...parentLinks, ...messageLinks];
 
     nodesRef.current = nodes;
 
@@ -550,16 +579,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .attr("width", 20000).attr("height", 20000)
       .attr("fill", "url(#hexGrid)");
 
-    // Link groups (glow + main path)
+    // Team cluster backgrounds (rendered first so they appear behind everything)
+    const teamClusterGroup = canvas.append("g").attr("class", "team-clusters");
+
+    // Link groups (glow + main path) — using bezier paths
     const linkGroup = canvas.append("g").attr("class", "links");
     linkGroup.selectAll<SVGPathElement, SimLink>("path.glow")
-      .data(links).join("path").attr("class", "glow")
+      .data(links).join("path").attr("class", (d) => `glow ${d.edgeType || "parent"}`)
       .attr("fill", "none")
       .attr("stroke-width", 6).attr("stroke-opacity", 0.1);
     linkGroup.selectAll<SVGPathElement, SimLink>("path.main")
-      .data(links).join("path").attr("class", "main")
+      .data(links).join("path").attr("class", (d) => `main ${d.edgeType || "parent"}`)
       .attr("fill", "none")
-      .attr("stroke-width", 2).attr("stroke-opacity", 0.6);
+      .attr("stroke-width", (d) => d.edgeType === "message" ? 1.5 : 2)
+      .attr("stroke-opacity", 0.6);
 
     // Apply initial link colors
     updateLinkVisuals(
@@ -610,6 +643,16 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     // Force simulation — use low alpha when restoring positions
     const linkGlow = linkGroup.selectAll<SVGPathElement, SimLink>("path.glow");
     const linkLine = linkGroup.selectAll<SVGPathElement, SimLink>("path.main");
+
+    // Build team-to-nodes lookup for cluster rendering
+    const teamNodeMap = new Map<string, SimNode[]>();
+    for (const node of nodes) {
+      if (node.agent.teamId) {
+        const list = teamNodeMap.get(node.agent.teamId) || [];
+        list.push(node);
+        teamNodeMap.set(node.agent.teamId, list);
+      }
+    }
 
     const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
       .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
@@ -682,6 +725,72 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
                 .attr("stroke-width", 3 * alpha)
                 .attr("stroke-opacity", alpha * 0.7);
             }
+          }
+        }
+
+        // Update team cluster hulls
+        teamClusterGroup.selectAll("*").remove();
+        for (const [teamId, teamNodes] of teamNodeMap) {
+          const points = teamNodes
+            .filter((n) => n.x != null && n.y != null)
+            .map((n) => [n.x!, n.y!] as [number, number]);
+          if (points.length < 2) continue;
+          const team = teams.get(teamId);
+          const isSelectedTeam = teamId === selectedTeamId;
+          const leader = teamNodes.find((n) => n.agent.agentType === "team-lead");
+          const clusterColor = leader ? AGENT_COLORS[leader.agent.agentType] : UI.primary;
+
+          if (points.length === 2) {
+            // Draw an ellipse between two nodes
+            const cx = (points[0][0] + points[1][0]) / 2;
+            const cy = (points[0][1] + points[1][1]) / 2;
+            const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
+            const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
+            teamClusterGroup.append("ellipse")
+              .attr("cx", cx).attr("cy", cy)
+              .attr("rx", rx).attr("ry", ry)
+              .attr("fill", `${clusterColor}08`)
+              .attr("stroke", clusterColor)
+              .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
+              .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
+              .attr("stroke-dasharray", "6 3");
+          } else {
+            // Draw convex hull around team members
+            const hull = d3.polygonHull(points);
+            if (hull) {
+              // Expand hull by collideRadius for padding
+              const centroid = d3.polygonCentroid(hull);
+              const expanded = hull.map(([x, y]) => {
+                const dx = x - centroid[0];
+                const dy = y - centroid[1];
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const pad = GRAPH.collideRadius;
+                return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
+              });
+              teamClusterGroup.append("path")
+                .attr("d", `M${expanded.map((p) => p.join(",")).join("L")}Z`)
+                .attr("fill", `${clusterColor}08`)
+                .attr("stroke", clusterColor)
+                .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
+                .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
+                .attr("stroke-dasharray", "6 3")
+                .attr("stroke-linejoin", "round");
+            }
+          }
+          // Team label
+          if (team && points.length >= 2) {
+            const avgY = Math.min(...points.map((p) => p[1]));
+            const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
+            teamClusterGroup.append("text")
+              .attr("x", avgX)
+              .attr("y", avgY - GRAPH.collideRadius - 8)
+              .attr("text-anchor", "middle")
+              .attr("fill", clusterColor)
+              .attr("font-family", "monospace")
+              .attr("font-size", 10)
+              .attr("font-weight", "bold")
+              .attr("opacity", isSelectedTeam ? 0.8 : 0.4)
+              .text(team.name);
           }
         }
       });

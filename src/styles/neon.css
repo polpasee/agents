@@ -93,3 +93,97 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #2a2a4e;
 }
+
+/* Panel backgrounds and borders */
+.panel-bg {
+  background: var(--color-panel);
+}
+
+.panel-border-left {
+  border-left: 1px solid var(--color-border);
+}
+
+.panel-border-right {
+  border-right: 1px solid var(--color-border);
+}
+
+.panel-border-bottom {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-border-top {
+  border-top: 1px solid var(--color-border);
+}
+
+.bg-main {
+  background: var(--color-bg);
+}
+
+/* Graph control button */
+.graph-control-btn {
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--color-panel);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.graph-control-btn:hover {
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+}
+
+/* Filter toggle button */
+.filter-toggle-btn {
+  font-family: monospace;
+  font-size: 10px;
+  font-weight: 700;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+/* Focus-visible styles for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-primary, #60a5fa);
+  outline-offset: 2px;
+}
+
+.graph-control-btn:focus-visible,
+.filter-toggle-btn:focus-visible {
+  outline: 2px solid var(--color-primary, #60a5fa);
+  outline-offset: 2px;
+  box-shadow: 0 0 8px rgba(96, 165, 250, 0.4);
+}
+
+/* Skip-to-main link (visually hidden until focused) */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  height: auto;
+  padding: 8px 16px;
+  background: #000;
+  color: #fff;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 100;
+}

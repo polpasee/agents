@@ -10,6 +10,8 @@ export type AgentType =
   | "team-lead"
   | "generic";
 
+export type TeamStatus = "forming" | "active" | "completed" | "error";
+
 // Events sent from the file watcher to the dashboard
 export type AgentEvent =
   | {
@@ -21,6 +23,7 @@ export type AgentEvent =
       sessionId?: string;
       slug?: string;
       model?: string;
+      teamId?: string;
       metadata?: Record<string, unknown>;
     }
   | {
@@ -60,7 +63,7 @@ export type AgentEvent =
 
 // Events sent from server to dashboard
 export type ServerEvent =
-  | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[] }
+  | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[] }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
   | { type: "state:remove"; agentId: string };
 
@@ -73,6 +76,7 @@ export interface AgentState {
   sessionId?: string;
   slug?: string;
   model?: string;
+  teamId?: string;
   toolCalls: ToolCallEntry[];
   inputTokens: number;
   outputTokens: number;
@@ -95,6 +99,26 @@ export interface ToolCallEntry {
 export interface EdgeState {
   source: string;
   target: string;
+  edgeType?: "parent" | "message";
+}
+
+export interface TeamState {
+  id: string;
+  name: string;
+  leaderId?: string;
+  memberIds: string[];
+  status: TeamStatus;
+  task: string;
+  startTime: number;
+}
+
+export interface TeamStats {
+  totalTokens: number;
+  totalCost: number;
+  memberCount: number;
+  completedCount: number;
+  errorCount: number;
+  activeCount: number;
 }
 
 export interface ActivityEntry {
