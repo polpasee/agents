@@ -249,8 +249,8 @@ export type GraphLayout = "force" | "tree" | "radial" | "hierarchical";
 // ── F14: Session Comparison ──────────────────────────
 export interface ComparisonState {
   active: boolean;
-  leftSession: RecordedSession | null;
-  rightSession: RecordedSession | null;
+  leftSession: string | null;
+  rightSession: string | null;
 }
 
 // ── F15: Agent Efficiency Score ──────────────────────
