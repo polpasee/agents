@@ -3,7 +3,7 @@
 import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, UI } from "@/lib/colors";
+import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { GRAPH } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, renderHeatmapNode, renderHeatmapLegend, computeMetricValue, createHeatmapScale } from "@/lib/d3";
@@ -112,8 +112,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .sort()
       .join("|");
     const edgeKeys = edges
-      .filter((e) => e.edgeType === "message")
-      .map((e) => `m:${e.source}:${e.target}`)
+      .filter((e) => e.edgeType === "message" || e.edgeType === "blocking")
+      .map((e) => `${e.edgeType === "blocking" ? "b" : "m"}:${e.source}:${e.target}`)
       .sort()
       .join("|");
     return `${agentKeys}||${edgeKeys}`;
@@ -156,7 +156,11 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const messageLinks: SimLink[] = edges
       .filter((e) => e.edgeType === "message" && agentIds.has(e.source) && agentIds.has(e.target))
       .map((e) => ({ source: e.source, target: e.target, edgeType: "message" as const }));
-    const links: SimLink[] = [...parentLinks, ...messageLinks];
+    // Blocking dependency links
+    const blockingLinks: SimLink[] = edges
+      .filter((e) => e.edgeType === "blocking" && agentIds.has(e.source) && agentIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, edgeType: "blocking" as const }));
+    const links: SimLink[] = [...parentLinks, ...messageLinks, ...blockingLinks];
 
     nodesRef.current = nodes;
 
@@ -180,6 +184,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .data(["blur", "SourceGraphic"])
       .join("feMergeNode")
       .attr("in", (d) => d);
+
+    // Arrowhead marker for blocking edges
+    defs.append("marker")
+      .attr("id", "arrowhead-blocking")
+      .attr("viewBox", "0 0 10 6")
+      .attr("refX", 28)
+      .attr("refY", 3)
+      .attr("markerWidth", 10)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,0 L10,3 L0,6 Z")
+      .attr("fill", EDGE_COLORS.blocking)
+      .attr("opacity", 0.8);
 
     // Canvas group for zoom/pan
     const canvas = d3svg.append("g").attr("class", "canvas");
