@@ -20,6 +20,7 @@ import LogViewer from "./LogViewer";
 import { ErrorDrillDown } from "./ErrorDrillDown";
 import { LiveMetrics } from "./LiveMetrics";
 import { ExportModal } from "./ExportModal";
+import { DiffViewer } from "./DiffViewer";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
@@ -95,6 +96,7 @@ export function Dashboard() {
       )}
       <ErrorDrillDown />
       <ExportModal />
+      <DiffViewer />
     </div>
   );
 }
