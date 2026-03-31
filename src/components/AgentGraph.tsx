@@ -8,7 +8,8 @@ import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { GRAPH } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, renderHeatmapNode, renderHeatmapLegend, computeMetricValue, createHeatmapScale } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
-import type { AgentState } from "@/lib/types";
+import type { AgentState, GraphLayout } from "@/lib/types";
+import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
 
 export interface AgentGraphHandle {
   fitToView(): void;
@@ -24,6 +25,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
   const nodesRef = useRef<SimNode[]>([]);
+  const linksRef = useRef<SimLink[]>([]);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   useImperativeHandle(ref, () => ({
@@ -102,6 +104,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
   const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
   const heatmapMetric = useAgentStore((s) => s.heatmapMetric);
+  const graphLayout = useAgentStore((s) => s.graphLayout);
   const filteredAgents = useFilteredAgents();
 
   // Topology key — only changes when agents join/leave, parent links change, or edges change.
@@ -163,6 +166,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const links: SimLink[] = [...parentLinks, ...messageLinks, ...blockingLinks];
 
     nodesRef.current = nodes;
+    linksRef.current = links;
 
     if (nodes.length === 0) {
       d3svg.append("text")
@@ -475,6 +479,54 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  // ── Effect: Apply non-force layouts ──
+  useEffect(() => {
+    const simulation = simulationRef.current;
+    const container = containerRef.current;
+    const svg = svgRef.current;
+    const nodes = nodesRef.current;
+    const links = linksRef.current;
+    if (!simulation || !container || !svg || nodes.length === 0) return;
+
+    const { width, height } = container.getBoundingClientRect();
+
+    if (graphLayout === "force") {
+      // Unfix all nodes and restart simulation
+      for (const n of nodes) {
+        n.fx = null;
+        n.fy = null;
+      }
+      simulation.alpha(0.5).restart();
+    } else {
+      // Stop simulation and apply layout
+      simulation.stop();
+      const layoutFn = graphLayout === "tree"
+        ? applyTreeLayout
+        : graphLayout === "radial"
+          ? applyRadialLayout
+          : applyHierarchicalLayout;
+      layoutFn(nodes, links, width, height);
+
+      // Update SVG positions directly
+      const d3svg = d3.select(svg);
+      d3svg.selectAll<SVGGElement, SimNode>("g.node")
+        .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
+      const linkGroup = d3svg.select<SVGGElement>("g.links");
+      if (!linkGroup.empty()) {
+        linkGroup.selectAll<SVGLineElement, SimLink>("line.glow")
+          .attr("x1", (d) => ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0)
+          .attr("y1", (d) => ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0)
+          .attr("x2", (d) => ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0)
+          .attr("y2", (d) => ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0);
+        linkGroup.selectAll<SVGLineElement, SimLink>("line.main")
+          .attr("x1", (d) => ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0)
+          .attr("y1", (d) => ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0)
+          .attr("x2", (d) => ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0)
+          .attr("y2", (d) => ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0);
+      }
+    }
+  }, [graphLayout, topologyKey]);
 
   return (
     <div ref={containerRef} className="flex-1 h-full" style={{ background: "var(--color-bg)" }}>

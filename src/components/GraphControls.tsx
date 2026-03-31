@@ -2,10 +2,17 @@
 
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, AGENT_LABELS, UI, HEATMAP_COLORS } from "@/lib/colors";
-import type { AgentType } from "@/lib/types";
+import type { AgentType, GraphLayout } from "@/lib/types";
 import { HeatmapControls } from "./HeatmapControls";
 
 const FILTER_TYPES = Object.keys(AGENT_COLORS) as AgentType[];
+
+const LAYOUT_OPTIONS: { value: GraphLayout; label: string }[] = [
+  { value: "force", label: "FORCE" },
+  { value: "tree", label: "TREE" },
+  { value: "radial", label: "RADIAL" },
+  { value: "hierarchical", label: "HIER" },
+];
 
 interface GraphControlsProps {
   onFitToView: () => void;
@@ -16,8 +23,11 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
   const toggleAgentType = useAgentStore((s) => s.toggleAgentType);
   const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
   const toggleHeatmap = useAgentStore((s) => s.toggleHeatmap);
+  const graphLayout = useAgentStore((s) => s.graphLayout);
+  const setGraphLayout = useAgentStore((s) => s.setGraphLayout);
 
   return (
+    <>
     <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
       <div style={{ display: "flex", gap: 4 }}>
         <button
@@ -76,5 +86,36 @@ export function GraphControls({ onFitToView }: GraphControlsProps) {
       </div>
       {heatmapEnabled && <HeatmapControls />}
     </div>
+
+    {/* Bottom-left: Layout mode selector */}
+    <div
+      className="absolute bottom-3 left-3 flex gap-1 z-10"
+      style={{ pointerEvents: "auto" }}
+    >
+      {LAYOUT_OPTIONS.map(({ value, label }) => {
+        const active = graphLayout === value;
+        return (
+          <button
+            key={value}
+            onClick={() => setGraphLayout(value)}
+            title={`Switch to ${label} layout`}
+            className="graph-control-btn"
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "3px 8px",
+              color: active ? UI.primary : UI.text.muted,
+              background: active ? `${UI.primary}18` : "var(--color-panel)",
+              border: `1px solid ${active ? UI.primary : "var(--color-border)"}`,
+              borderRadius: 12,
+              letterSpacing: "0.5px",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+    </>
   );
 }
