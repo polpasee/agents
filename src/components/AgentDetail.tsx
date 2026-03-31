@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
+import { useShallow } from "zustand/react/shallow";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, EFFICIENCY_COLORS, BUDGET_COLORS } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
@@ -11,16 +12,15 @@ import { sendWsMessage } from "@/hooks/useWebSocket";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 
 export function AgentDetail() {
-  const agents = useAgentStore((s) => s.agents);
-  const teams = useAgentStore((s) => s.teams);
-  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const { agents, teams, selectedAgentId, logEntries, agentTypeBudgets, agentDiffs } =
+    useAgentStore(useShallow((s) => ({
+      agents: s.agents, teams: s.teams, selectedAgentId: s.selectedAgentId,
+      logEntries: s.logEntries, agentTypeBudgets: s.agentTypeBudgets, agentDiffs: s.agentDiffs,
+    })));
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
   const openLogViewer = useAgentStore((s) => s.openLogViewer);
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
-  const logEntries = useAgentStore((s) => s.logEntries);
-  const agentTypeBudgets = useAgentStore((s) => s.agentTypeBudgets);
   const openErrorDrillDown = useAgentStore((s) => s.openErrorDrillDown);
-  const agentDiffs = useAgentStore((s) => s.agentDiffs);
   const openDiffViewer = useAgentStore((s) => s.openDiffViewer);
 
   const handleViewLog = () => {

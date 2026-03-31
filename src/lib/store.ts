@@ -21,8 +21,19 @@ import type {
   GraphLayout,
   ComparisonState,
   AgentType,
+  TeamStatus,
 } from "./types";
 import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW, METRIC_HISTORY_MAX } from "./config";
+import { calculateCost } from "./costs";
+
+/** Derive team status from member statuses */
+function computeTeamStatus(memberIds: string[], agents: Map<string, AgentState>, fallback: TeamStatus): TeamStatus {
+  const members = memberIds.map(id => agents.get(id)).filter(Boolean) as AgentState[];
+  if (members.some(a => a.status === "error")) return "error";
+  if (members.every(a => a.status === "completed")) return "completed";
+  if (members.some(a => a.status === "running" || a.status === "idle")) return "active";
+  return fallback;
+}
 
 interface AgentStore {
   agents: Map<string, AgentState>;
@@ -173,16 +184,18 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     if (!team) return { totalTokens: 0, totalCost: 0, memberCount: 0, completedCount: 0, errorCount: 0, activeCount: 0 };
     const members = team.memberIds.map(id => agents.get(id)).filter(Boolean) as AgentState[];
     let totalTokens = 0;
+    let totalCost = 0;
     let completedCount = 0;
     let errorCount = 0;
     let activeCount = 0;
     for (const m of members) {
       totalTokens += m.inputTokens + m.outputTokens;
+      totalCost += calculateCost(m).total;
       if (m.status === "completed") completedCount++;
       else if (m.status === "error") errorCount++;
       else if (m.status === "running" || m.status === "idle") activeCount++;
     }
-    return { totalTokens, totalCost: 0, memberCount: members.length, completedCount, errorCount, activeCount };
+    return { totalTokens, totalCost, memberCount: members.length, completedCount, errorCount, activeCount };
   },
 
   syncState: (agentsList, edges, teamsList) => {
@@ -297,14 +310,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
           const newTeams = new Map(teams);
           const team = newTeams.get(updatedAgentStatus.teamId);
           if (team) {
-            const members = team.memberIds.map(id => newAgents.get(id)).filter(Boolean);
-            const anyError = members.some(a => a!.status === "error");
-            const allCompleted = members.every(a => a!.status === "completed");
-            const anyRunning = members.some(a => a!.status === "running" || a!.status === "idle");
-            let newStatus = team.status;
-            if (anyError) newStatus = "error";
-            else if (allCompleted) newStatus = "completed";
-            else if (anyRunning) newStatus = "active";
+            const newStatus = computeTeamStatus(team.memberIds, newAgents, team.status);
             newTeams.set(team.id, { ...team, status: newStatus });
             newTeamsUpdate = newTeams;
           }
@@ -363,14 +369,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
           const newTeams = new Map(teams);
           const team = newTeams.get(updatedAgentComplete.teamId);
           if (team) {
-            const members = team.memberIds.map(id => newAgents.get(id)).filter(Boolean);
-            const anyError = members.some(a => a!.status === "error");
-            const allCompleted = members.every(a => a!.status === "completed");
-            const anyRunning = members.some(a => a!.status === "running" || a!.status === "idle");
-            let newStatus = team.status;
-            if (anyError) newStatus = "error";
-            else if (allCompleted) newStatus = "completed";
-            else if (anyRunning) newStatus = "active";
+            const newStatus = computeTeamStatus(team.memberIds, newAgents, team.status);
             newTeams.set(team.id, { ...team, status: newStatus });
             newTeamsUpdate = newTeams;
           }

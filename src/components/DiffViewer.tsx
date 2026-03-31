@@ -3,6 +3,7 @@
 import { useEffect, useCallback } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 const CHANGE_COLORS: Record<string, string> = {
   create: "#00ff88",
@@ -48,13 +49,7 @@ export function DiffViewer() {
   const deletes = diffs.filter((d) => d.operation === "delete").length;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.7)" }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) closeDiffViewer();
-      }}
-    >
+    <ModalBackdrop onClose={closeDiffViewer}>
       <div
         className="flex flex-col rounded-lg overflow-hidden"
         style={{
@@ -123,7 +118,7 @@ export function DiffViewer() {
           ) : (
             diffs.map((diff, i) => (
               <div
-                key={i}
+                key={diff.filePath}
                 className="flex items-center gap-2 px-3 py-2 rounded"
                 style={{ background: "var(--color-bg)" }}
               >
@@ -156,6 +151,6 @@ export function DiffViewer() {
           )}
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

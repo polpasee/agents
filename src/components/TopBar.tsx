@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
+import { useShallow } from "zustand/react/shallow";
 import { UI, STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
@@ -9,23 +10,21 @@ import { CostProjection } from "./CostProjection";
 import type { RecordedSession } from "@/lib/types";
 
 export function TopBar() {
-  const agents = useAgentStore((s) => s.agents);
-  const connected = useAgentStore((s) => s.connected);
-  const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
+  const { agents, connected, selectedSessionIds, viewMode, recording, showLiveMetrics, theme } =
+    useAgentStore(useShallow((s) => ({
+      agents: s.agents, connected: s.connected, selectedSessionIds: s.selectedSessionIds,
+      viewMode: s.viewMode, recording: s.recording, showLiveMetrics: s.showLiveMetrics, theme: s.theme,
+    })));
+  const replayActive = useAgentStore((s) => s.replay.active);
   const toggleSession = useAgentStore((s) => s.toggleSession);
   const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
-  const viewMode = useAgentStore((s) => s.viewMode);
   const setViewMode = useAgentStore((s) => s.setViewMode);
-  const recording = useAgentStore((s) => s.recording);
   const startRecording = useAgentStore((s) => s.startRecording);
   const downloadRecording = useAgentStore((s) => s.downloadRecording);
-  const replayActive = useAgentStore((s) => s.replay.active);
   const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
-  const showLiveMetrics = useAgentStore((s) => s.showLiveMetrics);
   const toggleLiveMetrics = useAgentStore((s) => s.toggleLiveMetrics);
   const toggleExportModal = useAgentStore((s) => s.toggleExportModal);
   const loadComparison = useAgentStore((s) => s.loadComparison);
-  const theme = useAgentStore((s) => s.theme);
   const toggleTheme = useAgentStore((s) => s.toggleTheme);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -51,26 +50,24 @@ export function TopBar() {
     e.target.value = ""; // Reset so same file can be reloaded
   };
 
-  const allAgents = Array.from(agents.values());
-
-  // Build session list from main agents (agents without parentId)
-  const sessions = allAgents
-    .filter((a) => !a.parentId)
-    .map((a) => ({
-      sessionId: a.sessionId || a.id,
-      projectName: (a.metadata?.projectName as string) || a.sessionId || a.id,
-      task: a.task,
-    }));
-
   const filteredAgents = useFilteredAgents();
 
-  const total = filteredAgents.length;
-  const active = filteredAgents.filter(
-    (a) => a.status === "running" || a.status === "waiting"
-  ).length;
-  const completed = filteredAgents.filter((a) => a.status === "completed").length;
-  const errors = filteredAgents.filter((a) => a.status === "error").length;
-  const totalCost = calculateTotalCost(agents);
+  const { allAgents, sessions, total, active, completed, errors, totalCost } = useMemo(() => {
+    const allAgents = Array.from(agents.values());
+    const sessions = allAgents
+      .filter((a) => !a.parentId)
+      .map((a) => ({
+        sessionId: a.sessionId || a.id,
+        projectName: (a.metadata?.projectName as string) || a.sessionId || a.id,
+        task: a.task,
+      }));
+    const total = filteredAgents.length;
+    const active = filteredAgents.filter((a) => a.status === "running" || a.status === "waiting").length;
+    const completed = filteredAgents.filter((a) => a.status === "completed").length;
+    const errors = filteredAgents.filter((a) => a.status === "error").length;
+    const totalCost = calculateTotalCost(agents);
+    return { allAgents, sessions, total, active, completed, errors, totalCost };
+  }, [agents, filteredAgents]);
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"

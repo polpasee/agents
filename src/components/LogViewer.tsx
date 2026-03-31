@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 import { truncateId } from "@/lib/utils";
+import { ModalBackdrop } from "./ModalBackdrop";
 
 export default function LogViewer() {
   const logViewerAgentId = useAgentStore((s) => s.logViewerAgentId);
@@ -67,20 +68,7 @@ export default function LogViewer() {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) closeLogViewer();
-      }}
-    >
+    <ModalBackdrop onClose={closeLogViewer}>
       <div
         style={{
           width: "80%",
@@ -349,6 +337,6 @@ export default function LogViewer() {
           )}
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

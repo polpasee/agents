@@ -3,6 +3,7 @@
 import { useAgentStore } from "@/lib/store";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { UI } from "@/lib/colors";
+import { ModalBackdrop } from "./ModalBackdrop";
 import type { AgentState } from "@/lib/types";
 
 function buildReportData(agents: Map<string, AgentState>) {
@@ -104,11 +105,7 @@ export function ExportModal() {
   if (!showExportModal) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.6)" }}
-      onClick={toggleExportModal}
-    >
+    <ModalBackdrop onClose={toggleExportModal}>
       <div
         className="rounded-lg border p-6 w-96"
         style={{
@@ -116,7 +113,6 @@ export function ExportModal() {
           borderColor: `${UI.primary}33`,
           boxShadow: `0 0 30px ${UI.primary}11`,
         }}
-        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2
@@ -164,6 +160,6 @@ export function ExportModal() {
           ))}
         </div>
       </div>
-    </div>
+    </ModalBackdrop>
   );
 }

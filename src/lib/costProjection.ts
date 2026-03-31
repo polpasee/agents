@@ -34,23 +34,7 @@ export function calculateBurnRate(
 
   if (actualWindowMs <= 0) return 0;
 
-  // Sum up token deltas from events in the window
-  let windowTokenCost = 0;
-  for (const entry of recentTokenEvents) {
-    if (entry.event.type === "agent:tokens") {
-      const agent = agents.get(entry.event.agentId);
-      if (agent) {
-        // Each token event represents the current total, not a delta
-        // We approximate by dividing current total cost by elapsed time
-      }
-    }
-  }
-
-  // Simpler approach: total cost / total elapsed time
-  const elapsedMinutes = actualWindowMs / 60_000;
-  const activeAgentCost = totalCostNow;
-
-  // Find earliest agent start time
+  // Burn rate = total cost / elapsed time since first agent started
   let earliestStart = now;
   for (const agent of agents.values()) {
     if (agent.startTime < earliestStart) earliestStart = agent.startTime;
@@ -58,7 +42,7 @@ export function calculateBurnRate(
   const totalElapsedMinutes = (now - earliestStart) / 60_000;
 
   if (totalElapsedMinutes <= 0) return 0;
-  return activeAgentCost / totalElapsedMinutes;
+  return totalCostNow / totalElapsedMinutes;
 }
 
 /** Project future costs based on current burn rate */
