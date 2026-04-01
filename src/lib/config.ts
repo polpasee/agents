@@ -12,6 +12,11 @@ export const DEFAULT_CONTEXT_WINDOW = 1_000_000; // Fallback context-window size
 export const GRAPH = {
   nodeRadius: 22, // Radius (px) of each agent node circle
   glowRingRadius: 28, // Radius (px) of the animated glow ring around active nodes
+  activityCircleRadius: 48, // Radius (px) of the large activity circle when a tool is active
+  activityMaxLines: 4, // Max text lines displayed inside the activity circle
+  smallIconRadius: 12, // Radius (px) of the small hex icon at bottom-right of activity circle
+  smallIconOffsetX: 34, // X offset (px) of the small icon from circle center
+  smallIconOffsetY: 34, // Y offset (px) of the small icon from circle center
   tokenBarWidth: 40, // Width (px) of the token-usage progress bar beneath a node
   tokenBarHeight: 3, // Height (px) of the token-usage progress bar
   tokenBarY: 42, // Vertical offset (px) of the token bar relative to node center
@@ -19,8 +24,8 @@ export const GRAPH = {
   tooltipY: -38, // Vertical offset (px) of the hover tooltip above the node
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
-  linkDistance: 160, // Ideal distance (px) between linked nodes in the force layout
-  chargeStrength: -400, // Repulsive force strength; more negative = nodes push apart harder
+  linkDistance: 200, // Ideal distance (px) between linked nodes in the force layout
+  chargeStrength: -600, // Repulsive force strength; more negative = nodes push apart harder
   collideRadius: 60, // Collision radius (px) preventing node overlap
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
