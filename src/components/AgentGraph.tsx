@@ -307,7 +307,7 @@ function renderNodeVisuals(
       .attr("dominant-baseline", "central")
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 16)
+      .attr("font-size", 20)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(label.charAt(0));
@@ -315,7 +315,7 @@ function renderNodeVisuals(
     // Label below hexagon
     g.append("text")
       .attr("text-anchor", "middle")
-      .attr("y", 34)
+      .attr("y", 44)
       .attr("fill", color)
       .attr("font-family", "monospace")
       .attr("font-size", 11)
