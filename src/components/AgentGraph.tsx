@@ -183,8 +183,7 @@ function renderNodeVisuals(
     // Bubble circle background
     const bubbleCircle = bubbleG.append("circle")
       .attr("r", GRAPH.activityCircleRadius)
-      .attr("fill", "var(--color-bg)")
-      .attr("fill-opacity", 0.9)
+      .attr("fill", "none")
       .attr("stroke", `${color}44`)
       .attr("stroke-width", 1);
 
