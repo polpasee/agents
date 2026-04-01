@@ -170,8 +170,8 @@ function renderNodeVisuals(
     // ── Activity circle mode ─────────────────────────────────
     // Clip path to constrain text within circle
     const clipId = `clip-${agent.id.replace(/[^a-zA-Z0-9]/g, "")}`;
-    const defs = g.append("defs");
-    defs.append("clipPath")
+    const localDefs = g.append("defs");
+    localDefs.append("clipPath")
       .attr("id", clipId)
       .append("circle")
       .attr("r", GRAPH.activityCircleRadius - 4);
@@ -191,61 +191,99 @@ function renderNodeVisuals(
         .attr("repeatCount", "indefinite");
     }
 
-    // Multi-line tool text inside circle (clipped)
-    const maxChars = 13;
+    // Multi-line tool text inside circle — LEFT-aligned
+    const maxChars = 14;
     const lines = wrapToolText(lastToolCall.tool, lastToolCall.args, GRAPH.activityMaxLines, maxChars);
-    const lineHeight = 13;
+    const lineHeight = 16;
     const totalHeight = lines.length * lineHeight;
     const startY = -totalHeight / 2 + lineHeight * 0.4;
+    const textX = -GRAPH.activityCircleRadius + 14; // left edge with padding
 
     const textG = g.append("g").attr("clip-path", `url(#${clipId})`);
     const textEl = textG.append("text")
-      .attr("text-anchor", "middle")
+      .attr("text-anchor", "start")
       .attr("fill", `${color}bb`)
       .attr("font-family", "monospace")
-      .attr("font-size", 10)
+      .attr("font-size", 12)
       .style("pointer-events", "none");
 
     lines.forEach((line, i) => {
       textEl.append("tspan")
-        .attr("x", 0)
+        .attr("x", textX)
         .attr("dy", i === 0 ? startY : lineHeight)
         .attr("font-weight", i === 0 ? "bold" : "normal")
-        .attr("fill", i === 0 ? `${color}dd` : `${color}bb`)
+        .attr("fill", i === 0 ? `${color}ee` : `${color}bb`)
         .text(line);
     });
 
-    // Small hexagonal icon at right side of circle
+    // Multi-layered hexagonal icon at right side of circle
     const iconG = g.append("g")
       .attr("transform", `translate(${GRAPH.smallIconOffsetX}, ${GRAPH.smallIconOffsetY})`);
 
+    // Outer glow ring
+    iconG.append("path")
+      .attr("d", hexPath(GRAPH.smallIconRadius + 6))
+      .attr("fill", "none")
+      .attr("stroke", `${color}33`)
+      .attr("stroke-width", 1);
+
+    // Middle ring
+    iconG.append("path")
+      .attr("d", hexPath(GRAPH.smallIconRadius + 3))
+      .attr("fill", "none")
+      .attr("stroke", `${color}55`)
+      .attr("stroke-width", 1);
+
+    // Main hex body
     iconG.append("path")
       .attr("d", hexPath(GRAPH.smallIconRadius))
       .attr("fill", "var(--color-bg)")
       .attr("stroke", color)
-      .attr("stroke-width", 1.5);
+      .attr("stroke-width", 2);
 
+    // Inner hex accent
+    iconG.append("path")
+      .attr("d", hexPath(GRAPH.smallIconRadius - 5))
+      .attr("fill", "none")
+      .attr("stroke", `${color}44`)
+      .attr("stroke-width", 1);
+
+    // Letter inside
     iconG.append("text")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "central")
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 10)
+      .attr("font-size", 14)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(label.charAt(0));
 
-    // Agent name below small icon
+    // Agent name below icon
     iconG.append("text")
       .attr("text-anchor", "middle")
-      .attr("y", GRAPH.smallIconRadius + 12)
+      .attr("y", GRAPH.smallIconRadius + 14)
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 9)
+      .attr("font-size", 10)
       .attr("font-weight", "bold")
-      .attr("letter-spacing", "1px")
+      .attr("letter-spacing", "2px")
       .style("pointer-events", "none")
       .text(label);
+
+    // Token bar below icon
+    const iconBarY = GRAPH.smallIconRadius + 26;
+    const iconBarW = GRAPH.tokenBarWidth;
+    iconG.append("rect")
+      .attr("x", -iconBarW / 2).attr("y", iconBarY)
+      .attr("width", iconBarW).attr("height", GRAPH.tokenBarHeight)
+      .attr("rx", 1).attr("fill", `${color}22`);
+    if (tokenPercent > 0) {
+      iconG.append("rect")
+        .attr("x", -iconBarW / 2).attr("y", iconBarY)
+        .attr("width", iconBarW * tokenPercent / 100).attr("height", GRAPH.tokenBarHeight)
+        .attr("rx", 1).attr("fill", color);
+    }
   } else {
     // ── Standard hexagon mode ────────────────────────────────
     const mainHex = g.append("path")
@@ -402,19 +440,35 @@ function renderNodeVisuals(
   }
 
   // Status dot + label
-  const dynStatusY = hasActiveToolCall ? effectiveRadius + 12 : GRAPH.statusY;
-  g.append("circle")
-    .attr("cx", hasActiveToolCall ? -18 : -14)
-    .attr("cy", dynStatusY)
-    .attr("r", 3).attr("fill", statusColor);
-  g.append("text")
-    .attr("x", hasActiveToolCall ? -11 : -7)
-    .attr("y", dynStatusY + 4)
-    .attr("fill", statusColor)
-    .attr("font-family", "monospace")
-    .attr("font-size", 10)
-    .style("pointer-events", "none")
-    .text(statusLabel);
+  if (hasActiveToolCall) {
+    // In activity mode: position below icon area, centered on icon X
+    const statusCx = GRAPH.smallIconOffsetX;
+    const statusCy = GRAPH.smallIconOffsetY + GRAPH.smallIconRadius + 42;
+    g.append("circle")
+      .attr("cx", statusCx - 18)
+      .attr("cy", statusCy)
+      .attr("r", 4).attr("fill", statusColor);
+    g.append("text")
+      .attr("x", statusCx - 10)
+      .attr("y", statusCy + 5)
+      .attr("fill", statusColor)
+      .attr("font-family", "monospace")
+      .attr("font-size", 12)
+      .style("pointer-events", "none")
+      .text(statusLabel);
+  } else {
+    const statusY = GRAPH.statusY;
+    g.append("circle")
+      .attr("cx", -14).attr("cy", statusY)
+      .attr("r", 3).attr("fill", statusColor);
+    g.append("text")
+      .attr("x", -7).attr("y", statusY + 4)
+      .attr("fill", statusColor)
+      .attr("font-family", "monospace")
+      .attr("font-size", 10)
+      .style("pointer-events", "none")
+      .text(statusLabel);
+  }
 
 }
 

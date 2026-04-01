@@ -12,11 +12,11 @@ export const DEFAULT_CONTEXT_WINDOW = 1_000_000; // Fallback context-window size
 export const GRAPH = {
   nodeRadius: 22, // Radius (px) of each agent node circle
   glowRingRadius: 28, // Radius (px) of the animated glow ring around active nodes
-  activityCircleRadius: 48, // Radius (px) of the large activity circle when a tool is active
+  activityCircleRadius: 58, // Radius (px) of the large activity circle when a tool is active
   activityMaxLines: 4, // Max text lines displayed inside the activity circle
-  smallIconRadius: 12, // Radius (px) of the small hex icon at bottom-right of activity circle
-  smallIconOffsetX: 38, // X offset (px) of the small icon from circle center (right side)
-  smallIconOffsetY: 18, // Y offset (px) of the small icon from circle center
+  smallIconRadius: 18, // Radius (px) of the hex icon at right side of activity circle
+  smallIconOffsetX: 52, // X offset (px) of the icon from circle center (right side)
+  smallIconOffsetY: 10, // Y offset (px) of the icon from circle center
   tokenBarWidth: 40, // Width (px) of the token-usage progress bar beneath a node
   tokenBarHeight: 3, // Height (px) of the token-usage progress bar
   tokenBarY: 42, // Vertical offset (px) of the token bar relative to node center
