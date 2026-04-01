@@ -194,7 +194,7 @@ function renderNodeVisuals(
     // Multi-line tool text inside circle — LEFT-aligned
     const maxChars = 14;
     const lines = wrapToolText(lastToolCall.tool, lastToolCall.args, GRAPH.activityMaxLines, maxChars);
-    const lineHeight = 16;
+    const lineHeight = 12;
     const totalHeight = lines.length * lineHeight;
     const startY = -totalHeight / 2 + lineHeight * 0.4;
     const textX = -GRAPH.activityCircleRadius + 14; // left edge with padding
@@ -204,7 +204,7 @@ function renderNodeVisuals(
       .attr("text-anchor", "start")
       .attr("fill", `${color}bb`)
       .attr("font-family", "monospace")
-      .attr("font-size", 12)
+      .attr("font-size", 9)
       .style("pointer-events", "none");
 
     lines.forEach((line, i) => {
