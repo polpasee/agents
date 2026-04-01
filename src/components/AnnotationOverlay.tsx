@@ -3,10 +3,8 @@
 import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { sendWsMessage } from "@/hooks/useWebSocket";
-import { UI } from "@/lib/colors";
+import { UI, ANNOTATION_COLOR } from "@/lib/colors";
 import type { Annotation } from "@/lib/types";
-
-const ANNOTATION_COLOR = "#f59e0b";
 const CURRENT_USER = "viewer";
 
 interface AnnotationOverlayProps {

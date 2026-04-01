@@ -2,14 +2,8 @@
 
 import { useEffect, useCallback } from "react";
 import { useAgentStore } from "@/lib/store";
-import { UI, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { UI, AGENT_COLORS, AGENT_LABELS, CHANGE_COLORS } from "@/lib/colors";
 import { ModalBackdrop } from "./ModalBackdrop";
-
-const CHANGE_COLORS: Record<string, string> = {
-  create: "#00ff88",
-  edit: "#eab308",
-  delete: "#ff4444",
-};
 
 const CHANGE_LABELS: Record<string, string> = {
   create: "A",

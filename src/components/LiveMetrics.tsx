@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
-import { UI } from "@/lib/colors";
+import { UI, METRIC_COLORS } from "@/lib/colors";
 import type { MetricSample } from "@/lib/types";
 import * as d3 from "d3";
 
@@ -21,7 +21,7 @@ const METRICS: MetricConfig[] = [
   {
     key: "activeCount",
     label: "ACTIVE",
-    color: "#00ff88",
+    color: METRIC_COLORS.active,
     format: (v) => String(Math.round(v)),
   },
   {
@@ -37,7 +37,7 @@ const METRICS: MetricConfig[] = [
   {
     key: "totalCost",
     label: "COST",
-    color: "#ffaa00",
+    color: METRIC_COLORS.cost,
     format: (v) => (v < 0.01 ? "<$0.01" : `$${v.toFixed(2)}`),
   },
   {
