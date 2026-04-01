@@ -231,18 +231,51 @@ function renderNodeVisuals(
   }
 
   // ── Hex node (always rendered at center) ─────────────────
+  if (isActive) {
+    // Outer glow ring
+    const outerGlow = g.append("path")
+      .attr("d", hexPath(GRAPH.nodeRadius + 10))
+      .attr("fill", "none")
+      .attr("stroke", color)
+      .attr("stroke-width", 1.5)
+      .attr("stroke-opacity", 0.2);
+    outerGlow.append("animate")
+      .attr("attributeName", "stroke-opacity")
+      .attr("values", "0.1;0.35;0.1")
+      .attr("dur", isRunning ? "1.5s" : "2.5s")
+      .attr("repeatCount", "indefinite");
+
+    // Middle ring
+    g.append("path")
+      .attr("d", hexPath(GRAPH.nodeRadius + 5))
+      .attr("fill", "none")
+      .attr("stroke", color)
+      .attr("stroke-width", 1)
+      .attr("stroke-opacity", 0.35);
+  }
+
+  // Main hex body
   const mainHex = g.append("path")
     .attr("d", hexPath(GRAPH.nodeRadius))
     .attr("fill", "var(--color-bg)")
     .attr("stroke", color)
-    .attr("stroke-width", 2);
+    .attr("stroke-width", isActive ? 2.5 : 2);
 
   if (isRunning) {
     mainHex.append("animate")
       .attr("attributeName", "stroke-opacity")
-      .attr("values", "1;0.5;1")
+      .attr("values", "1;0.6;1")
       .attr("dur", "1.5s")
       .attr("repeatCount", "indefinite");
+  }
+
+  // Inner hex accent (active only)
+  if (isActive) {
+    g.append("path")
+      .attr("d", hexPath(GRAPH.nodeRadius - 8))
+      .attr("fill", "none")
+      .attr("stroke", `${color}44`)
+      .attr("stroke-width", 1);
   }
 
   // Letter inside hexagon
