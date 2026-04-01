@@ -123,6 +123,7 @@ function renderNodeVisuals(
   const isActive = agent.status === "running" || agent.status === "idle";
   const isRunning = agent.status === "running";
 
+  const isSubAgent = !!(agent.parentId && !agent.teamId);
   const isFinished = agent.status === "completed" || agent.status === "error";
   if (isFinished) {
     g.attr("opacity", 0.35);
@@ -230,55 +231,98 @@ function renderNodeVisuals(
     });
   }
 
-  // ── Hex node (always rendered at center) ─────────────────
-  if (isActive) {
-    // Outer glow ring
-    const outerGlow = g.append("path")
-      .attr("d", hexPath(GRAPH.nodeRadius + 10))
-      .attr("fill", "none")
+  // ── Node shape: circle for sub-agents, hexagon for teammates/main ──
+  if (isSubAgent) {
+    // ── Circle node (sub-agent) ──
+    if (isActive) {
+      const outerGlow = g.append("circle")
+        .attr("r", GRAPH.nodeRadius + 8)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1.5)
+        .attr("stroke-opacity", 0.2);
+      outerGlow.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "0.1;0.35;0.1")
+        .attr("dur", isRunning ? "1.5s" : "2.5s")
+        .attr("repeatCount", "indefinite");
+
+      g.append("circle")
+        .attr("r", GRAPH.nodeRadius + 4)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", 0.35);
+    }
+
+    const mainCircle = g.append("circle")
+      .attr("r", GRAPH.nodeRadius)
+      .attr("fill", "var(--color-bg)")
       .attr("stroke", color)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0.2);
-    outerGlow.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", "0.1;0.35;0.1")
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
+      .attr("stroke-width", isActive ? 2.5 : 2);
 
-    // Middle ring
-    g.append("path")
-      .attr("d", hexPath(GRAPH.nodeRadius + 5))
-      .attr("fill", "none")
+    if (isRunning) {
+      mainCircle.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "1;0.6;1")
+        .attr("dur", "1.5s")
+        .attr("repeatCount", "indefinite");
+    }
+
+    if (isActive) {
+      g.append("circle")
+        .attr("r", GRAPH.nodeRadius - 7)
+        .attr("fill", "none")
+        .attr("stroke", `${color}44`)
+        .attr("stroke-width", 1);
+    }
+  } else {
+    // ── Hexagon node (main / teammate / team-lead) ──
+    if (isActive) {
+      const outerGlow = g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius + 10))
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1.5)
+        .attr("stroke-opacity", 0.2);
+      outerGlow.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "0.1;0.35;0.1")
+        .attr("dur", isRunning ? "1.5s" : "2.5s")
+        .attr("repeatCount", "indefinite");
+
+      g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius + 5))
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", 0.35);
+    }
+
+    const mainHex = g.append("path")
+      .attr("d", hexPath(GRAPH.nodeRadius))
+      .attr("fill", "var(--color-bg)")
       .attr("stroke", color)
-      .attr("stroke-width", 1)
-      .attr("stroke-opacity", 0.35);
+      .attr("stroke-width", isActive ? 2.5 : 2);
+
+    if (isRunning) {
+      mainHex.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "1;0.6;1")
+        .attr("dur", "1.5s")
+        .attr("repeatCount", "indefinite");
+    }
+
+    if (isActive) {
+      g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius - 8))
+        .attr("fill", "none")
+        .attr("stroke", `${color}44`)
+        .attr("stroke-width", 1);
+    }
   }
 
-  // Main hex body
-  const mainHex = g.append("path")
-    .attr("d", hexPath(GRAPH.nodeRadius))
-    .attr("fill", "var(--color-bg)")
-    .attr("stroke", color)
-    .attr("stroke-width", isActive ? 2.5 : 2);
-
-  if (isRunning) {
-    mainHex.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", "1;0.6;1")
-      .attr("dur", "1.5s")
-      .attr("repeatCount", "indefinite");
-  }
-
-  // Inner hex accent (active only)
-  if (isActive) {
-    g.append("path")
-      .attr("d", hexPath(GRAPH.nodeRadius - 8))
-      .attr("fill", "none")
-      .attr("stroke", `${color}44`)
-      .attr("stroke-width", 1);
-  }
-
-  // Letter inside hexagon
+  // Letter inside node
   g.append("text")
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central")
