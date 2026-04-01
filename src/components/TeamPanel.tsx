@@ -1,17 +1,9 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
 import { formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
-import type { TeamStatus } from "@/lib/types";
-
-const TEAM_STATUS_COLORS: Record<TeamStatus, string> = {
-  forming: "#eab308",
-  active: "#00ff88",
-  completed: "#6b7280",
-  error: "#ff4444",
-};
 
 export function TeamPanel() {
   const teams = useAgentStore((s) => s.teams);

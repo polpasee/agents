@@ -2,16 +2,9 @@
 
 import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import type { AgentState, TeamState } from "@/lib/types";
-
-const TEAM_STATUS_COLORS: Record<string, string> = {
-  forming: "#eab308",
-  active: "#00ff88",
-  completed: "#6b7280",
-  error: "#ff4444",
-};
 
 function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelected: boolean; onClick: () => void }) {
   const color = AGENT_COLORS[agent.agentType];

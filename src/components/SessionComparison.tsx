@@ -1,7 +1,7 @@
 "use client";
 
 import type { AgentState } from "@/lib/types";
-import { UI, STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { UI, STATUS_COLORS, AGENT_LABELS, COMPARISON_COLORS } from "@/lib/colors";
 import { formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
 
@@ -44,7 +44,7 @@ function computeMetrics(
 function deltaColor(a: number, b: number, lowerIsBetter = true): string {
   if (a === b) return UI.text.muted;
   const isBetter = lowerIsBetter ? a < b : a > b;
-  return isBetter ? "#00ff88" : "#ff4444";
+  return isBetter ? COMPARISON_COLORS.better : COMPARISON_COLORS.worse;
 }
 
 function formatDelta(a: number, b: number, formatter: (n: number) => string): string {

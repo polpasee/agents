@@ -76,3 +76,35 @@ export const EFFICIENCY_COLORS = {
   good: "#eab308",
   poor: "#ff4444",
 } as const;
+
+export const TEAM_STATUS_COLORS: Record<string, string> = {
+  forming: "#eab308",
+  active: "#00ff88",
+  completed: "#6b7280",
+  error: "#ff4444",
+};
+
+export const CHANGE_COLORS: Record<string, string> = {
+  create: "#00ff88",
+  edit: "#eab308",
+  delete: "#ff4444",
+};
+
+export const ROLE_COLORS: Record<string, string> = {
+  user: "#00f5ff",
+  assistant: "#00ff88",
+  system: "#6b7280",
+  default: "#94a3b8",
+};
+
+export const ANNOTATION_COLOR = "#f59e0b";
+
+export const METRIC_COLORS = {
+  active: "#00ff88",
+  cost: "#ffaa00",
+} as const;
+
+export const COMPARISON_COLORS = {
+  better: "#00ff88",
+  worse: "#ff4444",
+} as const;

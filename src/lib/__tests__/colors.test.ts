@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "../colors";
+import {
+  AGENT_COLORS,
+  STATUS_COLORS,
+  AGENT_LABELS,
+  UI,
+  TEAM_STATUS_COLORS,
+  CHANGE_COLORS,
+  ROLE_COLORS,
+  ANNOTATION_COLOR,
+  METRIC_COLORS,
+  COMPARISON_COLORS,
+} from "../colors";
 import type { AgentType, AgentStatus } from "../types";
 
 const ALL_AGENT_TYPES: AgentType[] = [
@@ -115,5 +126,73 @@ describe("UI color object", () => {
         `UI.text.${key}`
       ).toMatch(HEX_COLOR_RE);
     }
+  });
+});
+
+describe("TEAM_STATUS_COLORS", () => {
+  const EXPECTED_KEYS = ["forming", "active", "completed", "error"];
+
+  it("has all expected team status keys", () => {
+    for (const key of EXPECTED_KEYS) {
+      expect(TEAM_STATUS_COLORS).toHaveProperty(key);
+    }
+  });
+
+  it("has valid hex color strings", () => {
+    for (const [key, color] of Object.entries(TEAM_STATUS_COLORS)) {
+      expect(color, `TEAM_STATUS_COLORS["${key}"]`).toMatch(HEX_COLOR_RE);
+    }
+  });
+});
+
+describe("CHANGE_COLORS", () => {
+  const EXPECTED_KEYS = ["create", "edit", "delete"];
+
+  it("has all expected change type keys", () => {
+    for (const key of EXPECTED_KEYS) {
+      expect(CHANGE_COLORS).toHaveProperty(key);
+    }
+  });
+
+  it("has valid hex color strings", () => {
+    for (const [key, color] of Object.entries(CHANGE_COLORS)) {
+      expect(color, `CHANGE_COLORS["${key}"]`).toMatch(HEX_COLOR_RE);
+    }
+  });
+});
+
+describe("ROLE_COLORS", () => {
+  const EXPECTED_KEYS = ["user", "assistant", "system", "default"];
+
+  it("has all expected role keys", () => {
+    for (const key of EXPECTED_KEYS) {
+      expect(ROLE_COLORS).toHaveProperty(key);
+    }
+  });
+
+  it("has valid hex color strings", () => {
+    for (const [key, color] of Object.entries(ROLE_COLORS)) {
+      expect(color, `ROLE_COLORS["${key}"]`).toMatch(HEX_COLOR_RE);
+    }
+  });
+});
+
+describe("ANNOTATION_COLOR", () => {
+  it("is a valid hex color string", () => {
+    expect(ANNOTATION_COLOR).toMatch(HEX_COLOR_RE);
+  });
+});
+
+describe("METRIC_COLORS", () => {
+  it("has active and cost keys with valid hex colors", () => {
+    expect(METRIC_COLORS.active).toMatch(HEX_COLOR_RE);
+    expect(METRIC_COLORS.cost).toMatch(HEX_COLOR_RE);
+  });
+});
+
+describe("COMPARISON_COLORS", () => {
+  it("has better and worse keys with valid hex colors", () => {
+    expect(COMPARISON_COLORS.better).toMatch(HEX_COLOR_RE);
+    expect(COMPARISON_COLORS.worse).toMatch(HEX_COLOR_RE);
   });
 });
