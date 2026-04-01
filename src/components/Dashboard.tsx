@@ -12,7 +12,6 @@ import type { AgentGraphHandle } from "./AgentGraph";
 import { AgentDetail } from "./AgentDetail";
 import { TimelineBar } from "./TimelineBar";
 import { GraphControls } from "./GraphControls";
-import { MiniMap } from "./MiniMap";
 import { Timeline } from "./Timeline";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
@@ -127,12 +126,7 @@ export function Dashboard() {
           ) : viewMode === "graph" ? (
             <ErrorBoundary>
               <AgentGraph ref={graphRef} />
-              <GraphControls
-                onFitToView={() => graphRef.current?.fitToView()}
-                onToggleTranscript={() => toggleTranscript()}
-                onToggleFileAttention={() => toggleFileAttention()}
-              />
-              <MiniMap graphRef={graphRef} />
+              <GraphControls />
             </ErrorBoundary>
           ) : (
             <ErrorBoundary>
