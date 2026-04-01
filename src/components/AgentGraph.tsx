@@ -176,10 +176,11 @@ function renderNodeVisuals(
       .append("circle")
       .attr("r", GRAPH.activityCircleRadius - 4);
 
-    // Large circle background
+    // Large circle background (semi-transparent so links show through)
     const mainCircle = g.append("circle")
       .attr("r", GRAPH.activityCircleRadius)
       .attr("fill", "var(--color-bg)")
+      .attr("fill-opacity", 0.85)
       .attr("stroke", `${color}66`)
       .attr("stroke-width", 1.5);
 
@@ -772,8 +773,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     linkGroup.selectAll<SVGPathElement, SimLink>("path.main")
       .data(links).join("path").attr("class", (d) => `main ${d.edgeType || "parent"}`)
       .attr("fill", "none")
-      .attr("stroke-width", (d) => d.edgeType === "message" ? 1.5 : 2)
-      .attr("stroke-opacity", 0.6);
+      .attr("stroke-width", (d) => d.edgeType === "message" ? 2 : 2.5)
+      .attr("stroke-opacity", 0.7);
 
     // Apply initial link colors
     updateLinkVisuals(
