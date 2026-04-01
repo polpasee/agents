@@ -24,6 +24,13 @@ export const viewers = new Set<WebSocket>();
 export const agentLastModified = new Map<string, number>();
 /** Tracks when each agent was removed so we can purge old entries */
 export const removedAgentIds = new Map<string, number>();
+/** Maps agentId to the JSONL file path on disk */
+export const agentFilePaths = new Map<string, string>();
+
+/** Get the JSONL file path for an agent */
+export function getAgentFilePath(agentId: string): string | undefined {
+  return agentFilePaths.get(agentId);
+}
 
 // ── Broadcast ──────────────────────────────────────────
 export function broadcast(event: ServerEvent) {

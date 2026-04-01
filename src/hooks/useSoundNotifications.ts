@@ -9,6 +9,9 @@ function getCtx(): AudioContext {
   if (!sharedCtx || sharedCtx.state === "closed") {
     sharedCtx = new AudioContext();
   }
+  if (sharedCtx.state === "suspended") {
+    sharedCtx.resume();
+  }
   return sharedCtx;
 }
 

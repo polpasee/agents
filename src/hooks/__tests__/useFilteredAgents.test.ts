@@ -28,7 +28,7 @@ describe("useFilteredAgents", () => {
   beforeEach(() => {
     useAgentStore.setState({
       agents: new Map(),
-      selectedSessionId: null,
+      selectedSessionIds: new Set(),
       hiddenAgentTypes: new Set(),
     });
   });
@@ -47,13 +47,27 @@ describe("useFilteredAgents", () => {
     expect(ids).toEqual(["a1", "a2", "a3"]);
   });
 
-  it("filters by selectedSessionId (only agents matching session)", () => {
+  it("filters by selectedSessionIds (F5: multi-session)", () => {
     const agents = new Map<string, AgentState>();
     agents.set("a1", mockAgent("a1", { sessionId: "session-1" }));
     agents.set("a2", mockAgent("a2", { sessionId: "session-2" }));
     agents.set("a3", mockAgent("a3", { sessionId: "session-1" }));
 
-    useAgentStore.setState({ agents, selectedSessionId: "session-1" });
+    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-1"]) });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    expect(result.current).toHaveLength(2);
+    const ids = result.current.map((a) => a.id).sort();
+    expect(ids).toEqual(["a1", "a3"]);
+  });
+
+  it("filters by multiple selected sessions", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("a1", mockAgent("a1", { sessionId: "s1" }));
+    agents.set("a2", mockAgent("a2", { sessionId: "s2" }));
+    agents.set("a3", mockAgent("a3", { sessionId: "s3" }));
+
+    useAgentStore.setState({ agents, selectedSessionIds: new Set(["s1", "s3"]) });
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(2);
@@ -99,7 +113,7 @@ describe("useFilteredAgents", () => {
 
     useAgentStore.setState({
       agents,
-      selectedSessionId: "session-1",
+      selectedSessionIds: new Set(["session-1"]),
       hiddenAgentTypes: new Set(["explore"]),
     });
 
@@ -118,12 +132,10 @@ describe("useFilteredAgents", () => {
 
   it("session filter includes agents whose parentId matches a main agent in the session", () => {
     const agents = new Map<string, AgentState>();
-    // Main agent in session-1
     agents.set(
       "main-1",
       mockAgent("main-1", { sessionId: "session-1", agentType: "main" }),
     );
-    // Sub-agent whose parentId is the main agent in session-1
     agents.set(
       "sub-1",
       mockAgent("sub-1", {
@@ -131,12 +143,10 @@ describe("useFilteredAgents", () => {
         agentType: "explore",
       }),
     );
-    // Main agent in session-2
     agents.set(
       "main-2",
       mockAgent("main-2", { sessionId: "session-2", agentType: "main" }),
     );
-    // Sub-agent whose parentId is the main agent in session-2
     agents.set(
       "sub-2",
       mockAgent("sub-2", {
@@ -145,7 +155,7 @@ describe("useFilteredAgents", () => {
       }),
     );
 
-    useAgentStore.setState({ agents, selectedSessionId: "session-1" });
+    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-1"]) });
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(2);

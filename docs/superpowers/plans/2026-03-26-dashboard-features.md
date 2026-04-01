@@ -1,6 +1,6 @@
 # Dashboard Features Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add 11 features to the agent monitoring dashboard: fit-to-view, keyboard shortcuts, completed agent fade, agent type filter toggles, cost estimation, sound notifications, particle flow on links, tool call sparkline, mini-map, agent timeline view, and session recording/replay.
 
@@ -39,7 +39,7 @@
 - Modify: `src/components/AgentGraph.tsx`
 - Modify: `src/components/Dashboard.tsx`
 
-- [ ] **Step 1: Expose zoom ref from AgentGraph**
+- [x] **Step 1: Expose zoom ref from AgentGraph**
 
 In `src/components/AgentGraph.tsx`, expose a `fitToView` callback via a ref that the parent can call. Add after the existing refs (line ~192):
 
@@ -97,7 +97,7 @@ In the structural effect (Effect 1), store the zoom behavior in `zoomRef`:
     d3svg.call(zoom);
 ```
 
-- [ ] **Step 2: Create GraphControls component**
+- [x] **Step 2: Create GraphControls component**
 
 Create `src/components/GraphControls.tsx`:
 
@@ -129,7 +129,7 @@ export function GraphControls({ onFitToView }: { onFitToView: () => void }) {
 }
 ```
 
-- [ ] **Step 3: Wire GraphControls into Dashboard**
+- [x] **Step 3: Wire GraphControls into Dashboard**
 
 In `src/components/Dashboard.tsx`, add the ref and controls:
 
@@ -166,11 +166,11 @@ export function Dashboard() {
 }
 ```
 
-- [ ] **Step 4: Verify fit-to-view works**
+- [x] **Step 4: Verify fit-to-view works**
 
 Run `npm run dev`. Open dashboard. Zoom/pan away from agents. Click FIT button — should animate graph to show all agents centered.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/GraphControls.tsx src/components/AgentGraph.tsx src/components/Dashboard.tsx
@@ -186,7 +186,7 @@ git commit -m "feat: add fit-to-view button with smooth zoom animation"
 - Modify: `src/components/Dashboard.tsx`
 - Modify: `src/lib/store.ts`
 
-- [ ] **Step 1: Create keyboard shortcuts hook**
+- [x] **Step 1: Create keyboard shortcuts hook**
 
 Create `src/hooks/useKeyboardShortcuts.ts`:
 
@@ -236,7 +236,7 @@ export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle 
 }
 ```
 
-- [ ] **Step 2: Wire into Dashboard**
+- [x] **Step 2: Wire into Dashboard**
 
 In `src/components/Dashboard.tsx`, add the hook:
 
@@ -251,11 +251,11 @@ export function Dashboard() {
 }
 ```
 
-- [ ] **Step 3: Verify shortcuts work**
+- [x] **Step 3: Verify shortcuts work**
 
 Run dev server. Press `F` — should fit-to-view. Arrow keys — should cycle through agents. `Escape` — should deselect.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/hooks/useKeyboardShortcuts.ts src/components/Dashboard.tsx
@@ -269,7 +269,7 @@ git commit -m "feat: add keyboard shortcuts (F=fit, arrows=navigate, Esc=deselec
 **Files:**
 - Modify: `src/components/AgentGraph.tsx`
 
-- [ ] **Step 1: Add opacity logic to renderNodeVisuals**
+- [x] **Step 1: Add opacity logic to renderNodeVisuals**
 
 In `src/components/AgentGraph.tsx`, in `renderNodeVisuals`, set group opacity based on status. Add at the very start of the function, after the variable declarations:
 
@@ -281,7 +281,7 @@ In `src/components/AgentGraph.tsx`, in `renderNodeVisuals`, set group opacity ba
   }
 ```
 
-- [ ] **Step 2: Fade link visuals for completed agents**
+- [x] **Step 2: Fade link visuals for completed agents**
 
 In `updateLinkVisuals`, add opacity to links connected to completed agents:
 
@@ -303,11 +303,11 @@ In `updateLinkVisuals`, add opacity to links connected to completed agents:
     });
 ```
 
-- [ ] **Step 3: Verify fade effect**
+- [x] **Step 3: Verify fade effect**
 
 Run with mock-agents. Once agents complete, they should visually fade to ~35% opacity. Active agents remain bright.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/AgentGraph.tsx
@@ -323,7 +323,7 @@ git commit -m "feat: fade completed/error agents to 35% opacity"
 - Modify: `src/components/GraphControls.tsx`
 - Modify: `src/hooks/useFilteredAgents.ts`
 
-- [ ] **Step 1: Add filter state to store**
+- [x] **Step 1: Add filter state to store**
 
 In `src/lib/store.ts`, add to the interface and initial state:
 
@@ -348,7 +348,7 @@ In the store creation:
   },
 ```
 
-- [ ] **Step 2: Apply filter in useFilteredAgents**
+- [x] **Step 2: Apply filter in useFilteredAgents**
 
 In `src/hooks/useFilteredAgents.ts`:
 
@@ -377,7 +377,7 @@ export function useFilteredAgents(): AgentState[] {
 }
 ```
 
-- [ ] **Step 3: Add filter toggles to GraphControls**
+- [x] **Step 3: Add filter toggles to GraphControls**
 
 Update `src/components/GraphControls.tsx`:
 
@@ -440,11 +440,11 @@ export function GraphControls({ onFitToView }: { onFitToView: () => void }) {
 }
 ```
 
-- [ ] **Step 4: Verify filters work**
+- [x] **Step 4: Verify filters work**
 
 Click a filter button — agents of that type should disappear from the graph. Click again to restore. Verify links also update.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/store.ts src/hooks/useFilteredAgents.ts src/components/GraphControls.tsx
@@ -460,7 +460,7 @@ git commit -m "feat: add agent type filter toggles in graph controls"
 - Create: `src/components/CostDisplay.tsx`
 - Modify: `src/components/TopBar.tsx`
 
-- [ ] **Step 1: Create cost calculation module**
+- [x] **Step 1: Create cost calculation module**
 
 Create `src/lib/costs.ts`:
 
@@ -511,7 +511,7 @@ export function calculateTotalCost(agents: Map<string, AgentState>): CostBreakdo
 }
 ```
 
-- [ ] **Step 2: Add cost to TopBar**
+- [x] **Step 2: Add cost to TopBar**
 
 In `src/components/TopBar.tsx`, add cost display next to the stats:
 
@@ -545,7 +545,7 @@ function Stat({
 }) {
 ```
 
-- [ ] **Step 3: Add per-agent cost in AgentDetail**
+- [x] **Step 3: Add per-agent cost in AgentDetail**
 
 In `src/components/AgentDetail.tsx`, add:
 
@@ -564,11 +564,11 @@ After the duration section, add:
         </DetailRow>
 ```
 
-- [ ] **Step 4: Verify cost displays**
+- [x] **Step 4: Verify cost displays**
 
 Run dev server. Cost should appear in TopBar and AgentDetail when agents have token usage.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/lib/costs.ts src/components/TopBar.tsx src/components/AgentDetail.tsx
@@ -583,7 +583,7 @@ git commit -m "feat: add token cost estimation to TopBar and AgentDetail"
 - Create: `src/hooks/useSoundNotifications.ts`
 - Modify: `src/components/Dashboard.tsx`
 
-- [ ] **Step 1: Create sound notifications hook**
+- [x] **Step 1: Create sound notifications hook**
 
 Create `src/hooks/useSoundNotifications.ts`:
 
@@ -637,7 +637,7 @@ export function useSoundNotifications() {
 }
 ```
 
-- [ ] **Step 2: Wire into Dashboard**
+- [x] **Step 2: Wire into Dashboard**
 
 In `src/components/Dashboard.tsx`, add:
 
@@ -651,11 +651,11 @@ export function Dashboard() {
 }
 ```
 
-- [ ] **Step 3: Verify sounds**
+- [x] **Step 3: Verify sounds**
 
 Run mock-agents alongside the dashboard. Should hear a blip on agent spawn and a chime on completion.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/hooks/useSoundNotifications.ts src/components/Dashboard.tsx
@@ -670,7 +670,7 @@ git commit -m "feat: add subtle sound notifications for agent spawn and completi
 - Modify: `src/components/AgentGraph.tsx`
 - Modify: `src/lib/config.ts`
 
-- [ ] **Step 1: Add particle config**
+- [x] **Step 1: Add particle config**
 
 In `src/lib/config.ts`, add to the GRAPH object:
 
@@ -679,7 +679,7 @@ In `src/lib/config.ts`, add to the GRAPH object:
   particleSpeed: 1500, // ms for one traversal
 ```
 
-- [ ] **Step 2: Add particle rendering in the structural effect**
+- [x] **Step 2: Add particle rendering in the structural effect**
 
 In `src/components/AgentGraph.tsx`, inside Effect 1 (structural rebuild), after the link groups and before the node groups, add a particle group:
 
@@ -688,7 +688,7 @@ In `src/components/AgentGraph.tsx`, inside Effect 1 (structural rebuild), after 
     const particleGroup = canvas.append("g").attr("class", "particles");
 ```
 
-- [ ] **Step 3: Add particle animation in the visual update effect**
+- [x] **Step 3: Add particle animation in the visual update effect**
 
 In Effect 2 (visual update), after link visual updates, add particle management:
 
@@ -738,11 +738,11 @@ In Effect 2 (visual update), after link visual updates, add particle management:
     }
 ```
 
-- [ ] **Step 4: Verify particle flow**
+- [x] **Step 4: Verify particle flow**
 
 Run with active agents. Should see small dots flowing from parent to child on active links.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/AgentGraph.tsx src/lib/config.ts
@@ -757,7 +757,7 @@ git commit -m "feat: add particle flow animation on active links"
 - Modify: `src/components/AgentGraph.tsx`
 - Modify: `src/lib/config.ts`
 
-- [ ] **Step 1: Add sparkline config**
+- [x] **Step 1: Add sparkline config**
 
 In `src/lib/config.ts`, add to GRAPH:
 
@@ -769,7 +769,7 @@ In `src/lib/config.ts`, add to GRAPH:
   sparklineBucketMs: 6000, // 6s per bucket = 60s window
 ```
 
-- [ ] **Step 2: Add sparkline to renderNodeVisuals**
+- [x] **Step 2: Add sparkline to renderNodeVisuals**
 
 In `src/components/AgentGraph.tsx`, in `renderNodeVisuals`, after the status dot + label section, add:
 
@@ -802,11 +802,11 @@ In `src/components/AgentGraph.tsx`, in `renderNodeVisuals`, after the status dot
   }
 ```
 
-- [ ] **Step 3: Verify sparkline renders**
+- [x] **Step 3: Verify sparkline renders**
 
 Run with active agents making tool calls. Small bar chart should appear below each node's status.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/components/AgentGraph.tsx src/lib/config.ts
@@ -822,7 +822,7 @@ git commit -m "feat: add tool call sparkline to graph nodes"
 - Modify: `src/components/AgentGraph.tsx`
 - Modify: `src/components/Dashboard.tsx`
 
-- [ ] **Step 1: Extend AgentGraphHandle with node data**
+- [x] **Step 1: Extend AgentGraphHandle with node data**
 
 In `src/components/AgentGraph.tsx`, extend the handle:
 
@@ -865,7 +865,7 @@ Add to `useImperativeHandle`:
     },
 ```
 
-- [ ] **Step 2: Create MiniMap component**
+- [x] **Step 2: Create MiniMap component**
 
 Create `src/components/MiniMap.tsx`:
 
@@ -955,7 +955,7 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
 }
 ```
 
-- [ ] **Step 3: Add MiniMap to Dashboard**
+- [x] **Step 3: Add MiniMap to Dashboard**
 
 In `src/components/Dashboard.tsx`, inside the graph container div:
 
@@ -970,11 +970,11 @@ import { MiniMap } from "./MiniMap";
         </div>
 ```
 
-- [ ] **Step 4: Verify mini-map**
+- [x] **Step 4: Verify mini-map**
 
 Run dev server. Mini-map should appear bottom-right showing dots for agents and a viewport rectangle that moves with zoom/pan.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/components/MiniMap.tsx src/components/AgentGraph.tsx src/components/Dashboard.tsx
@@ -991,7 +991,7 @@ git commit -m "feat: add mini-map overview for graph navigation"
 - Modify: `src/components/Dashboard.tsx`
 - Modify: `src/components/TopBar.tsx`
 
-- [ ] **Step 1: Add view mode to store**
+- [x] **Step 1: Add view mode to store**
 
 In `src/lib/store.ts`, add:
 
@@ -1007,7 +1007,7 @@ interface AgentStore {
   setViewMode: (mode) => set({ viewMode: mode }),
 ```
 
-- [ ] **Step 2: Create Timeline component**
+- [x] **Step 2: Create Timeline component**
 
 Create `src/components/Timeline.tsx`:
 
@@ -1132,7 +1132,7 @@ export function Timeline() {
 }
 ```
 
-- [ ] **Step 3: Add view toggle to TopBar**
+- [x] **Step 3: Add view toggle to TopBar**
 
 In `src/components/TopBar.tsx`, add:
 
@@ -1162,7 +1162,7 @@ Add toggle buttons after the session dropdown, inside the left section:
         </div>
 ```
 
-- [ ] **Step 4: Conditionally render Graph or Timeline in Dashboard**
+- [x] **Step 4: Conditionally render Graph or Timeline in Dashboard**
 
 In `src/components/Dashboard.tsx`:
 
@@ -1201,11 +1201,11 @@ export function Dashboard() {
 }
 ```
 
-- [ ] **Step 5: Verify timeline view**
+- [x] **Step 5: Verify timeline view**
 
 Click "timeline" toggle in TopBar. Should see swim lane view with agent bars, tool call ticks, durations, and status.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/Timeline.tsx src/lib/store.ts src/components/TopBar.tsx src/components/Dashboard.tsx
@@ -1221,7 +1221,7 @@ git commit -m "feat: add agent timeline swim lane view with view toggle"
 - Modify: `src/lib/types.ts`
 - Modify: `src/components/TopBar.tsx`
 
-- [ ] **Step 1: Add recording state to store**
+- [x] **Step 1: Add recording state to store**
 
 In `src/lib/types.ts`, add:
 
@@ -1303,7 +1303,7 @@ Also update `handleEvent` to record events when recording is active:
   },
 ```
 
-- [ ] **Step 2: Add record button to TopBar**
+- [x] **Step 2: Add record button to TopBar**
 
 In `src/components/TopBar.tsx`, add:
 
@@ -1330,11 +1330,11 @@ Add record button after the view toggle:
         </button>
 ```
 
-- [ ] **Step 3: Verify recording**
+- [x] **Step 3: Verify recording**
 
 Start recording, let agents run, click stop. A JSON file should download containing all events.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/lib/store.ts src/lib/types.ts src/components/TopBar.tsx
@@ -1361,3 +1361,74 @@ After all tasks are complete:
    - Mini-map shows overview bottom-right
    - Timeline view toggles from TopBar
    - REC button records and exports JSON
+
+---
+
+## Advanced Features (Implemented)
+
+### Task 12: Session Replay
+
+**Files:**
+- Created: `src/hooks/useReplay.ts` — Hook managing replay state, playback speed, seek, and event dispatching from recorded sessions
+- Created: `src/components/ReplayBar.tsx` — Playback controls UI (play/pause, speed, scrub bar, timestamp display)
+- Modified: `src/lib/store.ts` — Added replay slice to Zustand store (replay state, current position, playback controls)
+
+- [x] **Step 1: Create useReplay hook** (`src/hooks/useReplay.ts`)
+- [x] **Step 2: Create ReplayBar component** (`src/components/ReplayBar.tsx`)
+- [x] **Step 3: Add replay slice to store** (`src/lib/store.ts`)
+- [x] **Step 4: Wire replay into Dashboard**
+- [x] **Step 5: Verify replay works** — Load exported JSON, scrub through timeline, play/pause at variable speeds
+- [x] **Step 6: Commit**
+
+---
+
+### Task 13: Agent Log Viewer
+
+**Files:**
+- Created: `src/components/LogViewer.tsx` — Real-time scrolling log display with filtering, search, and auto-scroll
+- Created: `src/lib/log-reader.ts` — Server-side log file reader with tail/follow support
+- Modified: WebSocket protocol — Added client-to-server messaging for log subscription, filter changes, and log streaming
+
+- [x] **Step 1: Create LogViewer component** (`src/components/LogViewer.tsx`)
+- [x] **Step 2: Create server-side log reader** (`src/lib/log-reader.ts`)
+- [x] **Step 3: Add client-to-server WebSocket messaging** for log subscription and filtering
+- [x] **Step 4: Wire LogViewer into AgentDetail panel**
+- [x] **Step 5: Verify log viewer works** — Select agent, view real-time logs, filter by level, search text
+- [x] **Step 6: Commit**
+
+---
+
+### Task 14: Cost Projections & Alerts
+
+**Files:**
+- Created: `src/components/CostProjection.tsx` — Projection chart showing estimated session cost over time with budget threshold line
+- Created: `src/lib/costProjection.ts` — Utilities for linear/exponential cost extrapolation, burn rate calculation, and budget ETA
+- Modified: Budget threshold stored in `localStorage` for persistence across sessions
+
+- [x] **Step 1: Create costProjection utilities** (`src/lib/costProjection.ts`)
+- [x] **Step 2: Create CostProjection component** (`src/components/CostProjection.tsx`)
+- [x] **Step 3: Add budget threshold with localStorage persistence**
+- [x] **Step 4: Add alert notification when projected cost exceeds budget**
+- [x] **Step 5: Wire CostProjection into Dashboard**
+- [x] **Step 6: Verify projections and alerts work** — Set budget, run agents, observe projection chart and threshold alerts
+- [x] **Step 7: Commit**
+
+---
+
+### Task 15: Performance Heatmap
+
+**Files:**
+- Created: `src/components/HeatmapControls.tsx` — Metric selector and color scale legend for heatmap overlay
+- Created: `src/lib/d3/heatmap.ts` — D3 module for computing and rendering heatmap color overlays on graph nodes
+- Supports 4 metrics:
+  - `idleRatio` — Proportion of time an agent spends idle vs. active
+  - `tokenEfficiency` — Output tokens per input token (higher = more efficient)
+  - `timeToFirstTool` — Latency from agent start to first tool call
+  - `avgToolLatency` — Average duration of tool call executions
+
+- [x] **Step 1: Create heatmap D3 module** (`src/lib/d3/heatmap.ts`)
+- [x] **Step 2: Create HeatmapControls component** (`src/components/HeatmapControls.tsx`)
+- [x] **Step 3: Integrate heatmap overlay into AgentGraph**
+- [x] **Step 4: Add metric selector with 4 metrics** (idleRatio, tokenEfficiency, timeToFirstTool, avgToolLatency)
+- [x] **Step 5: Verify heatmap works** — Toggle heatmap on, switch metrics, observe color changes on nodes
+- [x] **Step 6: Commit**

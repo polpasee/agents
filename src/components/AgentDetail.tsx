@@ -2,15 +2,35 @@
 
 import { useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { useShallow } from "zustand/react/shallow";
+import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, EFFICIENCY_COLORS, BUDGET_COLORS } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
+import { calculateEfficiency } from "@/lib/efficiency";
+import type { AgentState } from "@/lib/types";
+import { sendWsMessage } from "@/hooks/useWebSocket";
+import { AnnotationOverlay } from "./AnnotationOverlay";
 
 export function AgentDetail() {
-  const agents = useAgentStore((s) => s.agents);
-  const teams = useAgentStore((s) => s.teams);
-  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const { agents, teams, selectedAgentId, logEntries, agentTypeBudgets, agentDiffs } =
+    useAgentStore(useShallow((s) => ({
+      agents: s.agents, teams: s.teams, selectedAgentId: s.selectedAgentId,
+      logEntries: s.logEntries, agentTypeBudgets: s.agentTypeBudgets, agentDiffs: s.agentDiffs,
+    })));
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
+  const openLogViewer = useAgentStore((s) => s.openLogViewer);
+  const setLogLoading = useAgentStore((s) => s.setLogLoading);
+  const openErrorDrillDown = useAgentStore((s) => s.openErrorDrillDown);
+  const openDiffViewer = useAgentStore((s) => s.openDiffViewer);
+
+  const handleViewLog = () => {
+    if (!agent) return;
+    openLogViewer(agent.id);
+    if (!logEntries.has(agent.id)) {
+      setLogLoading(agent.id, true);
+      sendWsMessage({ type: "log:request", agentId: agent.id });
+    }
+  };
 
   // Live timer for running agents — force re-render every second
   const [, tick] = useState(0);
@@ -72,6 +92,32 @@ export function AgentDetail() {
           <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
+          <button
+            onClick={handleViewLog}
+            className="ml-auto px-1.5 py-0.5 rounded text-xs font-mono"
+            style={{
+              background: `${UI.primary}11`,
+              border: `1px solid ${UI.primary}44`,
+              color: UI.primary,
+            }}
+            title="View conversation log"
+          >
+            LOG
+          </button>
+          {agentDiffs.has(agent.id) && (
+            <button
+              onClick={() => openDiffViewer(agent.id)}
+              className="px-1.5 py-0.5 rounded text-xs font-mono"
+              style={{
+                background: `${UI.primary}11`,
+                border: `1px solid ${UI.primary}44`,
+                color: UI.primary,
+              }}
+              title="View file changes"
+            >
+              DIFFS
+            </button>
+          )}
         </div>
         <div className="text-xs mt-0.5 truncate" style={{ color: UI.text.dimmed }}>
           {agent.id}
@@ -90,6 +136,19 @@ export function AgentDetail() {
             <span className="capitalize text-sm" style={{ color: statusColor }}>
               {agent.status}
             </span>
+            {agent.status === "error" && (
+              <button
+                onClick={() => openErrorDrillDown(agent.id)}
+                className="ml-2 px-1.5 py-0.5 rounded text-xs font-mono cursor-pointer"
+                style={{
+                  background: `${STATUS_COLORS.error}22`,
+                  border: `1px solid ${STATUS_COLORS.error}44`,
+                  color: STATUS_COLORS.error,
+                }}
+              >
+                VIEW ERROR
+              </button>
+            )}
           </div>
         </DetailRow>
 
@@ -180,6 +239,38 @@ export function AgentDetail() {
           </div>
         </DetailRow>
 
+        {/* F3: Token Budget */}
+        {(() => {
+          const budgetLimit = agentTypeBudgets[agent.agentType];
+          if (budgetLimit == null) return null;
+          const totalTokens = agent.inputTokens + agent.outputTokens;
+          const budgetPercent = Math.min((totalTokens / budgetLimit) * 100, 100);
+          const exceeded = agent.budgetExceeded;
+          const barColor = exceeded ? BUDGET_COLORS.critical : budgetPercent > 80 ? BUDGET_COLORS.warning : BUDGET_COLORS.ok;
+          return (
+            <DetailRow label="TOKEN BUDGET">
+              <div>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm" style={{ color: barColor }}>
+                    {formatNumber(totalTokens)}
+                  </span>
+                  <span className="text-xs" style={{ color: UI.text.dimmed }}>
+                    / {formatNumber(budgetLimit)}
+                  </span>
+                  {exceeded && (
+                    <span className="text-xs font-bold" style={{ color: BUDGET_COLORS.critical }}>
+                      EXCEEDED
+                    </span>
+                  )}
+                </div>
+                <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${budgetPercent}%`, background: barColor }} />
+                </div>
+              </div>
+            </DetailRow>
+          );
+        })()}
+
         {/* Duration */}
         <DetailRow label="DURATION">
           <span className="text-sm" style={{ color: UI.text.secondary }}>
@@ -193,6 +284,9 @@ export function AgentDetail() {
             {formatCost(calculateCost(agent).total)}
           </span>
         </DetailRow>
+
+        {/* Efficiency Score (F15) */}
+        <EfficiencyDisplay agent={agent} agents={agents} />
 
         {/* Recent Tool Calls */}
         <DetailRow label="RECENT TOOLS">
@@ -217,6 +311,11 @@ export function AgentDetail() {
           </div>
         </DetailRow>
 
+        {/* Annotations */}
+        <DetailRow label="ANNOTATIONS">
+          <AnnotationOverlay agentId={agent.id} />
+        </DetailRow>
+
         {/* Summary (if completed) */}
         {agent.summary && (
           <DetailRow label="SUMMARY">
@@ -227,6 +326,62 @@ export function AgentDetail() {
         )}
       </div>
     </div>
+  );
+}
+
+function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<string, AgentState> }) {
+  const score = calculateEfficiency(agent, Array.from(agents.values()));
+  const color = score.overall >= 70
+    ? EFFICIENCY_COLORS.excellent
+    : score.overall >= 40
+      ? EFFICIENCY_COLORS.good
+      : EFFICIENCY_COLORS.poor;
+
+  const bars: { label: string; value: number }[] = [
+    { label: "Token Eff.", value: score.tokenEfficiency },
+    { label: "Tool Success", value: score.toolSuccessRate },
+    { label: "Speed", value: score.completionSpeed },
+  ];
+
+  return (
+    <DetailRow label="EFFICIENCY">
+      <div>
+        <span className="text-sm font-bold" style={{ color }}>
+          {score.overall}
+        </span>
+        <span className="text-xs" style={{ color: UI.text.dimmed }}> / 100</span>
+        <div className="mt-1.5 space-y-1">
+          {bars.map((bar) => {
+            const barColor = bar.value >= 70
+              ? EFFICIENCY_COLORS.excellent
+              : bar.value >= 40
+                ? EFFICIENCY_COLORS.good
+                : EFFICIENCY_COLORS.poor;
+            return (
+              <div key={bar.label}>
+                <div className="flex justify-between text-xs mb-0.5">
+                  <span style={{ color: UI.text.dimmed }}>{bar.label}</span>
+                  <span style={{ color: UI.text.secondary }}>{bar.value}</span>
+                </div>
+                <div
+                  className="h-[3px] rounded-full overflow-hidden"
+                  style={{ background: "var(--color-border)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${bar.value}%`,
+                      background: barColor,
+                      boxShadow: `0 0 4px ${barColor}`,
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </DetailRow>
   );
 }
 

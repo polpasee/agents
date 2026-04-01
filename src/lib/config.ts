@@ -32,3 +32,20 @@ export const GRAPH = {
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
 } as const;
+
+/** Cost projection configuration */
+export const COST_PROJECTION_WINDOW_MS = 60_000;
+export const COST_WARNING_PERCENT = 80;
+export const COST_CRITICAL_PERCENT = 95;
+
+/** Heatmap overlay configuration */
+export const HEATMAP = {
+  legendWidth: 150,
+  legendHeight: 12,
+  legendPadding: 16,
+  colors: ["#00ff88", "#eab308", "#ff4444"] as [string, string, string],
+} as const;
+
+/** F4: Live metrics configuration */
+export const METRIC_HISTORY_MAX = 120; // 2 min at 1 sample/sec
+export const METRIC_SAMPLE_INTERVAL_MS = 1000;

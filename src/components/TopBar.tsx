@@ -1,44 +1,76 @@
 "use client";
 
+import { useRef, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
+import { useShallow } from "zustand/react/shallow";
 import { UI, STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
+import { CostProjection } from "./CostProjection";
+import type { RecordedSession } from "@/lib/types";
 
 export function TopBar() {
-  const agents = useAgentStore((s) => s.agents);
-  const connected = useAgentStore((s) => s.connected);
-  const selectedSessionId = useAgentStore((s) => s.selectedSessionId);
-  const selectSession = useAgentStore((s) => s.selectSession);
-  const viewMode = useAgentStore((s) => s.viewMode);
+  const { agents, connected, selectedSessionIds, viewMode, recording, showLiveMetrics, theme } =
+    useAgentStore(useShallow((s) => ({
+      agents: s.agents, connected: s.connected, selectedSessionIds: s.selectedSessionIds,
+      viewMode: s.viewMode, recording: s.recording, showLiveMetrics: s.showLiveMetrics, theme: s.theme,
+    })));
+  const replayActive = useAgentStore((s) => s.replay.active);
+  const toggleSession = useAgentStore((s) => s.toggleSession);
+  const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
   const setViewMode = useAgentStore((s) => s.setViewMode);
-  const recording = useAgentStore((s) => s.recording);
   const startRecording = useAgentStore((s) => s.startRecording);
   const downloadRecording = useAgentStore((s) => s.downloadRecording);
+  const loadReplaySession = useAgentStore((s) => s.loadReplaySession);
+  const toggleLiveMetrics = useAgentStore((s) => s.toggleLiveMetrics);
+  const toggleExportModal = useAgentStore((s) => s.toggleExportModal);
+  const loadComparison = useAgentStore((s) => s.loadComparison);
+  const toggleTheme = useAgentStore((s) => s.toggleTheme);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const allAgents = Array.from(agents.values());
+  const handleLoadReplay = () => {
+    fileInputRef.current?.click();
+  };
 
-  // Build session list from main agents (agents without parentId)
-  const sessions = allAgents
-    .filter((a) => !a.parentId)
-    .map((a) => ({
-      sessionId: a.sessionId || a.id,
-      projectName: (a.metadata?.projectName as string) || a.sessionId || a.id,
-      task: a.task,
-    }));
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const session = JSON.parse(reader.result as string) as RecordedSession;
+        if (session.startTime && Array.isArray(session.events)) {
+          loadReplaySession(session);
+        }
+      } catch (err) {
+        console.warn("Failed to load replay file:", err);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // Reset so same file can be reloaded
+  };
 
   const filteredAgents = useFilteredAgents();
 
-  const total = filteredAgents.length;
-  const active = filteredAgents.filter(
-    (a) => a.status === "running" || a.status === "waiting"
-  ).length;
-  const completed = filteredAgents.filter((a) => a.status === "completed").length;
-  const errors = filteredAgents.filter((a) => a.status === "error").length;
-  const totalCost = calculateTotalCost(agents);
+  const { allAgents, sessions, total, active, completed, errors, totalCost } = useMemo(() => {
+    const allAgents = Array.from(agents.values());
+    const sessions = allAgents
+      .filter((a) => !a.parentId)
+      .map((a) => ({
+        sessionId: a.sessionId || a.id,
+        projectName: (a.metadata?.projectName as string) || a.sessionId || a.id,
+        task: a.task,
+      }));
+    const total = filteredAgents.length;
+    const active = filteredAgents.filter((a) => a.status === "running" || a.status === "waiting").length;
+    const completed = filteredAgents.filter((a) => a.status === "completed").length;
+    const errors = filteredAgents.filter((a) => a.status === "error").length;
+    const totalCost = calculateTotalCost(agents);
+    return { allAgents, sessions, total, active, completed, errors, totalCost };
+  }, [agents, filteredAgents]);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b"
+    <div className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"
       style={{
         background: "var(--color-panel)",
         borderColor: `${UI.primary}33`,
@@ -62,47 +94,60 @@ export function TopBar() {
           >
             AGENT MONITOR
           </span>
-          {!connected && (
+          {replayActive ? (
+            <span className="text-xs ml-2 animate-pulse-glow" style={{ color: "#eab308" }}>
+              REPLAY
+            </span>
+          ) : !connected ? (
             <span className="text-xs text-red-400 ml-2">
               DISCONNECTED
             </span>
-          )}
+          ) : null}
         </div>
 
-        {/* Session tabs */}
+        {/* F5: Multi-session selector */}
         {sessions.length > 0 && (
-          <div className="flex gap-1 ml-2 overflow-x-auto" style={{ maxWidth: 400 }}>
+          <div className="relative" style={{ maxWidth: 280 }}>
             <button
-              onClick={() => selectSession(null)}
-              className="px-2 py-0.5 rounded text-xs font-mono flex-shrink-0"
+              onClick={selectAllSessions}
+              className="text-sm rounded px-2 py-1 cursor-pointer"
               style={{
-                background: !selectedSessionId ? `${UI.primary}22` : "transparent",
-                border: `1px solid ${!selectedSessionId ? UI.primary : "var(--color-border)"}`,
-                color: !selectedSessionId ? UI.primary : UI.text.muted,
+                background: selectedSessionIds.size === 0 ? `${UI.primary}22` : "var(--color-border)",
+                color: selectedSessionIds.size === 0 ? UI.primary : UI.text.secondary,
+                border: `1px solid ${UI.primary}33`,
               }}
+              title="Show all sessions"
             >
-              All ({sessions.length})
+              {selectedSessionIds.size === 0
+                ? `All Sessions (${sessions.length})`
+                : `${selectedSessionIds.size} of ${sessions.length} sessions`}
             </button>
-            {sessions.map((s) => {
-              const isActive = selectedSessionId === s.sessionId;
-              const label = s.projectName.split("/").filter(Boolean).slice(-2).join("/");
-              return (
-                <button
-                  key={s.sessionId}
-                  onClick={() => selectSession(s.sessionId)}
-                  className="px-2 py-0.5 rounded text-xs font-mono truncate flex-shrink-0"
-                  style={{
-                    maxWidth: 160,
-                    background: isActive ? `${UI.primary}22` : "transparent",
-                    border: `1px solid ${isActive ? UI.primary : "var(--color-border)"}`,
-                    color: isActive ? UI.primary : UI.text.muted,
-                  }}
-                  title={s.task}
-                >
-                  {label}
-                </button>
-              );
-            })}
+            <div className="flex gap-1 mt-1 flex-wrap">
+              {sessions.map((s) => {
+                const label = s.projectName
+                  .split("/")
+                  .filter(Boolean)
+                  .slice(-2)
+                  .join("/");
+                const isSelected = selectedSessionIds.has(s.sessionId);
+                return (
+                  <button
+                    key={s.sessionId}
+                    onClick={() => toggleSession(s.sessionId)}
+                    className="text-xs rounded px-1.5 py-0.5 truncate"
+                    style={{
+                      maxWidth: 140,
+                      background: isSelected ? `${UI.primary}22` : "transparent",
+                      border: `1px solid ${isSelected ? UI.primary : "var(--color-border)"}`,
+                      color: isSelected ? UI.primary : UI.text.muted,
+                    }}
+                    title={`${label} — ${s.task.slice(0, 60)}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -124,26 +169,101 @@ export function TopBar() {
         </div>
 
         <button
-          onClick={recording ? downloadRecording : startRecording}
+          onClick={toggleLiveMetrics}
           className="px-2 py-0.5 rounded text-xs font-mono ml-2"
+          style={{
+            background: showLiveMetrics ? `${UI.primary}22` : "transparent",
+            border: `1px solid ${showLiveMetrics ? UI.primary : "var(--color-border)"}`,
+            color: showLiveMetrics ? UI.primary : UI.text.muted,
+          }}
+        >
+          METRICS
+        </button>
+        <button
+          onClick={recording ? downloadRecording : startRecording}
+          disabled={replayActive}
+          className="px-2 py-0.5 rounded text-xs font-mono"
           style={{
             background: recording ? `${UI.error}22` : "transparent",
             border: `1px solid ${recording ? UI.error : "var(--color-border)"}`,
             color: recording ? UI.error : UI.text.muted,
+            opacity: replayActive ? 0.3 : 1,
           }}
           title={recording ? "Stop & download recording" : "Start recording"}
         >
           REC
         </button>
+        <button
+          onClick={handleLoadReplay}
+          disabled={replayActive}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: `1px solid var(--color-border)`,
+            color: UI.text.muted,
+            opacity: replayActive ? 0.3 : 1,
+          }}
+          title="Load a recorded session for replay"
+        >
+          LOAD
+        </button>
+        <button
+          onClick={toggleExportModal}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: `1px solid var(--color-border)`,
+            color: UI.text.muted,
+          }}
+          title="Export agent report"
+        >
+          EXPORT
+        </button>
+        {sessions.length >= 2 && (
+          <button
+            onClick={() => {
+              const ids = sessions.map((s) => s.sessionId);
+              loadComparison(ids[0], ids[1]);
+            }}
+            className="px-2 py-0.5 rounded text-xs font-mono"
+            style={{
+              background: "transparent",
+              border: `1px solid var(--color-border)`,
+              color: UI.text.muted,
+            }}
+            title="Compare two sessions"
+          >
+            COMPARE
+          </button>
+        )}
+        <button
+          onClick={toggleTheme}
+          className="px-2 py-0.5 rounded text-xs font-mono"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--color-border)",
+            color: UI.text.muted,
+          }}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+        >
+          {theme === "dark" ? "LIGHT" : "DARK"}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
       </div>
 
       {/* Right: Stats */}
-      <div className="flex gap-6 text-sm">
+      <div className="flex gap-6 text-sm topbar-stats">
         <Stat label="AGENTS" value={total} color={UI.text.secondary} />
         <Stat label="ACTIVE" value={active} color={STATUS_COLORS.running} />
         <Stat label="DONE" value={completed} color={STATUS_COLORS.completed} />
         <Stat label="ERRORS" value={errors} color={UI.error} />
-        <Stat label="COST" value={formatCost(totalCost.total)} color={UI.primary} />
+        <CostProjection />
       </div>
     </div>
   );

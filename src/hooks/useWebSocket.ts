@@ -3,8 +3,22 @@
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS } from "@/lib/config";
-import type { ServerEvent } from "@/lib/types";
+import type { ServerEvent, ClientEvent } from "@/lib/types";
 import { isValidServerEvent } from "@/lib/validation";
+
+/** Module-level reference to the active WebSocket for sending messages */
+let activeWs: WebSocket | null = null;
+/** Queue messages when disconnected, flush on reconnect */
+const messageQueue: ClientEvent[] = [];
+
+/** Send a ClientEvent message through the WebSocket connection */
+export function sendWsMessage(event: ClientEvent) {
+  if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+    activeWs.send(JSON.stringify(event));
+  } else {
+    messageQueue.push(event);
+  }
+}
 
 /** Connect to the agent WebSocket server with exponential backoff reconnection. */
 export function useWebSocket() {
@@ -13,9 +27,18 @@ export function useWebSocket() {
   const syncState = useAgentStore((s) => s.syncState);
   const handleEvent = useAgentStore((s) => s.handleEvent);
   const removeAgent = useAgentStore((s) => s.removeAgent);
+  const setLogEntries = useAgentStore((s) => s.setLogEntries);
+  const setLogLoading = useAgentStore((s) => s.setLogLoading);
+  const addAnnotation = useAgentStore((s) => s.addAnnotation);
+  const removeAnnotation = useAgentStore((s) => s.removeAnnotation);
+  const replayActive = useAgentStore((s) => s.replay.active);
 
   useEffect(() => {
+    // Don't connect to live WebSocket during replay mode
+    if (replayActive) return;
+
     let reconnectTimer: ReturnType<typeof setTimeout>;
+    let heartbeatTimer: ReturnType<typeof setInterval>;
     let destroyed = false;
     let reconnectDelay = WS_RECONNECT_DELAY_MS;
 
@@ -23,10 +46,23 @@ export function useWebSocket() {
       if (destroyed) return;
       const ws = new WebSocket(`${WS_URL}?role=viewer`);
       wsRef.current = ws;
+      activeWs = ws;
 
       ws.onopen = () => {
         reconnectDelay = WS_RECONNECT_DELAY_MS;
         setConnected(true);
+        // Flush queued messages
+        while (messageQueue.length > 0) {
+          const queued = messageQueue.shift()!;
+          ws.send(JSON.stringify(queued));
+        }
+        // Start heartbeat
+        clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ping" }));
+          }
+        }, 30_000);
       };
 
       ws.onmessage = (msg) => {
@@ -47,6 +83,20 @@ export function useWebSocket() {
             case "state:remove":
               removeAgent(event.agentId);
               break;
+            case "log:response":
+              setLogEntries(event.agentId, event.entries);
+              break;
+            case "log:error":
+              setLogLoading(event.agentId, false);
+              console.warn("Log fetch error for agent", event.agentId, ":", event.error);
+              break;
+            case "annotation:sync":
+              for (const ann of event.annotations) addAnnotation(ann);
+              break;
+            case "annotation:update":
+              if (event.action === "add") addAnnotation(event.annotation);
+              else removeAnnotation(event.annotation.id);
+              break;
           }
         } catch (err) {
           console.warn("Failed to parse WebSocket message:", err);
@@ -54,6 +104,7 @@ export function useWebSocket() {
       };
 
       ws.onclose = () => {
+        activeWs = null;
         setConnected(false);
         if (!destroyed) {
           reconnectTimer = setTimeout(connect, reconnectDelay);
@@ -71,7 +122,9 @@ export function useWebSocket() {
     return () => {
       destroyed = true;
       clearTimeout(reconnectTimer);
+      clearInterval(heartbeatTimer);
+      activeWs = null;
       wsRef.current?.close();
     };
-  }, [setConnected, syncState, handleEvent, removeAgent]);
+  }, [setConnected, syncState, handleEvent, removeAgent, setLogEntries, setLogLoading, addAnnotation, removeAnnotation, replayActive]);
 }

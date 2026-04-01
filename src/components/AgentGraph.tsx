@@ -3,11 +3,13 @@
 import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, UI } from "@/lib/colors";
+import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { GRAPH } from "@/lib/config";
 import { calculateCost, formatCost } from "@/lib/costs";
-import type { AgentState } from "@/lib/types";
+import { renderHeatmapNode, renderHeatmapLegend, computeMetricValue, createHeatmapScale } from "@/lib/d3";
+import type { AgentState, GraphLayout } from "@/lib/types";
+import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
 
 export interface AgentGraphHandle {
   fitToView(): void;
@@ -25,7 +27,7 @@ interface SimNode extends d3.SimulationNodeDatum {
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
-  edgeType?: "parent" | "message";
+  edgeType?: "parent" | "message" | "blocking";
 }
 
 /* ── Hexagonal path generator (flat-top hexagon) ────────── */
@@ -381,6 +383,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
   const nodesRef = useRef<SimNode[]>([]);
+  const linksRef = useRef<SimLink[]>([]);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const effectsRef = useRef<Array<{
     x: number;
@@ -467,6 +470,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const activity = useAgentStore((s) => s.activity);
   const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
+  const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
+  const heatmapMetric = useAgentStore((s) => s.heatmapMetric);
+  const graphLayout = useAgentStore((s) => s.graphLayout);
   const filteredAgents = useFilteredAgents();
 
   // Topology key — only changes when agents join/leave, parent links change, or edges change.
@@ -477,8 +483,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .sort()
       .join("|");
     const edgeKeys = edges
-      .filter((e) => e.edgeType === "message")
-      .map((e) => `m:${e.source}:${e.target}`)
+      .filter((e) => e.edgeType === "message" || e.edgeType === "blocking")
+      .map((e) => `${e.edgeType === "blocking" ? "b" : "m"}:${e.source}:${e.target}`)
       .sort()
       .join("|");
     return `${agentKeys}||${edgeKeys}`;
@@ -521,9 +527,14 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const messageLinks: SimLink[] = edges
       .filter((e) => e.edgeType === "message" && agentIds.has(e.source) && agentIds.has(e.target))
       .map((e) => ({ source: e.source, target: e.target, edgeType: "message" as const }));
-    const links: SimLink[] = [...parentLinks, ...messageLinks];
+    // Blocking dependency links
+    const blockingLinks: SimLink[] = edges
+      .filter((e) => e.edgeType === "blocking" && agentIds.has(e.source) && agentIds.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, edgeType: "blocking" as const }));
+    const links: SimLink[] = [...parentLinks, ...messageLinks, ...blockingLinks];
 
     nodesRef.current = nodes;
+    linksRef.current = links;
 
     if (nodes.length === 0) {
       d3svg.append("text")
@@ -545,6 +556,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .data(["blur", "SourceGraphic"])
       .join("feMergeNode")
       .attr("in", (d) => d);
+
+    // Arrowhead marker for blocking edges
+    defs.append("marker")
+      .attr("id", "arrowhead-blocking")
+      .attr("viewBox", "0 0 10 6")
+      .attr("refX", 28)
+      .attr("refY", 3)
+      .attr("markerWidth", 10)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,0 L10,3 L0,6 Z")
+      .attr("fill", EDGE_COLORS.blocking)
+      .attr("opacity", 0.8);
 
     // Canvas group for zoom/pan
     const canvas = d3svg.append("g").attr("class", "canvas");
@@ -850,23 +875,38 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     }
 
     // Re-render only nodes whose visual state has changed
+    const allAgentsList = Array.from(agents.values());
+    const heatmapScale = heatmapEnabled ? createHeatmapScale() : null;
+
     nodeGroup.selectAll<SVGGElement, SimNode>("g.node").each(function (d) {
       const latest = agents.get(d.id);
       if (!latest) return;
       // Build a lightweight hash of visual-relevant fields to skip unchanged nodes
       const lastTool = latest.toolCalls.length > 0 ? latest.toolCalls[latest.toolCalls.length - 1].tool : "";
-      const hash = `${latest.status}|${latest.agentType}|${lastTool}|${latest.toolCalls.length}|${latest.inputTokens + latest.outputTokens}|${d.id === selectedAgentId}`;
+      const hash = `${latest.status}|${latest.agentType}|${lastTool}|${latest.toolCalls.length}|${latest.inputTokens + latest.outputTokens}|${d.id === selectedAgentId}|${heatmapEnabled}|${heatmapMetric}`;
       const prev = d3.select(this).attr("data-hash");
       d.agent = latest;
       if (prev === hash) return; // skip re-render — nothing visual changed
       const g = d3.select(this);
       g.attr("data-hash", hash);
       g.selectAll("*").remove();
-      renderNodeVisuals(g, latest, selectedAgentId);
+      if (heatmapEnabled && heatmapScale) {
+        const metricValue = computeMetricValue(latest, heatmapMetric, allAgentsList);
+        renderHeatmapNode(g, latest, metricValue, heatmapScale, d.id === selectedAgentId);
+      } else {
+        renderNodeVisuals(g, latest, selectedAgentId);
+      }
     });
 
+    // Heatmap legend
+    d3svg.select("#heatmap-legend").remove();
+    if (heatmapEnabled) {
+      const svgSel = d3svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>;
+      renderHeatmapLegend(svgSel, heatmapMetric, 16, svg.clientHeight - 60);
+    }
+
     // Update link colors / dash patterns
-    const linkGroup = d3svg.select<SVGGElement>("g.links");
+    const linkGroup = d3.select(svg).select<SVGGElement>("g.links");
     if (!linkGroup.empty()) {
       updateLinkVisuals(
         linkGroup.selectAll<SVGPathElement, SimLink>("path.glow"),
@@ -875,11 +915,11 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       );
     }
     // Animate particles on active links
-    const particleGroup = d3svg.select<SVGGElement>("g.particles");
+    const particleGroup = d3.select(svg).select<SVGGElement>("g.particles");
     if (!particleGroup.empty()) {
       particleGroup.selectAll("*").remove();
-      const linkGroup = d3svg.select<SVGGElement>("g.links");
-      linkGroup.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
+      const linkGroup2 = d3svg.select<SVGGElement>("g.links");
+      linkGroup2.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
         const targetId = typeof d.target === "string" ? d.target : d.target.id;
         const a = agents.get(targetId);
         if (!a || (a.status !== "running" && a.status !== "idle")) return;
@@ -911,7 +951,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         }
       });
     }
-  }, [agents, selectedAgentId, activity]);
+  }, [agents, selectedAgentId, activity, heatmapEnabled, heatmapMetric]);
 
   // ── Handle resize ──
   useEffect(() => {
@@ -926,6 +966,58 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     observer.observe(container);
     return () => observer.disconnect();
   }, []);
+
+  // ── Effect: Apply non-force layouts ──
+  useEffect(() => {
+    const simulation = simulationRef.current;
+    const container = containerRef.current;
+    const svg = svgRef.current;
+    const nodes = nodesRef.current;
+    const links = linksRef.current;
+    if (!simulation || !container || !svg || nodes.length === 0) return;
+
+    const { width, height } = container.getBoundingClientRect();
+
+    if (graphLayout === "force") {
+      // Unfix all nodes and restart simulation
+      for (const n of nodes) {
+        n.fx = null;
+        n.fy = null;
+      }
+      simulation.alpha(0.5).restart();
+    } else {
+      // Stop simulation and apply layout
+      simulation.stop();
+      const layoutFn = graphLayout === "tree"
+        ? applyTreeLayout
+        : graphLayout === "radial"
+          ? applyRadialLayout
+          : applyHierarchicalLayout;
+      layoutFn(nodes, links, width, height);
+
+      // Update SVG positions directly
+      const d3svg = d3.select(svg);
+      d3svg.selectAll<SVGGElement, SimNode>("g.node")
+        .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
+      const linkGroup = d3svg.select<SVGGElement>("g.links");
+      if (!linkGroup.empty()) {
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow")
+          .attr("d", (d) => bezierPath(
+            ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
+            ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
+            ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
+            ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
+          ));
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.main")
+          .attr("d", (d) => bezierPath(
+            ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
+            ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
+            ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
+            ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
+          ));
+      }
+    }
+  }, [graphLayout, topologyKey]);
 
   return (
     <div ref={containerRef} className="flex-1 h-full" style={{ background: "var(--color-bg)" }}>
