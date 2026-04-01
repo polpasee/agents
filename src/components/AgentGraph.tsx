@@ -325,12 +325,13 @@ function renderNodeVisuals(
   }
 
   // Context usage ring (wraps the effective shape)
+  // Context usage ring (only in hex mode — activity circle keeps it clean)
   const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
-  if (totalTokens > 0 && agent.contextWindow > 0) {
+  if (!hasActiveToolCall && totalTokens > 0 && agent.contextWindow > 0) {
     const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
-    const ringR = effectiveRadius + (hasActiveToolCall ? 3 : 5);
-    const ringStroke = hasActiveToolCall ? 2 : 3;
-    const ringOpacity = hasActiveToolCall ? 0.5 : 0.7;
+    const ringR = GRAPH.nodeRadius + 5;
+    const ringStroke = 3;
+    const ringOpacity = 0.7;
     const segments = [
       { value: agent.inputTokens, color: UI.primary },           // cyan - input
       { value: agent.outputTokens, color: "#00ff88" },            // green - output
@@ -375,7 +376,7 @@ function renderNodeVisuals(
           .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
           .attr("fill", "none")
           .attr("stroke", UI.text.empty)
-          .attr("stroke-width", hasActiveToolCall ? 1 : 2)
+          .attr("stroke-width", 2)
           .attr("stroke-opacity", 0.15);
       }
     }
