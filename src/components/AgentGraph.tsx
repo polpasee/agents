@@ -914,42 +914,57 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         agents,
       );
     }
-    // Animate particles on active links
+    // Animate particles on active links — only rebuild when active link set changes
     const particleGroup = d3.select(svg).select<SVGGElement>("g.particles");
     if (!particleGroup.empty()) {
-      particleGroup.selectAll("*").remove();
+      // Build a hash of active links to skip unnecessary DOM rebuilds
+      const activeLinkIds: string[] = [];
       const linkGroup2 = d3svg.select<SVGGElement>("g.links");
       linkGroup2.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
         const targetId = typeof d.target === "string" ? d.target : d.target.id;
         const a = agents.get(targetId);
-        if (!a || (a.status !== "running" && a.status !== "idle")) return;
-
-        const color = AGENT_COLORS[a.agentType];
-        const source = d.source as SimNode;
-        const target = d.target as SimNode;
-        if (source.x == null || source.y == null || target.x == null || target.y == null) return;
-
-        const pathD = bezierPath(source.x, source.y, target.x, target.y);
-
-        for (let i = 0; i < 2; i++) {
-          const particle = particleGroup.append("circle")
-            .attr("r", GRAPH.particleRadius)
-            .attr("fill", color)
-            .attr("opacity", 0);
-
-          particle.append("animateMotion")
-            .attr("path", pathD)
-            .attr("dur", `${GRAPH.particleSpeed}ms`)
-            .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
-            .attr("repeatCount", "indefinite");
-          particle.append("animate")
-            .attr("attributeName", "opacity")
-            .attr("values", "0;0.8;0.8;0")
-            .attr("dur", `${GRAPH.particleSpeed}ms`)
-            .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
-            .attr("repeatCount", "indefinite");
+        if (a && (a.status === "running" || a.status === "idle")) {
+          const sourceId = typeof d.source === "string" ? d.source : d.source.id;
+          activeLinkIds.push(`${sourceId}→${targetId}`);
         }
       });
+      const particleHash = activeLinkIds.sort().join("|");
+      const prevHash = particleGroup.attr("data-hash");
+      if (prevHash !== particleHash) {
+        particleGroup.attr("data-hash", particleHash);
+        particleGroup.selectAll("*").remove();
+        linkGroup2.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
+          const targetId = typeof d.target === "string" ? d.target : d.target.id;
+          const a = agents.get(targetId);
+          if (!a || (a.status !== "running" && a.status !== "idle")) return;
+
+          const color = AGENT_COLORS[a.agentType];
+          const source = d.source as SimNode;
+          const target = d.target as SimNode;
+          if (source.x == null || source.y == null || target.x == null || target.y == null) return;
+
+          const pathD = bezierPath(source.x, source.y, target.x, target.y);
+
+          for (let i = 0; i < 2; i++) {
+            const particle = particleGroup.append("circle")
+              .attr("r", GRAPH.particleRadius)
+              .attr("fill", color)
+              .attr("opacity", 0);
+
+            particle.append("animateMotion")
+              .attr("path", pathD)
+              .attr("dur", `${GRAPH.particleSpeed}ms`)
+              .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
+              .attr("repeatCount", "indefinite");
+            particle.append("animate")
+              .attr("attributeName", "opacity")
+              .attr("values", "0;0.8;0.8;0")
+              .attr("dur", `${GRAPH.particleSpeed}ms`)
+              .attr("begin", `${i * GRAPH.particleSpeed / 2}ms`)
+              .attr("repeatCount", "indefinite");
+          }
+        });
+      }
     }
   }, [agents, selectedAgentId, activity, heatmapEnabled, heatmapMetric]);
 

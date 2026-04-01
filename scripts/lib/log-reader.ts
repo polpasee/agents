@@ -76,13 +76,16 @@ export function readAgentLog(filePath: string): LogEntry[] {
   }
 }
 
+function isTextBlock(b: unknown): b is { type: "text"; text: string } {
+  return b != null && typeof b === "object"
+    && (b as Record<string, unknown>).type === "text"
+    && typeof (b as Record<string, unknown>).text === "string";
+}
+
 function extractTextContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content
-      .filter((b: any) => b.type === "text" && typeof b.text === "string")
-      .map((b: any) => b.text)
-      .join("\n");
+    return content.filter(isTextBlock).map((b) => b.text).join("\n");
   }
   return "";
 }

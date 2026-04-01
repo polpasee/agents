@@ -8,6 +8,7 @@ import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 import { CostProjection } from "./CostProjection";
 import type { RecordedSession } from "@/lib/types";
+import { isValidAgentEvent } from "@/lib/validation";
 
 export function TopBar() {
   const { agents, connected, selectedSessionIds, viewMode, recording, showLiveMetrics, theme } =
@@ -40,7 +41,9 @@ export function TopBar() {
       try {
         const session = JSON.parse(reader.result as string) as RecordedSession;
         if (session.startTime && Array.isArray(session.events)) {
-          loadReplaySession(session);
+          // Validate all events before loading
+          const validEvents = session.events.filter(e => e.timestamp && isValidAgentEvent(e.event));
+          loadReplaySession({ ...session, events: validEvents });
         }
       } catch (err) {
         console.warn("Failed to load replay file:", err);

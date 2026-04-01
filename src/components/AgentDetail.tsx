@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { useShallow } from "zustand/react/shallow";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, EFFICIENCY_COLORS, BUDGET_COLORS } from "@/lib/colors";
@@ -330,7 +330,10 @@ export function AgentDetail() {
 }
 
 function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<string, AgentState> }) {
-  const score = calculateEfficiency(agent, Array.from(agents.values()));
+  const score = useMemo(
+    () => calculateEfficiency(agent, Array.from(agents.values())),
+    [agent.inputTokens, agent.outputTokens, agent.toolCalls.length, agent.status, agent.duration, agents.size]
+  );
   const color = score.overall >= 70
     ? EFFICIENCY_COLORS.excellent
     : score.overall >= 40

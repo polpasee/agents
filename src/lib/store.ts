@@ -151,7 +151,8 @@ function loadLocalStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
     const val = localStorage.getItem(key);
-    return val !== null ? JSON.parse(val) : fallback;
+    if (val === null) return fallback;
+    try { return JSON.parse(val); } catch { return val as T; }
   } catch { return fallback; }
 }
 
@@ -586,7 +587,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   // ── Cost Budget ───────────────────────────────────────
-  budgetThreshold: null,
+  budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
 
   setBudgetThreshold: (amount) => {
     if (typeof window !== "undefined") {
@@ -688,7 +689,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
     if (typeof window !== "undefined") {
-      localStorage.setItem("theme", JSON.stringify(next));
+      localStorage.setItem("theme", next);
     }
     set({ theme: next });
   },
