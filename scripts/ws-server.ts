@@ -60,6 +60,11 @@ wss.on("connection", (ws) => {
   ws.on("message", (raw) => {
     try {
       const data = JSON.parse(String(raw));
+      // Handle heartbeat ping
+      if (data.type === "ping") {
+        ws.send(JSON.stringify({ type: "pong" }));
+        return;
+      }
       if (!isValidClientEvent(data)) return;
 
       if (data.type === "annotation:add") {
