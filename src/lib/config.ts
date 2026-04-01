@@ -10,30 +10,30 @@ export const DEFAULT_CONTEXT_WINDOW = 1_000_000; // Fallback context-window size
 
 /** D3 force-directed graph layout parameters */
 export const GRAPH = {
-  nodeRadius: 30, // Radius (px) of each agent node circle
-  glowRingRadius: 36, // Radius (px) of the animated glow ring around active nodes
-  activityCircleRadius: 58, // Radius (px) of the large activity circle when a tool is active
-  activityMaxLines: 4, // Max text lines displayed inside the activity circle
-  smallIconRadius: 22, // Radius (px) of the hex icon at right side of activity circle
-  smallIconOffsetX: 52, // X offset (px) of the icon from circle center (right side)
-  smallIconOffsetY: 10, // Y offset (px) of the icon from circle center
-  tokenBarWidth: 40, // Width (px) of the token-usage progress bar beneath a node
-  tokenBarHeight: 3, // Height (px) of the token-usage progress bar
-  tokenBarY: 50, // Vertical offset (px) of the token bar relative to node center
-  statusY: 62, // Vertical offset (px) of the status label below the node
-  tooltipY: -38, // Vertical offset (px) of the hover tooltip above the node
+  nodeRadius: 38, // Radius (px) of each agent node circle
+  glowRingRadius: 46, // Radius (px) of the animated glow ring around active nodes
+  activityCircleRadius: 72, // Radius (px) of the large activity circle when a tool is active
+  activityMaxLines: 5, // Max text lines displayed inside the activity circle
+  smallIconRadius: 28, // Radius (px) of the hex icon at right side of activity circle
+  smallIconOffsetX: 62, // X offset (px) of the icon from circle center (right side)
+  smallIconOffsetY: 12, // Y offset (px) of the icon from circle center
+  tokenBarWidth: 50, // Width (px) of the token-usage progress bar beneath a node
+  tokenBarHeight: 4, // Height (px) of the token-usage progress bar
+  tokenBarY: 58, // Vertical offset (px) of the token bar relative to node center
+  statusY: 72, // Vertical offset (px) of the status label below the node
+  tooltipY: -48, // Vertical offset (px) of the hover tooltip above the node
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
-  linkDistance: 200, // Ideal distance (px) between linked nodes in the force layout
-  chargeStrength: -600, // Repulsive force strength; more negative = nodes push apart harder
-  collideRadius: 70, // Collision radius (px) preventing node overlap
+  linkDistance: 240, // Ideal distance (px) between linked nodes in the force layout
+  chargeStrength: -800, // Repulsive force strength; more negative = nodes push apart harder
+  collideRadius: 85, // Collision radius (px) preventing node overlap
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
   particleRadius: 3, // Radius (px) of message-flow particles traveling along links
   particleSpeed: 1500, // Duration (ms) for a particle to traverse a link
-  sparklineWidth: 40, // Width (px) of the per-node sparkline chart
-  sparklineHeight: 8, // Height (px) of the per-node sparkline chart
-  sparklineY: 72, // Vertical offset (px) of the sparkline below the node center
+  sparklineWidth: 50, // Width (px) of the per-node sparkline chart
+  sparklineHeight: 10, // Height (px) of the per-node sparkline chart
+  sparklineY: 84, // Vertical offset (px) of the sparkline below the node center
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
 } as const;

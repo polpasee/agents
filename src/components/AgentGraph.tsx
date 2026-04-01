@@ -193,9 +193,9 @@ function renderNodeVisuals(
     }
 
     // Multi-line tool text inside circle — LEFT-aligned
-    const maxChars = 14;
+    const maxChars = 16;
     const lines = wrapToolText(lastToolCall.tool, lastToolCall.args, GRAPH.activityMaxLines, maxChars);
-    const lineHeight = 12;
+    const lineHeight = 14;
     const totalHeight = lines.length * lineHeight;
     const startY = -totalHeight / 2 + lineHeight * 0.4;
     const textX = -GRAPH.activityCircleRadius + 14; // left edge with padding
@@ -205,7 +205,7 @@ function renderNodeVisuals(
       .attr("text-anchor", "start")
       .attr("fill", `${color}bb`)
       .attr("font-family", "monospace")
-      .attr("font-size", 9)
+      .attr("font-size", 11)
       .style("pointer-events", "none");
 
     lines.forEach((line, i) => {
@@ -244,7 +244,7 @@ function renderNodeVisuals(
 
     // Inner hex accent
     iconG.append("path")
-      .attr("d", hexPath(GRAPH.smallIconRadius - 5))
+      .attr("d", hexPath(GRAPH.smallIconRadius - 7))
       .attr("fill", "none")
       .attr("stroke", `${color}44`)
       .attr("stroke-width", 1);
@@ -255,7 +255,7 @@ function renderNodeVisuals(
       .attr("dominant-baseline", "central")
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 14)
+      .attr("font-size", 18)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(label.charAt(0));
@@ -263,10 +263,10 @@ function renderNodeVisuals(
     // Agent name below icon
     iconG.append("text")
       .attr("text-anchor", "middle")
-      .attr("y", GRAPH.smallIconRadius + 14)
+      .attr("y", GRAPH.smallIconRadius + 16)
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 10)
+      .attr("font-size", 12)
       .attr("font-weight", "bold")
       .attr("letter-spacing", "2px")
       .style("pointer-events", "none")
@@ -307,7 +307,7 @@ function renderNodeVisuals(
       .attr("dominant-baseline", "central")
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 20)
+      .attr("font-size", 24)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(label.charAt(0));
@@ -315,10 +315,10 @@ function renderNodeVisuals(
     // Label below hexagon
     g.append("text")
       .attr("text-anchor", "middle")
-      .attr("y", 44)
+      .attr("y", 52)
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", 11)
+      .attr("font-size", 13)
       .attr("font-weight", "bold")
       .attr("letter-spacing", "2px")
       .style("pointer-events", "none")
@@ -445,29 +445,29 @@ function renderNodeVisuals(
   if (hasActiveToolCall) {
     // In activity mode: position below icon area, centered on icon X
     const statusCx = GRAPH.smallIconOffsetX;
-    const statusCy = GRAPH.smallIconOffsetY + GRAPH.smallIconRadius + 42;
+    const statusCy = GRAPH.smallIconOffsetY + GRAPH.smallIconRadius + 48;
     g.append("circle")
-      .attr("cx", statusCx - 18)
+      .attr("cx", statusCx - 22)
       .attr("cy", statusCy)
-      .attr("r", 4).attr("fill", statusColor);
+      .attr("r", 5).attr("fill", statusColor);
     g.append("text")
-      .attr("x", statusCx - 10)
+      .attr("x", statusCx - 13)
       .attr("y", statusCy + 5)
       .attr("fill", statusColor)
       .attr("font-family", "monospace")
-      .attr("font-size", 12)
+      .attr("font-size", 13)
       .style("pointer-events", "none")
       .text(statusLabel);
   } else {
     const statusY = GRAPH.statusY;
     g.append("circle")
-      .attr("cx", -14).attr("cy", statusY)
-      .attr("r", 3).attr("fill", statusColor);
+      .attr("cx", -18).attr("cy", statusY)
+      .attr("r", 4).attr("fill", statusColor);
     g.append("text")
-      .attr("x", -7).attr("y", statusY + 4)
+      .attr("x", -10).attr("y", statusY + 5)
       .attr("fill", statusColor)
       .attr("font-family", "monospace")
-      .attr("font-size", 10)
+      .attr("font-size", 12)
       .style("pointer-events", "none")
       .text(statusLabel);
   }
