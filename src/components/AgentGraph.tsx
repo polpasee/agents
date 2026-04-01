@@ -62,7 +62,12 @@ import { getTokenPercent } from "@/lib/utils";
 
 /* ── Wrap tool text into multi-line array for activity circle ── */
 function wrapToolText(tool: string, args: string | undefined, maxLines: number, maxChars: number): string[] {
-  const lines: string[] = [tool.toUpperCase() + ":"];
+  // Truncate tool name to fit within maxChars
+  const toolLabel = tool.toUpperCase() + ":";
+  const firstLine = toolLabel.length > maxChars
+    ? toolLabel.slice(0, maxChars - 2) + ".."
+    : toolLabel;
+  const lines: string[] = [firstLine];
   if (!args) return lines;
 
   // Word-wrap: split into words, fill lines without breaking words
@@ -163,6 +168,14 @@ function renderNodeVisuals(
 
   if (hasActiveToolCall) {
     // ── Activity circle mode ─────────────────────────────────
+    // Clip path to constrain text within circle
+    const clipId = `clip-${agent.id.replace(/[^a-zA-Z0-9]/g, "")}`;
+    const defs = g.append("defs");
+    defs.append("clipPath")
+      .attr("id", clipId)
+      .append("circle")
+      .attr("r", GRAPH.activityCircleRadius - 4);
+
     // Large circle background
     const mainCircle = g.append("circle")
       .attr("r", GRAPH.activityCircleRadius)
@@ -178,14 +191,15 @@ function renderNodeVisuals(
         .attr("repeatCount", "indefinite");
     }
 
-    // Multi-line tool text inside circle
-    const maxChars = Math.floor((2 * GRAPH.activityCircleRadius * 0.75) / 5.4);
+    // Multi-line tool text inside circle (clipped)
+    const maxChars = 13;
     const lines = wrapToolText(lastToolCall.tool, lastToolCall.args, GRAPH.activityMaxLines, maxChars);
-    const lineHeight = 14;
+    const lineHeight = 13;
     const totalHeight = lines.length * lineHeight;
     const startY = -totalHeight / 2 + lineHeight * 0.4;
 
-    const textEl = g.append("text")
+    const textG = g.append("g").attr("clip-path", `url(#${clipId})`);
+    const textEl = textG.append("text")
       .attr("text-anchor", "middle")
       .attr("fill", `${color}bb`)
       .attr("font-family", "monospace")
@@ -201,7 +215,7 @@ function renderNodeVisuals(
         .text(line);
     });
 
-    // Small hexagonal icon at bottom-right
+    // Small hexagonal icon at right side of circle
     const iconG = g.append("g")
       .attr("transform", `translate(${GRAPH.smallIconOffsetX}, ${GRAPH.smallIconOffsetY})`);
 
@@ -343,60 +357,64 @@ function renderNodeVisuals(
       .text(formatCost(cost.total));
   }
 
-  // Token bar (dynamic Y based on effective radius)
-  const barW = GRAPH.tokenBarWidth;
-  const barH = GRAPH.tokenBarHeight;
-  const barY = effectiveRadius + 16;
-  g.append("rect")
-    .attr("x", -barW / 2).attr("y", barY)
-    .attr("width", barW).attr("height", barH)
-    .attr("rx", 1).attr("fill", `${color}22`);
-  if (tokenPercent > 0) {
+  // Token bar + sparkline (only in hex mode — activity mode keeps it clean)
+  if (!hasActiveToolCall) {
+    const barW = GRAPH.tokenBarWidth;
+    const barH = GRAPH.tokenBarHeight;
+    const barY = GRAPH.tokenBarY;
     g.append("rect")
       .attr("x", -barW / 2).attr("y", barY)
-      .attr("width", barW * tokenPercent / 100).attr("height", barH)
-      .attr("rx", 1).attr("fill", color);
+      .attr("width", barW).attr("height", barH)
+      .attr("rx", 1).attr("fill", `${color}22`);
+    if (tokenPercent > 0) {
+      g.append("rect")
+        .attr("x", -barW / 2).attr("y", barY)
+        .attr("width", barW * tokenPercent / 100).attr("height", barH)
+        .attr("rx", 1).attr("fill", color);
+    }
+
+    // Sparkline
+    if (agent.toolCalls.length > 0) {
+      const now = Date.now();
+      const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
+      for (const tc of agent.toolCalls) {
+        const age = now - tc.timestamp;
+        const bucketIdx = GRAPH.sparklineBuckets - 1 - Math.floor(age / GRAPH.sparklineBucketMs);
+        if (bucketIdx >= 0 && bucketIdx < GRAPH.sparklineBuckets) {
+          buckets[bucketIdx]++;
+        }
+      }
+      const maxVal = Math.max(...buckets, 1);
+      const sparkBarW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
+      const sparkG = g.append("g")
+        .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${GRAPH.sparklineY})`);
+      for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
+        const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
+        sparkG.append("rect")
+          .attr("x", i * sparkBarW)
+          .attr("y", GRAPH.sparklineHeight - h)
+          .attr("width", sparkBarW - 0.5)
+          .attr("height", h)
+          .attr("fill", color)
+          .attr("opacity", 0.6);
+      }
+    }
   }
 
-  // Status dot + label (dynamic Y)
-  const dynStatusY = effectiveRadius + 28;
+  // Status dot + label
+  const dynStatusY = hasActiveToolCall ? effectiveRadius + 12 : GRAPH.statusY;
   g.append("circle")
-    .attr("cx", -14).attr("cy", dynStatusY)
+    .attr("cx", hasActiveToolCall ? -18 : -14)
+    .attr("cy", dynStatusY)
     .attr("r", 3).attr("fill", statusColor);
   g.append("text")
-    .attr("x", -7).attr("y", dynStatusY + 4)
+    .attr("x", hasActiveToolCall ? -11 : -7)
+    .attr("y", dynStatusY + 4)
     .attr("fill", statusColor)
     .attr("font-family", "monospace")
     .attr("font-size", 10)
     .style("pointer-events", "none")
     .text(statusLabel);
-
-  // Tool call sparkline (dynamic Y)
-  if (agent.toolCalls.length > 0) {
-    const now = Date.now();
-    const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
-    for (const tc of agent.toolCalls) {
-      const age = now - tc.timestamp;
-      const bucketIdx = GRAPH.sparklineBuckets - 1 - Math.floor(age / GRAPH.sparklineBucketMs);
-      if (bucketIdx >= 0 && bucketIdx < GRAPH.sparklineBuckets) {
-        buckets[bucketIdx]++;
-      }
-    }
-    const maxVal = Math.max(...buckets, 1);
-    const sparkBarW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
-    const sparkG = g.append("g")
-      .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${effectiveRadius + 38})`);
-    for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
-      const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
-      sparkG.append("rect")
-        .attr("x", i * sparkBarW)
-        .attr("y", GRAPH.sparklineHeight - h)
-        .attr("width", sparkBarW - 0.5)
-        .attr("height", h)
-        .attr("fill", color)
-        .attr("opacity", 0.6);
-    }
-  }
 
 }
 
