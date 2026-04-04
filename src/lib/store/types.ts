@@ -133,4 +133,7 @@ export interface AgentStore {
   // Sound
   soundMuted: boolean;
   toggleSoundMute: () => void;
+
+  // Hydration
+  hydrateUI: () => void;
 }

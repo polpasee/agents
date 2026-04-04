@@ -17,6 +17,7 @@ export type UISlice = Pick<AgentStore,
   | "setGraphLayout" | "toggleExportModal" | "toggleLiveMetrics"
   | "toggleTheme" | "toggleSoundMute"
   | "loadComparison" | "exitComparison"
+  | "hydrateUI"
 >;
 
 export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, get) => ({
@@ -72,7 +73,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   toggleLiveMetrics: () => set({ showLiveMetrics: !get().showLiveMetrics }),
 
   // ── F11: Theme ────────────────────────────────────────
-  theme: loadLocalStorage<ThemeMode>("theme", "dark"),
+  theme: "dark" as ThemeMode, // Hydrated from localStorage on client mount
 
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
@@ -98,7 +99,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   }),
 
   // ── Sound ──────────────────────────────────────────
-  soundMuted: loadLocalStorage("soundMuted", false),
+  soundMuted: false, // Hydrated from localStorage on client mount
 
   toggleSoundMute: () => {
     const next = !get().soundMuted;
@@ -106,5 +107,13 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
       localStorage.setItem("soundMuted", JSON.stringify(next));
     }
     set({ soundMuted: next });
+  },
+
+  // ── Hydration: sync from localStorage after client mount ──
+  hydrateUI: () => {
+    set({
+      soundMuted: loadLocalStorage("soundMuted", false),
+      theme: loadLocalStorage<ThemeMode>("theme", "dark"),
+    });
   },
 });

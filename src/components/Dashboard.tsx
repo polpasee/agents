@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useReplay } from "@/hooks/useReplay";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
@@ -34,6 +34,10 @@ export function Dashboard() {
   useReplay();
   useMetricSampler();
   useSoundNotifications();
+
+  // Hydrate UI state from localStorage after client mount to avoid SSR mismatch
+  const hydrateUI = useAgentStore((s) => s.hydrateUI);
+  useEffect(() => { hydrateUI(); }, [hydrateUI]);
 
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
