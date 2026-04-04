@@ -13,6 +13,7 @@ export function TimelineBar() {
   const trackRef = useRef<HTMLDivElement>(null);
 
   const [reviewMode, setReviewMode] = useState(false);
+  const replaySetSpeed = useAgentStore((s) => s.replaySetSpeed);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [scrubPosition, setScrubPosition] = useState(100); // percentage
   const [isDragging, setIsDragging] = useState(false);
@@ -66,7 +67,7 @@ export function TimelineBar() {
     ? dots.filter((d) => d.pct <= scrubPosition)
     : dots;
 
-  const speeds = [0.5, 1, 2, 4];
+  const speeds: import("@/lib/types").ReplaySpeed[] = [0.5, 1, 2, 4];
 
   function handleTrackClick(e: React.MouseEvent<HTMLDivElement>) {
     if (!reviewMode) return;
@@ -186,7 +187,7 @@ export function TimelineBar() {
           {speeds.map((s) => (
             <button
               key={s}
-              onClick={() => setPlaybackSpeed(s)}
+              onClick={() => { setPlaybackSpeed(s); replaySetSpeed(s); }}
               className="px-1.5 py-0.5 rounded text-xs font-mono"
               style={{
                 background: playbackSpeed === s ? `${UI.primary}22` : "transparent",

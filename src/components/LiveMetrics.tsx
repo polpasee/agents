@@ -88,16 +88,19 @@ function Sparkline({
       .curve(d3.curveMonotoneX);
 
     const sel = d3.select(svg);
-    sel.selectAll("*").remove();
 
-    sel
-      .append("path")
-      .datum(values)
-      .attr("d", area)
-      .attr("fill", `${metric.color}18`);
+    // Update existing paths or create them on first render
+    let areaPath = sel.select<SVGPathElement>("path.sparkline-area");
+    if (areaPath.empty()) {
+      areaPath = sel.append("path").attr("class", "sparkline-area");
+    }
+    areaPath.datum(values).attr("d", area).attr("fill", `${metric.color}18`);
 
-    sel
-      .append("path")
+    let linePath = sel.select<SVGPathElement>("path.sparkline-line");
+    if (linePath.empty()) {
+      linePath = sel.append("path").attr("class", "sparkline-line");
+    }
+    linePath
       .datum(values)
       .attr("d", line)
       .attr("fill", "none")

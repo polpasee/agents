@@ -1,4 +1,5 @@
-export { renderNodeVisuals } from "./renderNode";
-export { updateLinkVisuals } from "./updateLinks";
+export { renderNodeVisuals, hexPath, wrapToolText } from "./renderNode";
+export { updateLinkVisuals, bezierPath } from "./updateLinks";
 export type { SimNode, SimLink } from "./updateLinks";
-export { computeMetricValue, renderHeatmapNode, renderHeatmapLegend, createHeatmapScale } from "./heatmap";
+export { computeMetricValue, precomputeHeatmapNorms, renderHeatmapNode, renderHeatmapLegend, createHeatmapScale } from "./heatmap";
+export type { HeatmapNorms } from "./heatmap";

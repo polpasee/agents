@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { sendWsMessage } from "@/hooks/useWebSocket";
 import { UI, ANNOTATION_COLOR } from "@/lib/colors";
+import { formatTimestampShort } from "@/lib/utils";
 import type { Annotation } from "@/lib/types";
 const CURRENT_USER = "viewer";
 
@@ -44,10 +45,6 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
     }
   }
 
-  function formatTime(ts: number) {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  }
 
   return (
     <div>
@@ -93,7 +90,7 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
             </div>
             <div className="flex gap-2 mt-0.5" style={{ color: UI.text.dimmed }}>
               <span>{ann.author}</span>
-              <span>{formatTime(ann.timestamp)}</span>
+              <span>{formatTimestampShort(ann.timestamp)}</span>
             </div>
           </div>
         ))}

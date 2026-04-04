@@ -6,8 +6,8 @@ import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { GRAPH } from "@/lib/config";
-import { calculateCost, formatCost } from "@/lib/costs";
-import { renderHeatmapNode, renderHeatmapLegend, computeMetricValue, createHeatmapScale } from "@/lib/d3";
+import { renderNodeVisuals, updateLinkVisuals, hexPath, bezierPath, renderHeatmapNode, renderHeatmapLegend, computeMetricValue, precomputeHeatmapNorms, createHeatmapScale } from "@/lib/d3";
+import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, GraphLayout } from "@/lib/types";
 import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
 
@@ -17,521 +17,6 @@ export interface AgentGraphHandle {
     nodes: Array<{ x: number; y: number; color: string }>;
     viewport: { x: number; y: number; width: number; height: number };
   } | null;
-}
-
-interface SimNode extends d3.SimulationNodeDatum {
-  id: string;
-  agent: AgentState;
-}
-
-interface SimLink extends d3.SimulationLinkDatum<SimNode> {
-  source: string | SimNode;
-  target: string | SimNode;
-  edgeType?: "parent" | "message" | "blocking";
-}
-
-/* ── Hexagonal path generator (flat-top hexagon) ────────── */
-function hexPath(r: number): string {
-  const points = [];
-  for (let i = 0; i < 6; i++) {
-    const angle = (Math.PI / 3) * i;
-    points.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
-  }
-  return `M${points.join("L")}Z`;
-}
-
-/* ── Bezier curve path between two points ───────────────── */
-function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
-  const dx = tx - sx;
-  const dy = ty - sy;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const offset = dist * 0.3;
-  // Perpendicular offset for curve
-  const nx = -dy / (dist || 1) * offset;
-  const ny = dx / (dist || 1) * offset;
-  const cx1 = sx + dx * 0.25 + nx;
-  const cy1 = sy + dy * 0.25 + ny;
-  const cx2 = sx + dx * 0.75 + nx;
-  const cy2 = sy + dy * 0.75 + ny;
-  return `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
-}
-
-/* ── Status colors & agent labels (used by inline renderNodeVisuals) ── */
-import { STATUS_COLORS, AGENT_LABELS } from "@/lib/colors";
-import { getTokenPercent } from "@/lib/utils";
-
-/* ── Wrap tool text into multi-line array for activity circle ── */
-function wrapToolText(tool: string, args: string | undefined, maxLines: number, maxChars: number): string[] {
-  // Truncate tool name to fit within maxChars
-  const toolLabel = tool.toUpperCase() + ":";
-  const firstLine = toolLabel.length > maxChars
-    ? toolLabel.slice(0, maxChars - 2) + ".."
-    : toolLabel;
-  const lines: string[] = [firstLine];
-  if (!args) return lines;
-
-  // Word-wrap: split into words, fill lines without breaking words
-  const words = args.split(/(\s+|(?<=[:,/])|(?=\/))/);
-  let currentLine = "";
-
-  for (const word of words) {
-    if (lines.length >= maxLines) break;
-    const trimmed = word.replace(/^\s+/, "");
-    if (!trimmed) {
-      if (currentLine) currentLine += " ";
-      continue;
-    }
-
-    if (currentLine.length + trimmed.length <= maxChars) {
-      currentLine += trimmed;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine);
-        if (lines.length >= maxLines) break;
-      }
-      // If a single word exceeds maxChars, truncate it
-      currentLine = trimmed.length > maxChars
-        ? trimmed.slice(0, maxChars - 4) + "...."
-        : trimmed;
-    }
-  }
-
-  if (currentLine && lines.length < maxLines) {
-    lines.push(currentLine);
-  }
-
-  // Truncate last line with ellipsis if we ran out of space
-  if (lines.length >= maxLines && lines[lines.length - 1].length > maxChars) {
-    lines[lines.length - 1] = lines[lines.length - 1].slice(0, maxChars - 4) + "....";
-  }
-
-  return lines.slice(0, maxLines);
-}
-
-/* ── Render the visual elements inside a node <g> ──────── */
-function renderNodeVisuals(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  g: d3.Selection<SVGGElement, any, any, any>,
-  agent: AgentState,
-  selectedAgentId: string | null,
-) {
-  const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
-  const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
-  const label = AGENT_LABELS[agent.agentType] || "AGENT";
-  const tokenPercent = getTokenPercent(agent);
-  const isSelected = agent.id === selectedAgentId;
-  const isActive = agent.status === "running" || agent.status === "idle";
-  const isRunning = agent.status === "running";
-
-  const isSubAgent = !!(agent.parentId && !agent.teamId);
-  const isFinished = agent.status === "completed" || agent.status === "error";
-  if (isFinished) {
-    g.attr("opacity", 0.35);
-  }
-
-  const lastTool = agent.toolCalls.length > 0
-    ? agent.toolCalls[agent.toolCalls.length - 1].tool
-    : null;
-  const statusLabel = isRunning && lastTool
-    ? lastTool
-    : agent.status === "idle" ? "thinking" : agent.status;
-
-  // Determine if activity circle mode is active
-  const lastToolCall = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : null;
-  const hasActiveToolCall = !!(lastToolCall && (agent.status === "running" || agent.status === "idle"));
-
-  // Pulsing ring for active agents (only in hex mode — activity circle has its own pulse)
-  if (isActive && !hasActiveToolCall) {
-    const ring = g.append("path")
-      .attr("d", hexPath(GRAPH.glowRingRadius + 4))
-      .attr("fill", "none")
-      .attr("stroke", color)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-opacity", 0);
-    ring.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", isRunning ? "0.1;0.5;0.1" : "0.05;0.25;0.05")
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
-  }
-
-  // Outer glow ring for selected/active (only in hex mode)
-  if ((isSelected || isActive) && !hasActiveToolCall) {
-    g.append("path")
-      .attr("d", hexPath(GRAPH.glowRingRadius))
-      .attr("fill", "none")
-      .attr("stroke", color)
-      .attr("stroke-width", isSelected ? 2 : 1)
-      .attr("stroke-opacity", isActive ? 0.4 : 0.3)
-      .attr("filter", "url(#glow)");
-  }
-
-  // ── Activity bubble (speech bubble with tool text, offset to upper-left) ──
-  if (hasActiveToolCall) {
-    const bubbleX = -(GRAPH.activityCircleRadius + 10);
-    const bubbleY = -(GRAPH.activityCircleRadius - 10);
-    const bubbleG = g.append("g")
-      .attr("transform", `translate(${bubbleX}, ${bubbleY})`);
-
-    // Clip path for text
-    const clipId = `clip-${agent.id.replace(/[^a-zA-Z0-9]/g, "")}`;
-    const localDefs = bubbleG.append("defs");
-    localDefs.append("clipPath")
-      .attr("id", clipId)
-      .append("circle")
-      .attr("r", GRAPH.activityCircleRadius - 6);
-
-    // Bubble circle background
-    const bubbleCircle = bubbleG.append("circle")
-      .attr("r", GRAPH.activityCircleRadius)
-      .attr("fill", "none")
-      .attr("stroke", `${color}44`)
-      .attr("stroke-width", 1);
-
-    if (isRunning) {
-      bubbleCircle.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "0.6;0.3;0.6")
-        .attr("dur", "1.5s")
-        .attr("repeatCount", "indefinite");
-    }
-
-    // Connector line from bubble to hex center
-    g.append("line")
-      .attr("x1", 0).attr("y1", 0)
-      .attr("x2", bubbleX + GRAPH.activityCircleRadius * 0.6)
-      .attr("y2", bubbleY + GRAPH.activityCircleRadius * 0.6)
-      .attr("stroke", `${color}33`)
-      .attr("stroke-width", 1)
-      .attr("stroke-dasharray", "3 3");
-
-    // Multi-line tool text inside bubble — LEFT-aligned
-    const maxChars = 16;
-    const lines = wrapToolText(lastToolCall.tool, lastToolCall.args, GRAPH.activityMaxLines, maxChars);
-    const lineHeight = 14;
-    const totalHeight = lines.length * lineHeight;
-    const startY = -totalHeight / 2 + lineHeight * 0.4;
-    const textX = -GRAPH.activityCircleRadius + 14;
-
-    const textG = bubbleG.append("g").attr("clip-path", `url(#${clipId})`);
-    const textEl = textG.append("text")
-      .attr("text-anchor", "start")
-      .attr("fill", `${color}bb`)
-      .attr("font-family", "monospace")
-      .attr("font-size", 11)
-      .style("pointer-events", "none");
-
-    lines.forEach((line, i) => {
-      textEl.append("tspan")
-        .attr("x", textX)
-        .attr("dy", i === 0 ? startY : lineHeight)
-        .attr("font-weight", i === 0 ? "bold" : "normal")
-        .attr("fill", i === 0 ? `${color}ee` : `${color}bb`)
-        .text(line);
-    });
-  }
-
-  // ── Node shape: circle for sub-agents, hexagon for teammates/main ──
-  if (isSubAgent) {
-    // ── Circle node (sub-agent) ──
-    if (isActive) {
-      const outerGlow = g.append("circle")
-        .attr("r", GRAPH.nodeRadius + 8)
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1.5)
-        .attr("stroke-opacity", 0.2);
-      outerGlow.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "0.1;0.35;0.1")
-        .attr("dur", isRunning ? "1.5s" : "2.5s")
-        .attr("repeatCount", "indefinite");
-
-      g.append("circle")
-        .attr("r", GRAPH.nodeRadius + 4)
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1)
-        .attr("stroke-opacity", 0.35);
-    }
-
-    const mainCircle = g.append("circle")
-      .attr("r", GRAPH.nodeRadius)
-      .attr("fill", "var(--color-bg)")
-      .attr("stroke", color)
-      .attr("stroke-width", isActive ? 2.5 : 2);
-
-    if (isRunning) {
-      mainCircle.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "1;0.6;1")
-        .attr("dur", "1.5s")
-        .attr("repeatCount", "indefinite");
-    }
-
-    if (isActive) {
-      g.append("circle")
-        .attr("r", GRAPH.nodeRadius - 7)
-        .attr("fill", "none")
-        .attr("stroke", `${color}44`)
-        .attr("stroke-width", 1);
-    }
-  } else {
-    // ── Hexagon node (main / teammate / team-lead) ──
-    if (isActive) {
-      const outerGlow = g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius + 10))
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1.5)
-        .attr("stroke-opacity", 0.2);
-      outerGlow.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "0.1;0.35;0.1")
-        .attr("dur", isRunning ? "1.5s" : "2.5s")
-        .attr("repeatCount", "indefinite");
-
-      g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius + 5))
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1)
-        .attr("stroke-opacity", 0.35);
-    }
-
-    const mainHex = g.append("path")
-      .attr("d", hexPath(GRAPH.nodeRadius))
-      .attr("fill", "var(--color-bg)")
-      .attr("stroke", color)
-      .attr("stroke-width", isActive ? 2.5 : 2);
-
-    if (isRunning) {
-      mainHex.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "1;0.6;1")
-        .attr("dur", "1.5s")
-        .attr("repeatCount", "indefinite");
-    }
-
-    if (isActive) {
-      g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius - 8))
-        .attr("fill", "none")
-        .attr("stroke", `${color}44`)
-        .attr("stroke-width", 1);
-    }
-  }
-
-  // Letter inside node
-  g.append("text")
-    .attr("text-anchor", "middle")
-    .attr("dominant-baseline", "central")
-    .attr("fill", color)
-    .attr("font-family", "monospace")
-    .attr("font-size", 24)
-    .attr("font-weight", "bold")
-    .style("pointer-events", "none")
-    .text(label.charAt(0));
-
-  // Label below hexagon
-  g.append("text")
-    .attr("text-anchor", "middle")
-    .attr("y", 52)
-    .attr("fill", color)
-    .attr("font-family", "monospace")
-    .attr("font-size", 13)
-    .attr("font-weight", "bold")
-    .attr("letter-spacing", "2px")
-    .style("pointer-events", "none")
-    .text(label);
-
-  // Context usage ring (wraps the effective shape)
-  // Context usage ring (only in hex mode — activity circle keeps it clean)
-  const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
-  if (!hasActiveToolCall && totalTokens > 0 && agent.contextWindow > 0) {
-    const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
-    const ringR = GRAPH.nodeRadius + 5;
-    const ringStroke = 3;
-    const ringOpacity = 0.7;
-    const segments = [
-      { value: agent.inputTokens, color: UI.primary },           // cyan - input
-      { value: agent.outputTokens, color: "#00ff88" },            // green - output
-      { value: agent.cacheReadTokens, color: "#3b82f6" },         // blue - cache read
-      { value: agent.cacheCreateTokens, color: "#ffaa00" },       // amber - cache write
-    ].filter(s => s.value > 0);
-
-    let startAngle = -Math.PI / 2; // start from top
-
-    for (const seg of segments) {
-      const sweepAngle = (seg.value / agent.contextWindow) * Math.PI * 2;
-      if (sweepAngle < 0.01) continue;
-      const endAngle = startAngle + sweepAngle;
-      const x1 = ringR * Math.cos(startAngle);
-      const y1 = ringR * Math.sin(startAngle);
-      const x2 = ringR * Math.cos(endAngle);
-      const y2 = ringR * Math.sin(endAngle);
-      const largeArc = sweepAngle > Math.PI ? 1 : 0;
-
-      g.append("path")
-        .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
-        .attr("fill", "none")
-        .attr("stroke", seg.color)
-        .attr("stroke-width", ringStroke)
-        .attr("stroke-opacity", ringOpacity)
-        .attr("stroke-linecap", "round");
-
-      startAngle = endAngle;
-    }
-
-    // Background track for remaining capacity
-    if (usagePct < 1) {
-      const remainAngle = startAngle;
-      const endAngle = -Math.PI / 2 + Math.PI * 2;
-      if (endAngle - remainAngle > 0.01) {
-        const x1 = ringR * Math.cos(remainAngle);
-        const y1 = ringR * Math.sin(remainAngle);
-        const x2 = ringR * Math.cos(endAngle);
-        const y2 = ringR * Math.sin(endAngle);
-        const largeArc = (endAngle - remainAngle) > Math.PI ? 1 : 0;
-        g.append("path")
-          .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
-          .attr("fill", "none")
-          .attr("stroke", UI.text.empty)
-          .attr("stroke-width", 2)
-          .attr("stroke-opacity", 0.15);
-      }
-    }
-  }
-
-  // Cost label above node (dynamic based on effective radius)
-  const cost = calculateCost(agent);
-  if (cost.total >= 0.01) {
-    g.append("text")
-      .attr("text-anchor", "middle")
-      .attr("y", -GRAPH.nodeRadius - 8)
-      .attr("fill", UI.primary)
-      .attr("font-family", "monospace")
-      .attr("font-size", 10)
-      .attr("font-weight", "bold")
-      .style("pointer-events", "none")
-      .text(formatCost(cost.total));
-  }
-
-  // Token bar
-  const barW = GRAPH.tokenBarWidth;
-  const barH = GRAPH.tokenBarHeight;
-  const barY = GRAPH.tokenBarY;
-  g.append("rect")
-    .attr("x", -barW / 2).attr("y", barY)
-    .attr("width", barW).attr("height", barH)
-    .attr("rx", 1).attr("fill", `${color}22`);
-  if (tokenPercent > 0) {
-    g.append("rect")
-      .attr("x", -barW / 2).attr("y", barY)
-      .attr("width", barW * tokenPercent / 100).attr("height", barH)
-      .attr("rx", 1).attr("fill", color);
-  }
-
-  // Status dot + label
-  const statusY = GRAPH.statusY;
-  g.append("circle")
-    .attr("cx", -18).attr("cy", statusY)
-    .attr("r", 4).attr("fill", statusColor);
-  g.append("text")
-    .attr("x", -10).attr("y", statusY + 5)
-    .attr("fill", statusColor)
-    .attr("font-family", "monospace")
-    .attr("font-size", 12)
-    .style("pointer-events", "none")
-    .text(statusLabel);
-
-  // Sparkline
-  if (agent.toolCalls.length > 0) {
-    const now = Date.now();
-    const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
-    for (const tc of agent.toolCalls) {
-      const age = now - tc.timestamp;
-      const bucketIdx = GRAPH.sparklineBuckets - 1 - Math.floor(age / GRAPH.sparklineBucketMs);
-      if (bucketIdx >= 0 && bucketIdx < GRAPH.sparklineBuckets) {
-        buckets[bucketIdx]++;
-      }
-    }
-    const maxVal = Math.max(...buckets, 1);
-    const sparkBarW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
-    const sparkG = g.append("g")
-      .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${GRAPH.sparklineY})`);
-    for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
-      const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
-      sparkG.append("rect")
-        .attr("x", i * sparkBarW)
-        .attr("y", GRAPH.sparklineHeight - h)
-        .attr("width", sparkBarW - 0.5)
-        .attr("height", h)
-        .attr("fill", color)
-        .attr("opacity", 0.6);
-    }
-  }
-
-}
-
-/* ── Update link stroke colors and dash styles ─────────── */
-function updateLinkVisuals(
-  linkGlow: d3.Selection<SVGPathElement, SimLink, SVGGElement, unknown>,
-  linkLine: d3.Selection<SVGPathElement, SimLink, SVGGElement, unknown>,
-  agents: Map<string, AgentState>,
-) {
-  const getTargetId = (d: SimLink) =>
-    typeof d.target === "string" ? d.target : d.target.id;
-
-  linkGlow.attr("stroke", (d) => {
-    if (d.edgeType === "message") {
-      return UI.tool; // amber for message edges
-    }
-    const a = agents.get(getTargetId(d));
-    return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
-  });
-  linkLine
-    .attr("stroke", (d) => {
-      if (d.edgeType === "message") {
-        return UI.tool;
-      }
-      const a = agents.get(getTargetId(d));
-      return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
-    })
-    .attr("stroke-dasharray", (d) => {
-      if (d.edgeType === "message") return "4 3";
-      const a = agents.get(getTargetId(d));
-      const active = a?.status === "running" || a?.status === "idle";
-      return active ? "8 4" : "none";
-    })
-    .each(function (d) {
-      const a = agents.get(getTargetId(d));
-      const active = a?.status === "running" || a?.status === "idle";
-      const line = d3.select(this);
-      // Remove existing animate children before adding new ones
-      line.selectAll("animate").remove();
-      if (d.edgeType !== "message" && active) {
-        line.append("animate")
-          .attr("attributeName", "stroke-dashoffset")
-          .attr("values", "24;0")
-          .attr("dur", a?.status === "running" ? "0.8s" : "1.6s")
-          .attr("repeatCount", "indefinite");
-      }
-    });
-
-  linkLine.attr("stroke-opacity", (d) => {
-    if (d.edgeType === "message") return 0.5;
-    const a = agents.get(getTargetId(d));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.2 : 0.6;
-  });
-
-  linkGlow.attr("stroke-opacity", (d) => {
-    if (d.edgeType === "message") return 0.05;
-    const a = agents.get(getTargetId(d));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.03 : 0.1;
-  });
 }
 
 /* ── Component ─────────────────────────────────────────── */
@@ -581,18 +66,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       const nodes = nodesRef.current;
       if (!svg || !container || !zoom || nodes.length === 0) return;
 
-      const padding = 80;
       const width = container.clientWidth;
       const height = container.clientHeight;
+      const paddingX = width * 0.15;
+      const paddingY = height * 0.15;
 
-      // Calculate bounding box of all nodes
+      // Calculate bounding box of all nodes (including visual extent)
+      const nodeExtent = GRAPH.nodeRadius + 80; // account for labels, satellites, text below
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const n of nodes) {
         if (n.x !== undefined && n.y !== undefined) {
-          minX = Math.min(minX, n.x);
-          minY = Math.min(minY, n.y);
-          maxX = Math.max(maxX, n.x);
-          maxY = Math.max(maxY, n.y);
+          minX = Math.min(minX, n.x - nodeExtent);
+          minY = Math.min(minY, n.y - nodeExtent);
+          maxX = Math.max(maxX, n.x + nodeExtent);
+          maxY = Math.max(maxY, n.y + nodeExtent);
         }
       }
       if (!isFinite(minX)) return;
@@ -600,8 +87,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       const bboxW = maxX - minX || 1;
       const bboxH = maxY - minY || 1;
       const scale = Math.min(
-        (width - padding * 2) / bboxW,
-        (height - padding * 2) / bboxH,
+        (width - paddingX * 2) / bboxW,
+        (height - paddingY * 2) / bboxH,
         GRAPH.zoomExtent[1],
       );
       const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
@@ -977,8 +464,44 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         }
       });
 
+    // Auto fit-to-view after simulation has had time to lay out nodes
+    const fitTimer = setTimeout(() => {
+      const svg = svgRef.current;
+      const container = containerRef.current;
+      const zoom = zoomRef.current;
+      if (!svg || !container || !zoom || nodes.length === 0) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      const padX = w * 0.15;
+      const padY = h * 0.15;
+      const nodeExtent = GRAPH.nodeRadius + 80;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const n of nodes) {
+        if (n.x !== undefined && n.y !== undefined) {
+          minX = Math.min(minX, n.x - nodeExtent);
+          minY = Math.min(minY, n.y - nodeExtent);
+          maxX = Math.max(maxX, n.x + nodeExtent);
+          maxY = Math.max(maxY, n.y + nodeExtent);
+        }
+      }
+      if (!isFinite(minX)) return;
+      const bboxW = maxX - minX || 1;
+      const bboxH = maxY - minY || 1;
+      const scale = Math.min(
+        (w - padX * 2) / bboxW,
+        (h - padY * 2) / bboxH,
+        GRAPH.zoomExtent[1],
+      );
+      const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
+      const cx = (minX + maxX) / 2;
+      const cy = (minY + maxY) / 2;
+      const transform = d3.zoomIdentity.translate(w / 2, h / 2).scale(clampedScale).translate(-cx, -cy);
+      d3.select(svg).transition().duration(500)
+        .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
+    }, 1500);
+
     simulationRef.current = simulation;
-    return () => { simulation.stop(); };
+    return () => { simulation.stop(); clearTimeout(fitTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey, selectAgent]);
 
@@ -1034,6 +557,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     // Re-render only nodes whose visual state has changed
     const allAgentsList = Array.from(agents.values());
     const heatmapScale = heatmapEnabled ? createHeatmapScale() : null;
+    const heatmapNorms = heatmapEnabled ? precomputeHeatmapNorms(allAgentsList) : null;
 
     nodeGroup.selectAll<SVGGElement, SimNode>("g.node").each(function (d) {
       const latest = agents.get(d.id);
@@ -1047,8 +571,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       const g = d3.select(this);
       g.attr("data-hash", hash);
       g.selectAll("*").remove();
-      if (heatmapEnabled && heatmapScale) {
-        const metricValue = computeMetricValue(latest, heatmapMetric, allAgentsList);
+      if (heatmapEnabled && heatmapScale && heatmapNorms) {
+        const metricValue = computeMetricValue(latest, heatmapMetric, heatmapNorms);
         renderHeatmapNode(g, latest, metricValue, heatmapScale, d.id === selectedAgentId);
       } else {
         renderNodeVisuals(g, latest, selectedAgentId);

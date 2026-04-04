@@ -2,23 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { SessionComparison } from "../SessionComparison";
 import type { AgentState } from "@/lib/types";
-
-const mockAgent = (overrides: Partial<AgentState> = {}): AgentState => ({
-  id: "agent-1",
-  agentType: "main",
-  status: "completed",
-  task: "test task",
-  toolCalls: [],
-  inputTokens: 1000,
-  outputTokens: 500,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
-  contextWindow: 1000000,
-  startTime: Date.now(),
-  duration: 5000,
-  sessionId: "session-a",
-  ...overrides,
-});
+import { mockAgent } from "@/lib/__tests__/test-utils";
 
 describe("SessionComparison", () => {
   it("renders two panels with metrics", () => {

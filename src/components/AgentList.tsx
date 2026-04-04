@@ -5,6 +5,7 @@ import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import type { AgentState, TeamState } from "@/lib/types";
+import { UsagePanel } from "./UsagePanel";
 
 function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelected: boolean; onClick: () => void }) {
   const color = AGENT_COLORS[agent.agentType];
@@ -30,12 +31,9 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
         <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
-          {AGENT_LABELS[agent.agentType]}
+          {AGENT_LABELS[agent.agentType]}:
         </span>
-      </div>
-      <div className="flex items-center gap-1 mt-0.5 ml-3">
-        <div className="w-1 h-1 rounded-full" style={{ background: statusColor }} />
-        <span className="text-xs capitalize" style={{ color: statusColor }}>{statusLabel}</span>
+        <span className="text-xs capitalize truncate" style={{ color: statusColor }}>{statusLabel}</span>
       </div>
       <div className="text-xs truncate mt-0.5 ml-3" style={{ color: UI.text.dimmed }}>
         {agent.task}
@@ -310,6 +308,7 @@ export function AgentList() {
             )
             : null}
       </div>
+      <UsagePanel />
     </div>
   );
 }

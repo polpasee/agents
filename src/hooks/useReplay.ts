@@ -1,8 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-
-const TICK_MS = 50;
+import { REPLAY_TICK_MS } from "@/lib/config";
 
 export function useReplay() {
   const playing = useAgentStore((s) => s.replay.playing);
@@ -19,17 +18,17 @@ export function useReplay() {
     function tick() {
       const { replay } = useAgentStore.getState();
       if (!replay.playing || !replay.session) return;
-      const advance = TICK_MS * replay.speed;
+      const advance = REPLAY_TICK_MS * replay.speed;
       const newTime = Math.min(replay.currentTime + advance, replay.endTime);
       replayTick(newTime);
       if (newTime >= replay.endTime) {
         replayPause();
       } else {
-        timerRef.current = setTimeout(tick, TICK_MS);
+        timerRef.current = setTimeout(tick, REPLAY_TICK_MS);
       }
     }
 
-    timerRef.current = setTimeout(tick, TICK_MS);
+    timerRef.current = setTimeout(tick, REPLAY_TICK_MS);
     return () => { clearTimeout(timerRef.current); };
   }, [active, playing, speed, endTime, replayTick, replayPause]);
 }

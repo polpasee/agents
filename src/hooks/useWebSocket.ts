@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS } from "@/lib/config";
+import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS, WS_BATCH_INTERVAL_MS, WS_BATCH_MAX_SIZE } from "@/lib/config";
 import type { ServerEvent, ClientEvent } from "@/lib/types";
 import { isValidServerEvent } from "@/lib/validation";
 
@@ -39,8 +39,30 @@ export function useWebSocket() {
 
     let reconnectTimer: ReturnType<typeof setTimeout>;
     let heartbeatTimer: ReturnType<typeof setInterval>;
+    let batchTimer: ReturnType<typeof setTimeout> | null = null;
+    let eventBuffer: Array<{ event: import("@/lib/types").AgentEvent; timestamp: number }> = [];
     let destroyed = false;
     let reconnectDelay = WS_RECONNECT_DELAY_MS;
+
+    function flushEventBuffer() {
+      if (eventBuffer.length === 0) return;
+      const batch = eventBuffer;
+      eventBuffer = [];
+      batchTimer = null;
+      for (const { event, timestamp } of batch) {
+        handleEvent(event, timestamp);
+      }
+    }
+
+    function enqueueEvent(event: import("@/lib/types").AgentEvent, timestamp: number) {
+      eventBuffer.push({ event, timestamp });
+      if (eventBuffer.length >= WS_BATCH_MAX_SIZE) {
+        if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }
+        flushEventBuffer();
+      } else if (batchTimer === null) {
+        batchTimer = setTimeout(flushEventBuffer, WS_BATCH_INTERVAL_MS);
+      }
+    }
 
     function connect() {
       if (destroyed) return;
@@ -78,7 +100,7 @@ export function useWebSocket() {
               syncState(event.agents, event.edges, event.teams);
               break;
             case "state:update":
-              handleEvent(event.event, event.timestamp);
+              enqueueEvent(event.event, event.timestamp);
               break;
             case "state:remove":
               removeAgent(event.agentId);
@@ -123,6 +145,8 @@ export function useWebSocket() {
       destroyed = true;
       clearTimeout(reconnectTimer);
       clearInterval(heartbeatTimer);
+      if (batchTimer !== null) clearTimeout(batchTimer);
+      flushEventBuffer();
       activeWs = null;
       wsRef.current?.close();
     };

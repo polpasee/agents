@@ -18,7 +18,7 @@ import { FileAttentionPanel } from "./FileAttentionPanel";
 import { TeamPanel } from "./TeamPanel";
 import { ActivityStream } from "./ActivityStream";
 import { ReplayBar } from "./ReplayBar";
-import LogViewer from "./LogViewer";
+import { LogViewer } from "./LogViewer";
 import { ErrorDrillDown } from "./ErrorDrillDown";
 import { LiveMetrics } from "./LiveMetrics";
 import { ExportModal } from "./ExportModal";
@@ -34,6 +34,7 @@ export function Dashboard() {
   useReplay();
   useMetricSampler();
   useSoundNotifications();
+
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
   const viewMode = useAgentStore((s) => s.viewMode);

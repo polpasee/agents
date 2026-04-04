@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
-import { truncateId } from "@/lib/utils";
+import { truncateId, formatTimestamp } from "@/lib/utils";
 import type { AgentEvent, AgentType, TeamState } from "@/lib/types";
 
 export function ActivityStream() {
@@ -70,12 +70,7 @@ function ActivityLine({
   agents: Map<string, { agentType: AgentType; teamId?: string }>;
   teams: Map<string, { name: string }>;
 }) {
-  const time = new Date(timestamp).toLocaleTimeString("en-US", {
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const time = formatTimestamp(timestamp);
 
   const getAgentColor = (id: string) => {
     const agent = agents.get(id);

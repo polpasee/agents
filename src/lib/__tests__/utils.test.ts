@@ -1,21 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { AgentState } from "../types";
-import { getTokenPercent, formatNumber, formatDuration, truncateId } from "../utils";
-
-const mockAgent = (overrides: Partial<AgentState> = {}): AgentState => ({
-  id: "test-id",
-  agentType: "main",
-  status: "running",
-  task: "test task",
-  toolCalls: [],
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
-  contextWindow: 1000000,
-  startTime: Date.now(),
-  ...overrides,
-});
+import { getTokenPercent, formatNumber, formatDuration, truncateId, formatTimestamp, formatTimestampShort } from "../utils";
+import { mockAgent } from "./test-utils";
 
 describe("getTokenPercent", () => {
   it("returns 0 when both token counts are zero", () => {
@@ -138,5 +123,32 @@ describe("truncateId", () => {
 
   it("returns empty string for empty input", () => {
     expect(truncateId("")).toBe("");
+  });
+});
+
+describe("formatTimestamp", () => {
+  it("formats a timestamp as HH:MM:SS in 24-hour format", () => {
+    // 2024-01-15 14:30:45 UTC
+    const ts = new Date("2024-01-15T14:30:45Z").getTime();
+    const result = formatTimestamp(ts);
+    // Should contain the hours, minutes, seconds separated by colons
+    expect(result).toMatch(/\d{2}:\d{2}:\d{2}/);
+  });
+
+  it("returns a string (not undefined or empty)", () => {
+    expect(formatTimestamp(Date.now())).toBeTruthy();
+  });
+});
+
+describe("formatTimestampShort", () => {
+  it("formats a timestamp as HH:MM without seconds", () => {
+    const ts = new Date("2024-01-15T14:30:45Z").getTime();
+    const result = formatTimestampShort(ts);
+    // Should be HH:MM format (no seconds)
+    expect(result).toMatch(/^\d{2}:\d{2}$/);
+  });
+
+  it("returns a string (not undefined or empty)", () => {
+    expect(formatTimestampShort(Date.now())).toBeTruthy();
   });
 });

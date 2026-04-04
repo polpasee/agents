@@ -1,15 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { calculateEfficiency } from "../efficiency";
-import type { AgentState } from "../types";
-
-function mockAgent(overrides: Partial<AgentState> = {}): AgentState {
-  return {
-    id: "a1", agentType: "main", status: "running", task: "test",
-    toolCalls: [], inputTokens: 0, outputTokens: 0,
-    cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 1000000,
-    startTime: Date.now(), ...overrides,
-  };
-}
+import { mockAgent } from "./test-utils";
 
 describe("calculateEfficiency", () => {
   it("returns 50 for a default agent with no data", () => {

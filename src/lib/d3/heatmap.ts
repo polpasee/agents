@@ -12,11 +12,27 @@ export function createHeatmapScale(): d3.ScaleLinear<string, string> {
     .clamp(true);
 }
 
+/** Pre-computed normalization values to avoid O(n²) in per-agent metric calls */
+export interface HeatmapNorms {
+  maxTtft: number;
+}
+
+/** Pre-compute normalization values from all agents (call once per render pass) */
+export function precomputeHeatmapNorms(allAgents: AgentState[]): HeatmapNorms {
+  let maxTtft = 1;
+  for (const a of allAgents) {
+    if (a.toolCalls.length > 0) {
+      maxTtft = Math.max(maxTtft, a.toolCalls[0].timestamp - a.startTime);
+    }
+  }
+  return { maxTtft };
+}
+
 /** Compute a 0-1 metric value for an agent. 0=healthy, 1=bottleneck */
 export function computeMetricValue(
   agent: AgentState,
   metric: HeatmapMetric,
-  allAgents: AgentState[],
+  norms: HeatmapNorms,
 ): number {
   switch (metric) {
     case "idleRatio": {
@@ -34,19 +50,13 @@ export function computeMetricValue(
     case "tokenEfficiency": {
       const total = agent.inputTokens + agent.outputTokens;
       if (total === 0) return 0.5;
-      // Low output ratio = lots of context reading = less efficient
       const outputRatio = agent.outputTokens / total;
-      // outputRatio of 0.3+ is healthy, below 0.1 is bottleneck
       return Math.max(0, Math.min(1, 1 - outputRatio * 3));
     }
     case "timeToFirstTool": {
-      if (agent.toolCalls.length === 0) return 1; // No tools = max delay
+      if (agent.toolCalls.length === 0) return 1;
       const ttft = agent.toolCalls[0].timestamp - agent.startTime;
-      // Normalize against max across all agents
-      const maxTtft = Math.max(1, ...allAgents.map(a =>
-        a.toolCalls.length > 0 ? a.toolCalls[0].timestamp - a.startTime : 0
-      ));
-      return ttft / maxTtft;
+      return ttft / norms.maxTtft;
     }
     case "avgToolLatency": {
       if (agent.toolCalls.length < 2) return 0.5;
@@ -55,7 +65,6 @@ export function computeMetricValue(
         totalGap += agent.toolCalls[i].timestamp - agent.toolCalls[i - 1].timestamp;
       }
       const avgGap = totalGap / (agent.toolCalls.length - 1);
-      // Normalize: <2s is healthy, >30s is bottleneck
       return Math.max(0, Math.min(1, avgGap / 30000));
     }
     default:

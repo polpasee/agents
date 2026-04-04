@@ -3,6 +3,8 @@
 export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4001";
 export const WS_RECONNECT_DELAY_MS = 2000; // Initial delay before retrying a dropped WebSocket connection
 export const WS_RECONNECT_MAX_DELAY_MS = 30000; // Upper bound for exponential backoff on reconnect attempts
+export const WS_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events every ~1 frame (16ms)
+export const WS_BATCH_MAX_SIZE = 50; // Force-flush the buffer if it reaches this many events
 
 export const ACTIVITY_MAX_ENTRIES = 100; // Max activity-log items kept in the UI before oldest are evicted
 export const TOOL_CALLS_MAX_PER_AGENT = 20; // Max tool-call entries shown per agent in the detail panel
@@ -24,9 +26,9 @@ export const GRAPH = {
   tooltipY: -48, // Vertical offset (px) of the hover tooltip above the node
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
-  linkDistance: 240, // Ideal distance (px) between linked nodes in the force layout
-  chargeStrength: -800, // Repulsive force strength; more negative = nodes push apart harder
-  collideRadius: 85, // Collision radius (px) preventing node overlap
+  linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
+  chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
+  collideRadius: 120, // Collision radius (px) preventing node overlap
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
   particleRadius: 3, // Radius (px) of message-flow particles traveling along links
@@ -50,6 +52,12 @@ export const HEATMAP = {
   legendPadding: 16,
   colors: ["#00ff88", "#eab308", "#ff4444"] as [string, string, string],
 } as const;
+
+/** Idle agent timeout — agents idle longer than this are hidden from the graph */
+export const IDLE_TIMEOUT_MS = 20_000;
+
+/** Replay tick interval — how often the replay clock advances */
+export const REPLAY_TICK_MS = 50;
 
 /** F4: Live metrics configuration */
 export const METRIC_HISTORY_MAX = 120; // 2 min at 1 sample/sec

@@ -76,6 +76,8 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
       ref={canvasRef}
       width={160}
       height={100}
+      role="img"
+      aria-label="Agent graph minimap"
       className="absolute bottom-2 right-2 rounded"
       style={{
         background: `${UI.text.empty}33`,

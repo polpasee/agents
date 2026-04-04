@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
-import { truncateId } from "@/lib/utils";
+import { truncateId, formatTimestamp } from "@/lib/utils";
 import { ModalBackdrop } from "./ModalBackdrop";
 
-export default function LogViewer() {
+export function LogViewer() {
   const logViewerAgentId = useAgentStore((s) => s.logViewerAgentId);
   const logEntries = useAgentStore((s) => s.logEntries);
   const logLoading = useAgentStore((s) => s.logLoading);
@@ -62,10 +62,6 @@ export default function LogViewer() {
     }
   };
 
-  const formatTime = (ts: number) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  };
 
   return (
     <ModalBackdrop onClose={closeLogViewer}>
@@ -206,7 +202,7 @@ export default function LogViewer() {
                   }}
                 >
                   <span style={{ color: UI.text.muted, fontSize: 11, fontFamily: "monospace" }}>
-                    {formatTime(entry.timestamp)}
+                    {formatTimestamp(entry.timestamp)}
                   </span>
                   <span
                     style={{
@@ -224,7 +220,7 @@ export default function LogViewer() {
                   </span>
                   {entry.role === "system" && (
                     <button
-                      onClick={() => navigator.clipboard.writeText(entry.content)}
+                      onClick={() => { navigator.clipboard.writeText(entry.content).catch(() => {}); }}
                       style={{
                         fontSize: 10,
                         padding: "1px 4px",

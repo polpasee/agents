@@ -3,32 +3,16 @@ import { renderHook } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { useKeyboardShortcuts } from "../useKeyboardShortcuts";
 import type { AgentState } from "@/lib/types";
-
-function mockAgent(id: string, overrides: Partial<AgentState> = {}): AgentState {
-  return {
-    id,
-    agentType: "main",
-    status: "running",
-    task: "test",
-    toolCalls: [],
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 1000000,
-    startTime: Date.now(),
-    ...overrides,
-  };
-}
+import { mockAgent } from "@/lib/__tests__/test-utils";
 
 describe("useKeyboardShortcuts", () => {
   const graphRef = { current: { fitToView: vi.fn() } };
 
   beforeEach(() => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent("a1"));
-    agents.set("a2", mockAgent("a2"));
-    agents.set("a3", mockAgent("a3"));
+    agents.set("a1", mockAgent({ id: "a1" }));
+    agents.set("a2", mockAgent({ id: "a2" }));
+    agents.set("a3", mockAgent({ id: "a3" }));
     useAgentStore.setState({
       agents,
       selectedAgentId: null,

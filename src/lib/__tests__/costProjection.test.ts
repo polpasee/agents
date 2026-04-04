@@ -1,23 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { calculateBurnRate, calculateProjection } from "../costProjection";
 import type { ActivityEntry, AgentState } from "../types";
-
-function makeAgent(overrides: Partial<AgentState> = {}): AgentState {
-  return {
-    id: "a1",
-    agentType: "build",
-    status: "running",
-    task: "test",
-    toolCalls: [],
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-    startTime: 0,
-    ...overrides,
-  };
-}
+import { mockAgent } from "./test-utils";
 
 describe("calculateBurnRate", () => {
   beforeEach(() => {
@@ -36,7 +20,7 @@ describe("calculateBurnRate", () => {
 
   it("returns 0 with fewer than 2 token events", () => {
     vi.setSystemTime(60_000);
-    const agent = makeAgent({ id: "a1", inputTokens: 5000, outputTokens: 2000, startTime: 0 });
+    const agent = mockAgent({ id: "a1", inputTokens: 5000, outputTokens: 2000, startTime: 0 });
     const agents = new Map([["a1", agent]]);
 
     const activity: ActivityEntry[] = [
@@ -63,7 +47,7 @@ describe("calculateBurnRate", () => {
     const now = 120_000;
     vi.setSystemTime(now);
 
-    const agent = makeAgent({
+    const agent = mockAgent({
       id: "a1",
       inputTokens: 100_000,
       outputTokens: 50_000,

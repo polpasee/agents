@@ -2,12 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   createHeatmapScale,
   computeMetricValue,
+  precomputeHeatmapNorms,
   renderHeatmapNode,
   renderHeatmapLegend,
 } from "../d3/heatmap";
 import type { AgentState, HeatmapMetric } from "../types";
+import { mockAgent as createMockAgent } from "./test-utils";
 
-const mockAgent: AgentState = {
+const mockAgent = createMockAgent({
   id: "a1",
   agentType: "build",
   status: "running",
@@ -22,7 +24,7 @@ const mockAgent: AgentState = {
   cacheCreateTokens: 0,
   contextWindow: 200000,
   startTime: 0,
-};
+});
 
 describe("createHeatmapScale", () => {
   it("returns a function", () => {
@@ -47,27 +49,28 @@ describe("createHeatmapScale", () => {
 
 describe("computeMetricValue", () => {
   const allAgents = [mockAgent];
+  const norms = precomputeHeatmapNorms(allAgents);
 
   it("returns a number between 0 and 1 for tokenEfficiency", () => {
-    const value = computeMetricValue(mockAgent, "tokenEfficiency", allAgents);
+    const value = computeMetricValue(mockAgent, "tokenEfficiency", norms);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(1);
   });
 
   it("returns a number between 0 and 1 for idleRatio", () => {
-    const value = computeMetricValue(mockAgent, "idleRatio", allAgents);
+    const value = computeMetricValue(mockAgent, "idleRatio", norms);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(1);
   });
 
   it("returns a number between 0 and 1 for timeToFirstTool", () => {
-    const value = computeMetricValue(mockAgent, "timeToFirstTool", allAgents);
+    const value = computeMetricValue(mockAgent, "timeToFirstTool", norms);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(1);
   });
 
   it("returns a number between 0 and 1 for avgToolLatency", () => {
-    const value = computeMetricValue(mockAgent, "avgToolLatency", allAgents);
+    const value = computeMetricValue(mockAgent, "avgToolLatency", norms);
     expect(value).toBeGreaterThanOrEqual(0);
     expect(value).toBeLessThanOrEqual(1);
   });
@@ -78,7 +81,7 @@ describe("computeMetricValue", () => {
       inputTokens: 0,
       outputTokens: 0,
     };
-    const value = computeMetricValue(emptyAgent, "tokenEfficiency", [emptyAgent]);
+    const value = computeMetricValue(emptyAgent, "tokenEfficiency", precomputeHeatmapNorms([emptyAgent]));
     expect(value).toBe(0.5);
   });
 
@@ -87,12 +90,12 @@ describe("computeMetricValue", () => {
       ...mockAgent,
       toolCalls: [],
     };
-    const value = computeMetricValue(noToolAgent, "timeToFirstTool", [noToolAgent]);
+    const value = computeMetricValue(noToolAgent, "timeToFirstTool", precomputeHeatmapNorms([noToolAgent]));
     expect(value).toBe(1);
   });
 
   it("returns 0.5 for unknown metric", () => {
-    const value = computeMetricValue(mockAgent, "unknownMetric" as HeatmapMetric, allAgents);
+    const value = computeMetricValue(mockAgent, "unknownMetric" as HeatmapMetric, norms);
     expect(value).toBe(0.5);
   });
 });

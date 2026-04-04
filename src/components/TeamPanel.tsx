@@ -58,9 +58,10 @@ export function TeamPanel() {
           const elapsed = Date.now() - team.startTime;
 
           return (
-            <div
+            <button
               key={team.id}
-              className="rounded-md p-2 cursor-pointer transition-colors"
+              type="button"
+              className="rounded-md p-2 cursor-pointer transition-colors text-left w-full"
               onClick={() => selectTeam(isSelected ? null : team.id)}
               style={{
                 background: isSelected ? `${UI.primary}11` : "transparent",
@@ -158,7 +159,7 @@ export function TeamPanel() {
                   })}
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

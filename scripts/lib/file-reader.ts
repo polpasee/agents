@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as path from "path";
 import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
 
 const fileOffsets = new Map<string, number>();
@@ -13,18 +14,19 @@ function cleanTaskText(raw: string): string {
 const READ_MAX_BYTES = 512 * 1024; // 512KB max per poll cycle
 
 export function readNewLines(filePath: string): string[] {
-  const offset = fileOffsets.get(filePath) || 0;
+  const normalized = path.resolve(filePath);
+  const offset = fileOffsets.get(normalized) || 0;
   let stat: fs.Stats;
   try {
-    stat = fs.statSync(filePath);
+    stat = fs.statSync(normalized);
   } catch (err) {
-    console.warn(`Failed to stat ${filePath}:`, err);
+    console.warn(`Failed to stat ${normalized}:`, err);
     return [];
   }
   if (stat.size <= offset) return [];
 
   const bytesToRead = Math.min(stat.size - offset, READ_MAX_BYTES);
-  const fd = fs.openSync(filePath, "r");
+  const fd = fs.openSync(normalized, "r");
   let buf: Buffer;
   try {
     buf = Buffer.alloc(bytesToRead);
@@ -43,7 +45,7 @@ export function readNewLines(filePath: string): string[] {
     }
     // If no newline found, read it all and let JSON.parse handle the error
   }
-  fileOffsets.set(filePath, offset + usableBytes);
+  fileOffsets.set(normalized, offset + usableBytes);
 
   return buf
     .subarray(0, usableBytes)

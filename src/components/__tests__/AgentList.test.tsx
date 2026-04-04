@@ -3,21 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { AgentList } from "../AgentList";
 import type { AgentState } from "@/lib/types";
-
-const mockAgent = (overrides: Partial<AgentState> = {}): AgentState => ({
-  id: "agent-1",
-  agentType: "main",
-  status: "running",
-  task: "test task",
-  toolCalls: [],
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
-  contextWindow: 1000000,
-  startTime: Date.now(),
-  ...overrides,
-});
+import { mockAgent } from "@/lib/__tests__/test-utils";
 
 describe("AgentList", () => {
   beforeEach(() => {

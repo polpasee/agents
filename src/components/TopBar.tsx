@@ -82,12 +82,13 @@ export function TopBar() {
       </div>
 
       {/* Right: Stats */}
-      <div className="flex gap-6 text-xs topbar-stats">
+      <div className="flex items-center gap-6 text-xs topbar-stats">
         <Stat label="AGENTS" value={total} color={UI.text.secondary} />
         <Stat label="ACTIVE" value={active} color={STATUS_COLORS.running} />
         <Stat label="DONE" value={completed} color={STATUS_COLORS.completed} />
         <Stat label="ERRORS" value={errors} color={UI.error} />
         <CostProjection />
+        <SoundToggle />
       </div>
     </div>
   );
@@ -107,5 +108,38 @@ function Stat({
       {label}:{" "}
       <span style={{ color, textShadow: `0 0 6px ${color}66` }}>{value}</span>
     </span>
+  );
+}
+
+function SoundToggle() {
+  const soundMuted = useAgentStore((s) => s.soundMuted);
+  const toggle = useAgentStore((s) => s.toggleSoundMute);
+
+  return (
+    <button
+      onClick={toggle}
+      aria-label={soundMuted ? "Unmute notifications" : "Mute notifications"}
+      title={soundMuted ? "Unmute notifications" : "Mute notifications"}
+      className="p-1 rounded transition-colors"
+      style={{
+        color: soundMuted ? UI.text.dimmed : UI.text.secondary,
+        background: "transparent",
+        border: "none",
+      }}
+    >
+      {soundMuted ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 5L6 9H2v6h4l5 4V5z" />
+          <line x1="23" y1="9" x2="17" y2="15" />
+          <line x1="17" y1="9" x2="23" y2="15" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 5L6 9H2v6h4l5 4V5z" />
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        </svg>
+      )}
+    </button>
   );
 }

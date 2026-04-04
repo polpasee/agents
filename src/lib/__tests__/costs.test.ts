@@ -1,21 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { AgentState } from "../types";
 import { calculateCost, formatCost, calculateTotalCost } from "../costs";
-
-const mockAgent = (overrides: Partial<AgentState> = {}): AgentState => ({
-  id: "test-id",
-  agentType: "main",
-  status: "running",
-  task: "test task",
-  toolCalls: [],
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
-  contextWindow: 1000000,
-  startTime: Date.now(),
-  ...overrides,
-});
+import { mockAgent } from "./test-utils";
 
 describe("calculateCost", () => {
   it("returns all zeros when token counts are zero", () => {

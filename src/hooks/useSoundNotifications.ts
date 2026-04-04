@@ -95,10 +95,16 @@ function playErrorTone() {
 
 export function useSoundNotifications() {
   const activity = useAgentStore((s) => s.activity);
+  const soundMuted = useAgentStore((s) => s.soundMuted);
   const prevLenRef = useRef(activity.length);
 
   useEffect(() => {
     if (activity.length <= prevLenRef.current) {
+      prevLenRef.current = activity.length;
+      return;
+    }
+
+    if (soundMuted) {
       prevLenRef.current = activity.length;
       return;
     }
@@ -124,5 +130,5 @@ export function useSoundNotifications() {
           break;
       }
     }
-  }, [activity]);
+  }, [activity, soundMuted]);
 }

@@ -26,3 +26,22 @@ export function formatDuration(ms: number): string {
 export function truncateId(id: string, len = 8): string {
   return id.slice(0, len);
 }
+
+/** Format a Unix timestamp as "HH:MM:SS" (24h) for display in logs and streams. */
+export function formatTimestamp(ts: number): string {
+  return new Date(ts).toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+/** Format a Unix timestamp as "HH:MM" (24h, no seconds) for compact display. */
+export function formatTimestampShort(ts: number): string {
+  return new Date(ts).toLocaleTimeString("en-US", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

@@ -1,14 +1,69 @@
 import * as d3 from "d3";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
-import { getTokenPercent } from "@/lib/utils";
+import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
+import { calculateCost, formatCost } from "@/lib/costs";
 import { GRAPH } from "@/lib/config";
 import type { AgentState } from "@/lib/types";
 
-/**
- * Render the visual elements (circle, label, token bar, status, sparkline)
- * inside a D3 node `<g>` group element. Called on initial render and when
- * a node's visual hash changes (status, tokens, tool calls, selection).
- */
+/* ── Hexagonal path generator (flat-top hexagon) ────────── */
+export function hexPath(r: number): string {
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    points.push(`${r * Math.cos(angle)},${r * Math.sin(angle)}`);
+  }
+  return `M${points.join("L")}Z`;
+}
+
+/* ── Wrap tool text into multi-line array for activity circle ── */
+export function wrapToolText(tool: string, args: string | undefined, maxLines: number, maxChars: number): string[] {
+  // Truncate tool name to fit within maxChars
+  const toolLabel = tool.toUpperCase() + ":";
+  const firstLine = toolLabel.length > maxChars
+    ? toolLabel.slice(0, maxChars - 2) + ".."
+    : toolLabel;
+  const lines: string[] = [firstLine];
+  if (!args) return lines;
+
+  // Word-wrap: split into words, fill lines without breaking words
+  const words = args.split(/(\s+|(?<=[:,/])|(?=\/))/);
+  let currentLine = "";
+
+  for (const word of words) {
+    if (lines.length >= maxLines) break;
+    const trimmed = word.replace(/^\s+/, "");
+    if (!trimmed) {
+      if (currentLine) currentLine += " ";
+      continue;
+    }
+
+    if (currentLine.length + trimmed.length <= maxChars) {
+      currentLine += trimmed;
+    } else {
+      if (currentLine) {
+        lines.push(currentLine);
+        if (lines.length >= maxLines) break;
+      }
+      // If a single word exceeds maxChars, truncate it
+      currentLine = trimmed.length > maxChars
+        ? trimmed.slice(0, maxChars - 4) + "...."
+        : trimmed;
+    }
+  }
+
+  if (currentLine && lines.length < maxLines) {
+    lines.push(currentLine);
+  }
+
+  // Truncate last line with ellipsis if we ran out of space
+  if (lines.length >= maxLines && lines[lines.length - 1].length > maxChars) {
+    lines[lines.length - 1] = lines[lines.length - 1].slice(0, maxChars - 4) + "....";
+  }
+
+  return lines.slice(0, maxLines);
+}
+
+/* ── Render the visual elements inside a node <g> ──────── */
 export function renderNodeVisuals(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   g: d3.Selection<SVGGElement, any, any, any>,
@@ -23,6 +78,7 @@ export function renderNodeVisuals(
   const isActive = agent.status === "running" || agent.status === "idle";
   const isRunning = agent.status === "running";
 
+  const isSubAgent = !!(agent.parentId && !agent.teamId);
   const isFinished = agent.status === "completed" || agent.status === "error";
   if (isFinished) {
     g.attr("opacity", 0.35);
@@ -35,10 +91,14 @@ export function renderNodeVisuals(
     ? lastTool
     : agent.status === "idle" ? "thinking" : agent.status;
 
-  // Pulsing ring for active agents (running or idle/thinking)
-  if (isActive) {
-    const ring = g.append("circle")
-      .attr("r", GRAPH.glowRingRadius + 4)
+  // Determine if activity circle mode is active
+  const lastToolCall = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : null;
+  const hasActiveToolCall = !!(lastToolCall && (agent.status === "running" || agent.status === "idle"));
+
+  // Pulsing ring for active agents (only in hex mode — activity circle has its own pulse)
+  if (isActive && !hasActiveToolCall) {
+    const ring = g.append("path")
+      .attr("d", hexPath(GRAPH.glowRingRadius + 4))
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", 1.5)
@@ -48,19 +108,12 @@ export function renderNodeVisuals(
       .attr("values", isRunning ? "0.1;0.5;0.1" : "0.05;0.25;0.05")
       .attr("dur", isRunning ? "1.5s" : "2.5s")
       .attr("repeatCount", "indefinite");
-    ring.append("animate")
-      .attr("attributeName", "r")
-      .attr("values", isRunning
-        ? `${GRAPH.glowRingRadius + 2};${GRAPH.glowRingRadius + 8};${GRAPH.glowRingRadius + 2}`
-        : `${GRAPH.glowRingRadius + 1};${GRAPH.glowRingRadius + 5};${GRAPH.glowRingRadius + 1}`)
-      .attr("dur", isRunning ? "1.5s" : "2.5s")
-      .attr("repeatCount", "indefinite");
   }
 
-  // Outer glow ring for selected/active
-  if (isSelected || isActive) {
-    g.append("circle")
-      .attr("r", GRAPH.glowRingRadius)
+  // Outer glow ring for selected/active (only in hex mode)
+  if ((isSelected || isActive) && !hasActiveToolCall) {
+    g.append("path")
+      .attr("d", hexPath(GRAPH.glowRingRadius))
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", isSelected ? 2 : 1)
@@ -68,60 +121,191 @@ export function renderNodeVisuals(
       .attr("filter", "url(#glow)");
   }
 
-  // Main circle — solid dark background so links don't show through
-  const mainCircle = g.append("circle")
-    .attr("r", GRAPH.nodeRadius)
-    .attr("fill", "var(--color-bg)")
-    .attr("stroke", color)
-    .attr("stroke-width", 2);
+  // ── Node shape: circle for sub-agents, hexagon for teammates/main ──
+  if (isSubAgent) {
+    // ── Circle node (sub-agent) ──
+    if (isActive) {
+      const outerGlow = g.append("circle")
+        .attr("r", GRAPH.nodeRadius + 8)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1.5)
+        .attr("stroke-opacity", 0.2);
+      outerGlow.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "0.1;0.35;0.1")
+        .attr("dur", isRunning ? "1.5s" : "2.5s")
+        .attr("repeatCount", "indefinite");
 
-  // F3: Budget exceeded warning ring
-  if (agent.budgetExceeded) {
-    const warningRing = g.append("circle")
-      .attr("r", GRAPH.glowRingRadius + 2)
-      .attr("fill", "none")
-      .attr("stroke", "#eab308")
-      .attr("stroke-width", 2)
-      .attr("stroke-dasharray", "4 3")
-      .attr("stroke-opacity", 0.8);
-    warningRing.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", "0.4;0.9;0.4")
-      .attr("dur", "1s")
-      .attr("repeatCount", "indefinite");
+      g.append("circle")
+        .attr("r", GRAPH.nodeRadius + 4)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", 0.35);
+    }
+
+    const mainCircle = g.append("circle")
+      .attr("r", GRAPH.nodeRadius)
+      .attr("fill", "var(--color-bg)")
+      .attr("stroke", color)
+      .attr("stroke-width", isActive ? 2.5 : 2);
+
+    if (isRunning) {
+      mainCircle.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "1;0.6;1")
+        .attr("dur", "1.5s")
+        .attr("repeatCount", "indefinite");
+    }
+
+    if (isActive) {
+      g.append("circle")
+        .attr("r", GRAPH.nodeRadius - 7)
+        .attr("fill", "none")
+        .attr("stroke", `${color}44`)
+        .attr("stroke-width", 1);
+    }
+  } else {
+    // ── Hexagon node (main / teammate / team-lead) ──
+    if (isActive) {
+      const outerGlow = g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius + 10))
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1.5)
+        .attr("stroke-opacity", 0.2);
+      outerGlow.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "0.1;0.35;0.1")
+        .attr("dur", isRunning ? "1.5s" : "2.5s")
+        .attr("repeatCount", "indefinite");
+
+      g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius + 5))
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 1)
+        .attr("stroke-opacity", 0.35);
+    }
+
+    const mainHex = g.append("path")
+      .attr("d", hexPath(GRAPH.nodeRadius))
+      .attr("fill", "var(--color-bg)")
+      .attr("stroke", color)
+      .attr("stroke-width", isActive ? 2.5 : 2);
+
+    if (isRunning) {
+      mainHex.append("animate")
+        .attr("attributeName", "stroke-opacity")
+        .attr("values", "1;0.6;1")
+        .attr("dur", "1.5s")
+        .attr("repeatCount", "indefinite");
+    }
+
+    if (isActive) {
+      g.append("path")
+        .attr("d", hexPath(GRAPH.nodeRadius - 8))
+        .attr("fill", "none")
+        .attr("stroke", `${color}44`)
+        .attr("stroke-width", 1);
+    }
   }
 
-  // Subtle stroke pulse for running agents
-  if (isRunning) {
-    mainCircle.append("animate")
-      .attr("attributeName", "stroke-opacity")
-      .attr("values", "1;0.5;1")
-      .attr("dur", "1.5s")
-      .attr("repeatCount", "indefinite");
-  }
-
-  // Letter inside circle
+  // Letter inside node
   g.append("text")
     .attr("text-anchor", "middle")
     .attr("dominant-baseline", "central")
     .attr("fill", color)
     .attr("font-family", "monospace")
-    .attr("font-size", 16)
+    .attr("font-size", 24)
     .attr("font-weight", "bold")
     .style("pointer-events", "none")
     .text(label.charAt(0));
 
-  // Label below
+  // Label below hexagon
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", 34)
+    .attr("y", 52)
     .attr("fill", color)
     .attr("font-family", "monospace")
-    .attr("font-size", 11)
+    .attr("font-size", 13)
     .attr("font-weight", "bold")
     .attr("letter-spacing", "2px")
     .style("pointer-events", "none")
     .text(label);
+
+  // Context usage ring (wraps the effective shape)
+  // Context usage ring (only in hex mode — activity circle keeps it clean)
+  const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+  if (!hasActiveToolCall && totalTokens > 0 && agent.contextWindow > 0) {
+    const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
+    const ringR = GRAPH.nodeRadius + 5;
+    const ringStroke = 3;
+    const ringOpacity = 0.7;
+    const segments = [
+      { value: agent.inputTokens, color: UI.primary },           // cyan - input
+      { value: agent.outputTokens, color: "#00ff88" },            // green - output
+      { value: agent.cacheReadTokens, color: "#3b82f6" },         // blue - cache read
+      { value: agent.cacheCreateTokens, color: "#ffaa00" },       // amber - cache write
+    ].filter(s => s.value > 0);
+
+    let startAngle = -Math.PI / 2; // start from top
+
+    for (const seg of segments) {
+      const sweepAngle = (seg.value / agent.contextWindow) * Math.PI * 2;
+      if (sweepAngle < 0.01) continue;
+      const endAngle = startAngle + sweepAngle;
+      const x1 = ringR * Math.cos(startAngle);
+      const y1 = ringR * Math.sin(startAngle);
+      const x2 = ringR * Math.cos(endAngle);
+      const y2 = ringR * Math.sin(endAngle);
+      const largeArc = sweepAngle > Math.PI ? 1 : 0;
+
+      g.append("path")
+        .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
+        .attr("fill", "none")
+        .attr("stroke", seg.color)
+        .attr("stroke-width", ringStroke)
+        .attr("stroke-opacity", ringOpacity)
+        .attr("stroke-linecap", "round");
+
+      startAngle = endAngle;
+    }
+
+    // Background track for remaining capacity
+    if (usagePct < 1) {
+      const remainAngle = startAngle;
+      const endAngle = -Math.PI / 2 + Math.PI * 2;
+      if (endAngle - remainAngle > 0.01) {
+        const x1 = ringR * Math.cos(remainAngle);
+        const y1 = ringR * Math.sin(remainAngle);
+        const x2 = ringR * Math.cos(endAngle);
+        const y2 = ringR * Math.sin(endAngle);
+        const largeArc = (endAngle - remainAngle) > Math.PI ? 1 : 0;
+        g.append("path")
+          .attr("d", `M${x1},${y1} A${ringR},${ringR} 0 ${largeArc} 1 ${x2},${y2}`)
+          .attr("fill", "none")
+          .attr("stroke", UI.text.empty)
+          .attr("stroke-width", 2)
+          .attr("stroke-opacity", 0.15);
+      }
+    }
+  }
+
+  // Cost label above node (dynamic based on effective radius)
+  const cost = calculateCost(agent);
+  if (cost.total >= 0.01) {
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", -GRAPH.nodeRadius - 8)
+      .attr("fill", UI.primary)
+      .attr("font-family", "monospace")
+      .attr("font-size", 10)
+      .attr("font-weight", "bold")
+      .style("pointer-events", "none")
+      .text(formatCost(cost.total));
+  }
 
   // Token bar
   const barW = GRAPH.tokenBarWidth;
@@ -138,20 +322,84 @@ export function renderNodeVisuals(
       .attr("rx", 1).attr("fill", color);
   }
 
-  // Status dot + label
+
+  // Status info under node
   const statusY = GRAPH.statusY;
-  g.append("circle")
-    .attr("cx", -14).attr("cy", statusY)
-    .attr("r", 3).attr("fill", statusColor);
+  const allTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+  const elapsed = agent.duration ?? (Date.now() - agent.startTime);
+
+  // Line 1: status label
   g.append("text")
-    .attr("x", -7).attr("y", statusY + 4)
+    .attr("text-anchor", "middle")
+    .attr("y", statusY + 4)
     .attr("fill", statusColor)
     .attr("font-family", "monospace")
     .attr("font-size", 10)
     .style("pointer-events", "none")
-    .text(statusLabel);
+    .text(agent.status);
 
-  // Tool call sparkline
+  // Line 2: tokens + duration
+  g.append("text")
+    .attr("text-anchor", "middle")
+    .attr("y", statusY + 18)
+    .attr("fill", UI.text.dimmed)
+    .attr("font-family", "monospace")
+    .attr("font-size", 9)
+    .style("pointer-events", "none")
+    .text(`${formatNumber(allTokens)} tok · ${formatDuration(elapsed)}`);
+
+  // Activity child circles — show only tool calls from last 20s
+  if (agent.toolCalls.length > 0 && isActive) {
+    const now = Date.now();
+    const ACTIVITY_WINDOW = 20_000;
+    const maxChildren = 5;
+    const recentCalls = agent.toolCalls
+      .filter((tc) => now - tc.timestamp < ACTIVITY_WINDOW)
+      .slice(-maxChildren);
+    const childRadius = 12;
+    const orbitRadius = GRAPH.nodeRadius + 30;
+    // Spread children in an arc on the right side (-60° to +60°)
+    const arcStart = -Math.PI / 3;
+    const arcEnd = Math.PI / 3;
+
+    recentCalls.forEach((tc, i) => {
+      const angle = recentCalls.length === 1
+        ? 0
+        : arcStart + (arcEnd - arcStart) * (i / (recentCalls.length - 1));
+      const cx = Math.cos(angle) * orbitRadius;
+      const cy = Math.sin(angle) * orbitRadius;
+      const isLast = i === recentCalls.length - 1;
+
+      // Connector line
+      g.append("line")
+        .attr("x1", 0).attr("y1", 0)
+        .attr("x2", cx).attr("y2", cy)
+        .attr("stroke", `${color}22`)
+        .attr("stroke-width", 1);
+
+      // Child circle
+      g.append("circle")
+        .attr("cx", cx).attr("cy", cy)
+        .attr("r", childRadius)
+        .attr("fill", isLast ? `${color}18` : `${color}08`)
+        .attr("stroke", isLast ? `${color}88` : `${color}33`)
+        .attr("stroke-width", 1);
+
+      // Tool name label
+      const toolName = tc.tool.length > 6 ? tc.tool.slice(0, 5) + "\u2026" : tc.tool;
+      g.append("text")
+        .attr("x", cx).attr("y", cy + 3)
+        .attr("text-anchor", "middle")
+        .attr("fill", isLast ? `${color}cc` : `${color}66`)
+        .attr("font-family", "monospace")
+        .attr("font-size", 7)
+        .attr("font-weight", isLast ? "bold" : "normal")
+        .style("pointer-events", "none")
+        .text(toolName);
+    });
+  }
+
+  // Sparkline
   if (agent.toolCalls.length > 0) {
     const now = Date.now();
     const buckets = new Array(GRAPH.sparklineBuckets).fill(0);
@@ -177,4 +425,5 @@ export function renderNodeVisuals(
         .attr("opacity", 0.6);
     }
   }
+
 }

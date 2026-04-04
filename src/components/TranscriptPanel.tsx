@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
-import { truncateId } from "@/lib/utils";
+import { truncateId, formatTimestamp } from "@/lib/utils";
 
 export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const activity = useAgentStore((s) => s.activity);
@@ -69,9 +69,7 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
       <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
         {filtered.map((entry) => {
           const event = entry.event;
-          const time = new Date(entry.timestamp).toLocaleTimeString("en-US", {
-            hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit",
-          });
+          const time = formatTimestamp(entry.timestamp);
 
           let agentId = "";
           let color: string = UI.text.muted;

@@ -3,21 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { DiffViewer } from "../DiffViewer";
 import type { AgentState, FileModification } from "@/lib/types";
-
-const mockAgent = (overrides: Partial<AgentState> = {}): AgentState => ({
-  id: "agent-1",
-  agentType: "build",
-  status: "running",
-  task: "build feature",
-  toolCalls: [],
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-  cacheCreateTokens: 0,
-  contextWindow: 1000000,
-  startTime: Date.now(),
-  ...overrides,
-});
+import { mockAgent } from "@/lib/__tests__/test-utils";
 
 describe("DiffViewer", () => {
   beforeEach(() => {
