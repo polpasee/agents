@@ -1,6 +1,6 @@
 import * as d3 from "d3";
 import type { AgentState, HeatmapMetric } from "../types";
-import { GRAPH, HEATMAP } from "../config";
+import { GRAPH, HEATMAP, getNodeRadius } from "../config";
 import { HEATMAP_COLORS } from "../colors";
 import { AGENT_LABELS } from "../colors";
 
@@ -81,7 +81,8 @@ export function renderHeatmapNode(
   isSelected: boolean,
 ): void {
   const color = colorScale(metricValue);
-  const r = GRAPH.nodeRadius;
+  const r = getNodeRadius(agent);
+  const hScale = r / GRAPH.nodeRadius;
 
   // Clear existing children
   g.selectAll("*").remove();
@@ -89,7 +90,7 @@ export function renderHeatmapNode(
   // Glow ring for selected
   if (isSelected) {
     g.append("circle")
-      .attr("r", GRAPH.glowRingRadius)
+      .attr("r", r + Math.round((GRAPH.glowRingRadius - GRAPH.nodeRadius) * hScale))
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", 2)
@@ -109,7 +110,7 @@ export function renderHeatmapNode(
     .attr("text-anchor", "middle")
     .attr("dy", "0.35em")
     .attr("fill", color)
-    .attr("font-size", "11px")
+    .attr("font-size", `${Math.max(8, Math.round(11 * hScale))}px`)
     .attr("font-weight", "bold")
     .attr("font-family", "monospace")
     .text(AGENT_LABELS[agent.agentType]?.[0] || "?");
@@ -117,9 +118,9 @@ export function renderHeatmapNode(
   // Type label below
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", 34)
+    .attr("y", Math.round(34 * hScale))
     .attr("fill", color)
-    .attr("font-size", "9px")
+    .attr("font-size", `${Math.max(7, Math.round(9 * hScale))}px`)
     .attr("font-weight", "bold")
     .attr("font-family", "monospace")
     .attr("letter-spacing", "2px")
@@ -128,9 +129,9 @@ export function renderHeatmapNode(
   // Metric value below that
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", 48)
+    .attr("y", Math.round(48 * hScale))
     .attr("fill", color)
-    .attr("font-size", "10px")
+    .attr("font-size", `${Math.max(7, Math.round(10 * hScale))}px`)
     .attr("font-family", "monospace")
     .attr("opacity", 0.8)
     .text(`${(metricValue * 100).toFixed(0)}%`);

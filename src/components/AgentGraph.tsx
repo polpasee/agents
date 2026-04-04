@@ -5,7 +5,7 @@ import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
-import { GRAPH } from "@/lib/config";
+import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, hexPath, bezierPath, renderHeatmapNode, renderHeatmapLegend, computeMetricValue, precomputeHeatmapNorms, createHeatmapScale } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, GraphLayout } from "@/lib/types";
@@ -34,6 +34,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     type: "spawn" | "complete" | "error";
     startTime: number;
     duration: number;
+    effectRadius: number;
   }>>([]);
   const prevActivityLenRef = useRef(0);
 
@@ -327,7 +328,10 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
       .force("charge", d3.forceManyBody().strength(GRAPH.chargeStrength))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collide", d3.forceCollide<SimNode>().radius(GRAPH.collideRadius))
+      .force("collide", d3.forceCollide<SimNode>().radius((d) => {
+        const isSub = !!(d.agent.parentId && !d.agent.teamId);
+        return isSub ? GRAPH.subAgentCollideRadius : GRAPH.collideRadius;
+      }))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
         linkGlow.attr("d", (d) => bezierPath(
@@ -353,9 +357,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
 
             if (effect.type === "spawn") {
               // Expanding hex ring
-              const r = GRAPH.nodeRadius + progress * 40;
+              const er = effect.effectRadius + progress * 40;
               effectsGroup.append("path")
-                .attr("d", hexPath(r))
+                .attr("d", hexPath(er))
                 .attr("transform", `translate(${effect.x},${effect.y})`)
                 .attr("fill", "none")
                 .attr("stroke", effect.color)
@@ -363,11 +367,11 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
                 .attr("stroke-opacity", alpha * 0.6);
             } else if (effect.type === "complete") {
               // Bright expanding ring
-              const r = GRAPH.nodeRadius + progress * 60;
+              const er = effect.effectRadius + progress * 60;
               effectsGroup.append("circle")
                 .attr("cx", effect.x)
                 .attr("cy", effect.y)
-                .attr("r", r)
+                .attr("r", er)
                 .attr("fill", "none")
                 .attr("stroke", "#00ff88")
                 .attr("stroke-width", 1.5 * alpha)
@@ -378,17 +382,17 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
                 effectsGroup.append("circle")
                   .attr("cx", effect.x)
                   .attr("cy", effect.y)
-                  .attr("r", GRAPH.nodeRadius)
+                  .attr("r", effect.effectRadius)
                   .attr("fill", "white")
                   .attr("opacity", flashAlpha * 0.15);
               }
             } else if (effect.type === "error") {
               // Red pulse glow
-              const r = GRAPH.nodeRadius + progress * 30;
+              const er = effect.effectRadius + progress * 30;
               effectsGroup.append("circle")
                 .attr("cx", effect.x)
                 .attr("cy", effect.y)
-                .attr("r", r)
+                .attr("r", er)
                 .attr("fill", "none")
                 .attr("stroke", UI.error)
                 .attr("stroke-width", 3 * alpha)
@@ -543,6 +547,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       if (effectNode && effectType && effectNode.x != null && effectNode.y != null) {
         const a = agents.get(effectNode.id);
         const color = a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
+        const effectRadius = a ? getNodeRadius(a) : GRAPH.nodeRadius;
         effectsRef.current.push({
           x: effectNode.x,
           y: effectNode.y,
@@ -550,6 +555,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           type: effectType,
           startTime: Date.now(),
           duration: effectType === "error" ? 800 : 1000,
+          effectRadius,
         });
       }
     }

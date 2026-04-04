@@ -84,6 +84,28 @@ export function renderNodeVisuals(
     g.attr("opacity", 0.35);
   }
 
+  // ── Effective radius & scale for sub-agents ──
+  const r = isSubAgent ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
+  const scale = r / GRAPH.nodeRadius;
+  const centerFont = Math.max(13, Math.round(24 * scale));
+  const labelY = Math.round(52 * scale);
+  const labelFontSize = Math.max(8, Math.round(13 * scale));
+  const costFontSize = Math.max(7, Math.round(10 * scale));
+  const barW = Math.round(GRAPH.tokenBarWidth * scale);
+  const barH = Math.max(2, Math.round(GRAPH.tokenBarHeight * scale));
+  const barY = Math.round(GRAPH.tokenBarY * scale);
+  const sY = Math.round(GRAPH.statusY * scale);
+  const statusFontSize = Math.max(7, Math.round(10 * scale));
+  const statsFontSize = Math.max(7, Math.round(9 * scale));
+  const orbitR = r + Math.round(30 * scale);
+  const childR = Math.max(6, Math.round(12 * scale));
+  const childFont = Math.max(5, Math.round(7 * scale));
+  const contextRingR = r + Math.round(5 * scale);
+  const contextStroke = Math.max(2, Math.round(3 * scale));
+  const sparkW = Math.round(GRAPH.sparklineWidth * scale);
+  const sparkH = Math.max(6, Math.round(GRAPH.sparklineHeight * scale));
+  const sparkY = Math.round(GRAPH.sparklineY * scale);
+
   const lastTool = agent.toolCalls.length > 0
     ? agent.toolCalls[agent.toolCalls.length - 1].tool
     : null;
@@ -126,7 +148,7 @@ export function renderNodeVisuals(
     // ── Circle node (sub-agent) ──
     if (isActive) {
       const outerGlow = g.append("circle")
-        .attr("r", GRAPH.nodeRadius + 8)
+        .attr("r", r + Math.round(8 * scale))
         .attr("fill", "none")
         .attr("stroke", color)
         .attr("stroke-width", 1.5)
@@ -138,7 +160,7 @@ export function renderNodeVisuals(
         .attr("repeatCount", "indefinite");
 
       g.append("circle")
-        .attr("r", GRAPH.nodeRadius + 4)
+        .attr("r", r + Math.round(4 * scale))
         .attr("fill", "none")
         .attr("stroke", color)
         .attr("stroke-width", 1)
@@ -146,7 +168,7 @@ export function renderNodeVisuals(
     }
 
     const mainCircle = g.append("circle")
-      .attr("r", GRAPH.nodeRadius)
+      .attr("r", r)
       .attr("fill", "var(--color-bg)")
       .attr("stroke", color)
       .attr("stroke-width", isActive ? 2.5 : 2);
@@ -161,7 +183,7 @@ export function renderNodeVisuals(
 
     if (isActive) {
       g.append("circle")
-        .attr("r", GRAPH.nodeRadius - 7)
+        .attr("r", r - Math.round(7 * scale))
         .attr("fill", "none")
         .attr("stroke", `${color}44`)
         .attr("stroke-width", 1);
@@ -218,18 +240,18 @@ export function renderNodeVisuals(
     .attr("dominant-baseline", "central")
     .attr("fill", color)
     .attr("font-family", "monospace")
-    .attr("font-size", 24)
+    .attr("font-size", centerFont)
     .attr("font-weight", "bold")
     .style("pointer-events", "none")
     .text(label.charAt(0));
 
-  // Label below hexagon
+  // Label below node
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", 52)
+    .attr("y", labelY)
     .attr("fill", color)
     .attr("font-family", "monospace")
-    .attr("font-size", 13)
+    .attr("font-size", labelFontSize)
     .attr("font-weight", "bold")
     .attr("letter-spacing", "2px")
     .style("pointer-events", "none")
@@ -240,8 +262,8 @@ export function renderNodeVisuals(
   const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
   if (!hasActiveToolCall && totalTokens > 0 && agent.contextWindow > 0) {
     const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
-    const ringR = GRAPH.nodeRadius + 5;
-    const ringStroke = 3;
+    const ringR = contextRingR;
+    const ringStroke = contextStroke;
     const ringOpacity = 0.7;
     const segments = [
       { value: agent.inputTokens, color: UI.primary },           // cyan - input
@@ -298,19 +320,16 @@ export function renderNodeVisuals(
   if (cost.total >= 0.01) {
     g.append("text")
       .attr("text-anchor", "middle")
-      .attr("y", -GRAPH.nodeRadius - 8)
+      .attr("y", -(r + Math.round(8 * scale)))
       .attr("fill", UI.primary)
       .attr("font-family", "monospace")
-      .attr("font-size", 10)
+      .attr("font-size", costFontSize)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(formatCost(cost.total));
   }
 
   // Token bar
-  const barW = GRAPH.tokenBarWidth;
-  const barH = GRAPH.tokenBarHeight;
-  const barY = GRAPH.tokenBarY;
   g.append("rect")
     .attr("x", -barW / 2).attr("y", barY)
     .attr("width", barW).attr("height", barH)
@@ -324,27 +343,26 @@ export function renderNodeVisuals(
 
 
   // Status info under node
-  const statusY = GRAPH.statusY;
   const allTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
   const elapsed = agent.duration ?? (Date.now() - agent.startTime);
 
   // Line 1: status label
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", statusY + 4)
+    .attr("y", sY + Math.round(4 * scale))
     .attr("fill", statusColor)
     .attr("font-family", "monospace")
-    .attr("font-size", 10)
+    .attr("font-size", statusFontSize)
     .style("pointer-events", "none")
     .text(agent.status);
 
   // Line 2: tokens + duration
   g.append("text")
     .attr("text-anchor", "middle")
-    .attr("y", statusY + 18)
+    .attr("y", sY + Math.round(18 * scale))
     .attr("fill", UI.text.dimmed)
     .attr("font-family", "monospace")
-    .attr("font-size", 9)
+    .attr("font-size", statsFontSize)
     .style("pointer-events", "none")
     .text(`${formatNumber(allTokens)} tok · ${formatDuration(elapsed)}`);
 
@@ -356,8 +374,8 @@ export function renderNodeVisuals(
     const recentCalls = agent.toolCalls
       .filter((tc) => now - tc.timestamp < ACTIVITY_WINDOW)
       .slice(-maxChildren);
-    const childRadius = 12;
-    const orbitRadius = GRAPH.nodeRadius + 30;
+    const childRadius = childR;
+    const orbitRadius = orbitR;
     // Spread children in an arc on the right side (-60° to +60°)
     const arcStart = -Math.PI / 3;
     const arcEnd = Math.PI / 3;
@@ -392,7 +410,7 @@ export function renderNodeVisuals(
         .attr("text-anchor", "middle")
         .attr("fill", isLast ? `${color}cc` : `${color}66`)
         .attr("font-family", "monospace")
-        .attr("font-size", 7)
+        .attr("font-size", childFont)
         .attr("font-weight", isLast ? "bold" : "normal")
         .style("pointer-events", "none")
         .text(toolName);
@@ -411,14 +429,14 @@ export function renderNodeVisuals(
       }
     }
     const maxVal = Math.max(...buckets, 1);
-    const sparkBarW = GRAPH.sparklineWidth / GRAPH.sparklineBuckets;
+    const sparkBarW = sparkW / GRAPH.sparklineBuckets;
     const sparkG = g.append("g")
-      .attr("transform", `translate(${-GRAPH.sparklineWidth / 2}, ${GRAPH.sparklineY})`);
+      .attr("transform", `translate(${-sparkW / 2}, ${sparkY})`);
     for (let i = 0; i < GRAPH.sparklineBuckets; i++) {
-      const h = (buckets[i] / maxVal) * GRAPH.sparklineHeight;
+      const h = (buckets[i] / maxVal) * sparkH;
       sparkG.append("rect")
         .attr("x", i * sparkBarW)
-        .attr("y", GRAPH.sparklineHeight - h)
+        .attr("y", sparkH - h)
         .attr("width", sparkBarW - 0.5)
         .attr("height", h)
         .attr("fill", color)

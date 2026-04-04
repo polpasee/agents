@@ -28,6 +28,8 @@ export const GRAPH = {
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
   chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
+  subAgentNodeRadius: 20, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
+  subAgentCollideRadius: 70, // Collision radius (px) for sub-agent nodes
   collideRadius: 120, // Collision radius (px) preventing node overlap
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
@@ -39,6 +41,11 @@ export const GRAPH = {
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
 } as const;
+
+/** Returns the effective node radius based on whether the agent is a sub-agent */
+export function getNodeRadius(agent: { parentId?: string; teamId?: string }): number {
+  return agent.parentId && !agent.teamId ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
+}
 
 /** Cost projection configuration */
 export const COST_PROJECTION_WINDOW_MS = 60_000;
