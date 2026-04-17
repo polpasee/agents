@@ -372,9 +372,15 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
             const s = d.source as SimNode;
             const t = d.target as SimNode;
             if (s?.x == null || t?.x == null) return;
+            const dx = t.x! - s.x!;
+            const dy = t.y! - s.y!;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const ux = dx / dist;
+            const uy = dy / dist;
             d3.select(this)
               .attr("x1", s.x!).attr("y1", s.y!)
-              .attr("x2", t.x!).attr("y2", t.y!);
+              .attr("x2", t.x! - ux * GRAPH.toolNodeRadius)
+              .attr("y2", t.y! - uy * GRAPH.toolNodeRadius);
           });
 
         // Render lifecycle effects
