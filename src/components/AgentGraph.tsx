@@ -450,79 +450,91 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           }
         }
 
-        // Update team cluster hulls
-        teamClusterGroup.selectAll("*").remove();
-        for (const [teamId, teamNodes] of teamNodeMap) {
+        // Update team cluster hulls — join by team id and update in place
+        // to avoid a full remove/re-append on every simulation tick.
+        const teamEntries = Array.from(teamNodeMap.entries()).filter(([, ns]) =>
+          ns.filter((n) => n.x != null && n.y != null).length >= 2,
+        );
+        const teamGroups = teamClusterGroup
+          .selectAll<SVGGElement, [string, SimNode[]]>("g.team")
+          .data(teamEntries, (d) => d[0]);
+        teamGroups.exit().remove();
+        const teamEnter = teamGroups.enter().append("g").attr("class", "team");
+        teamEnter.append("path").attr("class", "cluster-shape");
+        teamEnter.append("text").attr("class", "cluster-label")
+          .attr("text-anchor", "middle")
+          .attr("font-family", "monospace")
+          .attr("font-size", 10)
+          .attr("font-weight", "bold");
+        const teamMerged = teamEnter.merge(teamGroups);
+
+        teamMerged.each(function ([teamId, teamNodes]) {
+          const g = d3.select(this);
           const points = teamNodes
             .filter((n) => n.x != null && n.y != null)
             .map((n) => [n.x!, n.y!] as [number, number]);
-          if (points.length < 2) continue;
           const team = teams.get(teamId);
           const isSelectedTeam = teamId === selectedTeamId;
           const leader = teamNodes.find((n) => n.agent.agentType === "team-lead");
           const clusterColor = leader ? agentColor(leader.agent) : UI.primary;
 
+          let d = "";
           if (points.length === 2) {
-            // Draw an ellipse between two nodes
             const cx = (points[0][0] + points[1][0]) / 2;
             const cy = (points[0][1] + points[1][1]) / 2;
             const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
             const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
-            teamClusterGroup.append("ellipse")
-              .attr("cx", cx).attr("cy", cy)
-              .attr("rx", rx).attr("ry", ry)
-              .attr("fill", `${clusterColor}08`)
-              .attr("stroke", clusterColor)
-              .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
-              .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
-              .attr("stroke-dasharray", "6 3");
+            // Ellipse as SVG path
+            d = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
           } else {
-            // Draw convex hull around team members
             const hull = d3.polygonHull(points);
             if (hull) {
-              // Expand hull by collideRadius for padding
               const centroid = d3.polygonCentroid(hull);
               const expanded = hull.map(([x, y]) => {
                 const dx = x - centroid[0];
                 const dy = y - centroid[1];
-                const dist = Math.sqrt(dx * dx + dy * dy);
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                 const pad = GRAPH.collideRadius;
                 return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
               });
-              teamClusterGroup.append("path")
-                .attr("d", `M${expanded.map((p) => p.join(",")).join("L")}Z`)
-                .attr("fill", `${clusterColor}08`)
-                .attr("stroke", clusterColor)
-                .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
-                .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
-                .attr("stroke-dasharray", "6 3")
-                .attr("stroke-linejoin", "round");
+              d = `M${expanded.map((p) => p.join(",")).join("L")}Z`;
             }
           }
-          // Team label
-          if (team && points.length >= 2) {
+
+          g.select<SVGPathElement>("path.cluster-shape")
+            .attr("d", d)
+            .attr("fill", `${clusterColor}08`)
+            .attr("stroke", clusterColor)
+            .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
+            .attr("stroke-opacity", isSelectedTeam ? 0.5 : 0.2)
+            .attr("stroke-dasharray", "6 3")
+            .attr("stroke-linejoin", "round");
+
+          const label = g.select<SVGTextElement>("text.cluster-label");
+          if (team) {
             const avgY = Math.min(...points.map((p) => p[1]));
             const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
-            teamClusterGroup.append("text")
+            label
               .attr("x", avgX)
               .attr("y", avgY - GRAPH.collideRadius - 8)
-              .attr("text-anchor", "middle")
               .attr("fill", clusterColor)
-              .attr("font-family", "monospace")
-              .attr("font-size", 10)
-              .attr("font-weight", "bold")
               .attr("opacity", isSelectedTeam ? 0.8 : 0.4)
               .text(team.name);
+          } else {
+            label.text("");
           }
-        }
+        });
       });
 
-    // Auto fit-to-view after simulation has had time to lay out nodes
+    // Auto fit-to-view after simulation has had time to lay out nodes.
+    // Skip if the user has already panned/zoomed — don't fight a manual gesture.
     const fitTimer = setTimeout(() => {
       const svg = svgRef.current;
       const container = containerRef.current;
       const zoom = zoomRef.current;
       if (!svg || !container || !zoom || nodes.length === 0) return;
+      const currentTransform = d3.zoomTransform(svg);
+      if (currentTransform.k !== 1 || currentTransform.x !== 0 || currentTransform.y !== 0) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
       const padX = w * 0.20;
@@ -558,16 +570,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyKey, selectAgent]);
 
-  // ── Effect 2: Update visuals in-place (no simulation restart) ──
+  // ── Effect 2a: Dispatch lifecycle effects from new activity entries (cheap) ──
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const d3svg = d3.select(svg);
-    const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
-    if (nodeGroup.empty()) return;
-
-    // Trigger visual effects for new events
+    if (activity.length === 0) return;
     const newEntries = activity.slice(prevActivityLenRef.current);
     prevActivityLenRef.current = activity.length;
 
@@ -608,6 +613,17 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         });
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activity]);
+
+  // ── Effect 2b: Update node visuals in-place (expensive DOM walk) ──
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const d3svg = d3.select(svg);
+    const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
+    if (nodeGroup.empty()) return;
 
     // Re-render only nodes whose visual state has changed
     const allAgentsList = Array.from(agents.values());
@@ -702,7 +718,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         });
       }
     }
-  }, [agents, selectedAgentId, activity, heatmapEnabled, heatmapMetric]);
+  }, [agents, selectedAgentId, heatmapEnabled, heatmapMetric]);
 
   // ── Effect 3: Sync tool call nodes with force simulation ──
   useEffect(() => {

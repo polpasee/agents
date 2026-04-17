@@ -7,7 +7,7 @@ describe("isValidServerEvent", () => {
   });
 
   it("accepts valid state:update event", () => {
-    expect(isValidServerEvent({ type: "state:update", event: { type: "agent:register", agentId: "a1", agentType: "orchestrator", task: "do stuff" }, timestamp: Date.now() })).toBe(true);
+    expect(isValidServerEvent({ type: "state:update", event: { type: "agent:register", agentId: "a1", agentType: "main", task: "do stuff" }, timestamp: Date.now() })).toBe(true);
   });
 
   it("accepts valid state:remove event", () => {
@@ -41,7 +41,7 @@ describe("isValidServerEvent", () => {
 
 describe("isValidAgentEvent", () => {
   it("accepts valid agent:register", () => {
-    expect(isValidAgentEvent({ type: "agent:register", agentId: "a1", agentType: "orchestrator", task: "do stuff" })).toBe(true);
+    expect(isValidAgentEvent({ type: "agent:register", agentId: "a1", agentType: "main", task: "do stuff" })).toBe(true);
   });
 
   it("accepts valid agent:status", () => {
@@ -69,11 +69,19 @@ describe("isValidAgentEvent", () => {
   });
 
   it("rejects missing agentId for agent:register", () => {
-    expect(isValidAgentEvent({ type: "agent:register", agentType: "orchestrator", task: "do stuff" })).toBe(false);
+    expect(isValidAgentEvent({ type: "agent:register", agentType: "main", task: "do stuff" })).toBe(false);
   });
 
   it("rejects unknown type", () => {
     expect(isValidAgentEvent({ type: "unknown", agentId: "a1" })).toBe(false);
+  });
+
+  it("rejects agent:status with non-enum status value", () => {
+    expect(isValidAgentEvent({ type: "agent:status", agentId: "a1", status: "pwned" })).toBe(false);
+  });
+
+  it("rejects agent:register with non-enum agentType value", () => {
+    expect(isValidAgentEvent({ type: "agent:register", agentId: "a1", agentType: "unknown-type", task: "t" })).toBe(false);
   });
 });
 

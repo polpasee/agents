@@ -18,7 +18,7 @@ describe("calculateBurnRate", () => {
     expect(rate).toBe(0);
   });
 
-  it("returns 0 with fewer than 2 token events", () => {
+  it("falls back to lifetime burn when fewer than 2 token events in window", () => {
     vi.setSystemTime(60_000);
     const agent = mockAgent({ id: "a1", inputTokens: 5000, outputTokens: 2000, startTime: 0 });
     const agents = new Map([["a1", agent]]);
@@ -39,7 +39,17 @@ describe("calculateBurnRate", () => {
       },
     ];
 
+    // With 1 event we can't compute a windowed rate, but a lifetime rate is
+    // still informative — total cost over 1 minute of elapsed time.
     const rate = calculateBurnRate(activity, agents);
+    expect(rate).toBeGreaterThan(0);
+  });
+
+  it("returns 0 when agents have zero cost even with activity", () => {
+    vi.setSystemTime(60_000);
+    const agent = mockAgent({ id: "a1", inputTokens: 0, outputTokens: 0, startTime: 0 });
+    const agents = new Map([["a1", agent]]);
+    const rate = calculateBurnRate([], agents);
     expect(rate).toBe(0);
   });
 

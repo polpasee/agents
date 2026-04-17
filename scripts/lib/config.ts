@@ -3,6 +3,20 @@
 export const WS_PORT = Number(process.env.WS_PORT) || 4001;
 export const POLL_INTERVAL_MS = 1500;
 
+/** Allowed Origin header values for WS connections (Cross-Site WS Hijacking guard) */
+export const WS_ALLOWED_ORIGINS: readonly string[] = [
+  "http://localhost:4000",
+  "http://127.0.0.1:4000",
+];
+
+/** Hard cap on stored annotations — evict oldest beyond this */
+export const ANNOTATION_MAX_ENTRIES = 500;
+export const ANNOTATION_MAX_TEXT_LENGTH = 1024;
+export const ANNOTATION_ID_PATTERN = /^ann-[A-Za-z0-9_-]{1,48}$/;
+
+/** Hard cap on agent log file size — refuse to read larger */
+export const LOG_READ_MAX_BYTES = 10 * 1024 * 1024;
+
 /** Agent is considered still-running if file modified within this window */
 export const STATUS_RUNNING_THRESHOLD_MS = 45_000;
 /** Agent transitions to idle if file modified between RUNNING and this threshold */

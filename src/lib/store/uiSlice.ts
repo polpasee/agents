@@ -152,11 +152,15 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   },
 
   // ── Hydration: sync from localStorage after client mount ──
+  // Centralizes every localStorage-backed field so SSR renders a stable default
+  // and client-side hydration brings them in via a single `useEffect` in <Dashboard>.
   hydrateUI: () => {
     const stored = loadLocalStorage<string[] | null>(SESSION_FILTER_KEY, null);
-    const updates: Partial<UISlice> = {
+    const updates: Partial<AgentStore> = {
       soundMuted: loadLocalStorage("soundMuted", false),
       theme: loadLocalStorage<ThemeMode>("theme", "dark"),
+      budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
+      agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
     };
     if (Array.isArray(stored)) {
       // Storage present (incl. empty array = explicit "All") — respect it and

@@ -20,21 +20,7 @@ export function CostProjection() {
   const [budgetInput, setBudgetInput] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize budgetThreshold from localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("budgetThreshold");
-      if (stored) {
-        const val = parseFloat(stored);
-        if (!isNaN(val) && val > 0) {
-          setBudgetThreshold(val);
-          setBudgetInput(val.toString());
-        }
-      }
-    }
-  }, [setBudgetThreshold]);
-
-  // Sync budgetInput when budgetThreshold changes externally
+  // Sync budgetInput when budgetThreshold changes (hydration happens in the store)
   useEffect(() => {
     if (budgetThreshold !== null) {
       setBudgetInput(budgetThreshold.toString());

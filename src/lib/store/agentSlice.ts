@@ -14,10 +14,10 @@ import type {
 import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "../config";
 import { calculateCost } from "../costs";
 import type { AgentStore } from "./types";
-import { computeTeamStatus, incrementActivityCounter, loadLocalStorage } from "./helpers";
+import { computeTeamStatus } from "./helpers";
 
 export type AgentSlice = Pick<AgentStore,
-  | "agents" | "edges" | "activity" | "teams" | "connected" | "recording" | "recordedEvents"
+  | "agents" | "edges" | "activity" | "nextActivityId" | "teams" | "connected" | "recording" | "recordedEvents"
   | "setConnected" | "syncState" | "handleEvent" | "removeAgent" | "getTeamStats"
   | "startRecording" | "downloadRecording"
   | "errorDetails" | "setErrorDetail"
@@ -28,6 +28,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   agents: new Map(),
   edges: [],
   activity: [],
+  nextActivityId: 0,
   teams: new Map(),
   connected: false,
   recording: false,
@@ -68,10 +69,11 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   },
 
   handleEvent: (event, timestamp) => {
-    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets } = get();
+    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets, nextActivityId, errorDetails } = get();
     const newAgents = new Map(agents);
     let newEdges = edges;
     let newTeamsUpdate: Map<string, TeamState> | null = null;
+    let newErrorDetails: Map<string, ErrorDetail> | null = null;
 
     switch (event.type) {
       case "agent:register": {
@@ -162,23 +164,36 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
           // F2: error detail extraction
           if (event.status === "error") {
             const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : undefined;
-            const { errorDetails } = get();
-            const newErrors = new Map(errorDetails);
-            // Find cascading errors (parent/child with errors)
             const cascadeIds: string[] = [];
-            for (const [id, a] of newAgents) {
-              if (id !== event.agentId && a.status === "error" && (a.parentId === event.agentId || agent.parentId === id)) {
-                cascadeIds.push(id);
+            // Check parent: cheap direct lookup
+            if (agent.parentId) {
+              const parent = newAgents.get(agent.parentId);
+              if (parent && parent.status === "error") cascadeIds.push(agent.parentId);
+            }
+            // Check children via errorDetails (only known-error agents), not all agents
+            for (const [id, detail] of errorDetails) {
+              if (id === event.agentId) continue;
+              const other = newAgents.get(id);
+              if (other && other.parentId === event.agentId) cascadeIds.push(id);
+              // also patch the existing error detail to mention this new sibling/parent
+              if (other && (other.parentId === event.agentId || agent.parentId === id)) {
+                if (!detail.cascadeIds?.includes(event.agentId)) {
+                  newErrorDetails = newErrorDetails ?? new Map(errorDetails);
+                  newErrorDetails.set(id, {
+                    ...detail,
+                    cascadeIds: [...(detail.cascadeIds ?? []), event.agentId],
+                  });
+                }
               }
             }
-            newErrors.set(event.agentId, {
+            newErrorDetails = newErrorDetails ?? new Map(errorDetails);
+            newErrorDetails.set(event.agentId, {
               agentId: event.agentId,
               message: event.message || "Agent encountered an error",
               lastToolCall: lastTool,
               cascadeIds,
               timestamp,
             });
-            set({ errorDetails: newErrors });
           }
           newAgents.set(event.agentId, { ...agent, ...updates });
         }
@@ -283,18 +298,22 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       event.type === "agent:register" &&
       activity.some((e) => e.event.type === "agent:register" && e.event.agentId === event.agentId);
 
-    const newActivity = (isDuplicateStatus || isDuplicateRegister)
+    const isDuplicate = isDuplicateStatus || isDuplicateRegister;
+    const newActivityId = isDuplicate ? nextActivityId : nextActivityId + 1;
+    const newActivity = isDuplicate
       ? activity
       : [
           ...activity,
-          { id: `act-${incrementActivityCounter()}`, timestamp, event },
+          { id: `act-${newActivityId}`, timestamp, event },
         ].slice(-ACTIVITY_MAX_ENTRIES);
 
     set({
       agents: newAgents,
       edges: newEdges,
       activity: newActivity,
+      nextActivityId: newActivityId,
       ...(newTeamsUpdate ? { teams: newTeamsUpdate } : {}),
+      ...(newErrorDetails ? { errorDetails: newErrorDetails } : {}),
       ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
@@ -371,8 +390,8 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     set({ errorDetails });
   },
 
-  // ── F3: Token Budget Per-Agent ────────────────────────
-  agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
+  // ── F3: Token Budget Per-Agent (hydrated client-side via hydrateUI) ──
+  agentTypeBudgets: {},
 
   setAgentTypeBudget: (type, limit) => {
     const { agentTypeBudgets } = get();

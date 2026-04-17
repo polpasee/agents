@@ -1,4 +1,15 @@
-import type { AgentEvent, ServerEvent, ClientEvent } from "./types";
+import type { AgentEvent, ServerEvent, ClientEvent, AgentStatus, AgentType } from "./types";
+
+const AGENT_STATUSES: readonly AgentStatus[] = ["running", "waiting", "idle", "completed", "error"];
+const AGENT_TYPES: readonly AgentType[] = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"];
+
+function isAgentStatus(v: unknown): v is AgentStatus {
+  return typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v);
+}
+
+function isAgentType(v: unknown): v is AgentType {
+  return typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v);
+}
 
 /** Validate that a parsed object is a well-formed ServerEvent */
 export function isValidServerEvent(data: unknown): data is ServerEvent {
@@ -48,9 +59,9 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
 
   switch (obj.type) {
     case "agent:register":
-      return typeof obj.agentId === "string" && typeof obj.agentType === "string" && typeof obj.task === "string";
+      return typeof obj.agentId === "string" && isAgentType(obj.agentType) && typeof obj.task === "string";
     case "agent:status":
-      return typeof obj.agentId === "string" && typeof obj.status === "string";
+      return typeof obj.agentId === "string" && isAgentStatus(obj.status);
     case "agent:tool_call":
       return typeof obj.agentId === "string" && typeof obj.tool === "string";
     case "agent:tokens":

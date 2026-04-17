@@ -1,12 +1,30 @@
 import * as fs from "fs";
 import type { LogEntry, LogToolCall } from "../../src/lib/types";
+import { LOG_READ_MAX_BYTES } from "./config";
 
 const MAX_ENTRIES = 500;
 
-/** Read an agent's JSONL file and return structured log entries */
+/** Read an agent's JSONL file and return structured log entries.
+ *  Refuses to load files larger than LOG_READ_MAX_BYTES (default 10MB)
+ *  so a multi-GB session file can't OOM the server — we return just the tail. */
 export function readAgentLog(filePath: string): LogEntry[] {
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
+    const stat = fs.statSync(filePath);
+    let content: string;
+    if (stat.size > LOG_READ_MAX_BYTES) {
+      // Read only the last LOG_READ_MAX_BYTES bytes; the first (partial) line
+      // after the seek point will be dropped by the JSON.parse try/catch below.
+      const fd = fs.openSync(filePath, "r");
+      try {
+        const buf = Buffer.alloc(LOG_READ_MAX_BYTES);
+        fs.readSync(fd, buf, 0, LOG_READ_MAX_BYTES, stat.size - LOG_READ_MAX_BYTES);
+        content = buf.toString("utf-8");
+      } finally {
+        fs.closeSync(fd);
+      }
+    } else {
+      content = fs.readFileSync(filePath, "utf-8");
+    }
     const lines = content.split("\n").filter(Boolean);
     const entries: LogEntry[] = [];
     const pendingToolCalls = new Map<string, LogToolCall>();

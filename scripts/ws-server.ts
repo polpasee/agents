@@ -6,7 +6,14 @@ import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-sta
 import { isValidClientEvent } from "../src/lib/validation";
 import { readAgentLog } from "./lib/log-reader";
 import { discoverActiveSessions } from "./lib/discovery";
-import { WS_PORT, POLL_INTERVAL_MS } from "./lib/config";
+import {
+  WS_PORT,
+  POLL_INTERVAL_MS,
+  WS_ALLOWED_ORIGINS,
+  ANNOTATION_MAX_ENTRIES,
+  ANNOTATION_MAX_TEXT_LENGTH,
+  ANNOTATION_ID_PATTERN,
+} from "./lib/config";
 import { loadWebhookConfig } from "./lib/webhooks";
 
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
@@ -24,7 +31,29 @@ function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: 
 }
 
 // ── WebSocket Server ───────────────────────────────────
-const wss = new WebSocketServer({ port: WS_PORT, host: "127.0.0.1" });
+// Origin allowlist guards against Cross-Site WebSocket Hijacking from random pages.
+const wss = new WebSocketServer({
+  port: WS_PORT,
+  host: "127.0.0.1",
+  verifyClient: ({ origin }, done) => {
+    if (!origin || WS_ALLOWED_ORIGINS.includes(origin)) return done(true);
+    done(false, 403, "Forbidden origin");
+  },
+});
+
+function sanitizeAnnotation(raw: unknown): Annotation | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.id !== "string" || !ANNOTATION_ID_PATTERN.test(o.id)) return null;
+  if (typeof o.targetId !== "string" || o.targetId.length === 0 || o.targetId.length > 128) return null;
+  if (o.targetType !== "agent" && o.targetType !== "edge") return null;
+  if (typeof o.text !== "string" || o.text.length === 0 || o.text.length > ANNOTATION_MAX_TEXT_LENGTH) return null;
+  if (typeof o.timestamp !== "number" || !Number.isFinite(o.timestamp)) return null;
+  const author = typeof o.author === "string" && o.author.length <= 64 ? o.author : undefined;
+  const x = typeof o.x === "number" && Number.isFinite(o.x) ? o.x : undefined;
+  const y = typeof o.y === "number" && Number.isFinite(o.y) ? o.y : undefined;
+  return { id: o.id, targetId: o.targetId, targetType: o.targetType, text: o.text, timestamp: o.timestamp, author, x, y };
+}
 
 wss.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
@@ -68,7 +97,17 @@ wss.on("connection", (ws) => {
       if (!isValidClientEvent(data)) return;
 
       if (data.type === "annotation:add") {
-        const ann = (data as Extract<ClientEvent, { type: "annotation:add" }>).annotation;
+        const raw = (data as Extract<ClientEvent, { type: "annotation:add" }>).annotation;
+        const ann = sanitizeAnnotation(raw);
+        if (!ann) return;
+        // Reject overwrite of an existing id — ids must be unique per session
+        if (annotationStore.has(ann.id)) return;
+        // Evict oldest entries if over cap
+        while (annotationStore.size >= ANNOTATION_MAX_ENTRIES) {
+          const oldest = annotationStore.keys().next().value;
+          if (oldest === undefined) break;
+          annotationStore.delete(oldest);
+        }
         annotationStore.set(ann.id, ann);
         broadcastToViewers({ type: "annotation:update", action: "add", annotation: ann });
         return;

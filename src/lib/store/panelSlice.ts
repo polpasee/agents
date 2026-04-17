@@ -2,7 +2,6 @@ import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import type { LogEntry, FileModification, MetricSample, Annotation } from "../types";
 import { METRIC_HISTORY_MAX } from "../config";
-import { loadLocalStorage } from "./helpers";
 
 export type PanelSlice = Pick<AgentStore,
   | "logEntries" | "logLoading" | "logViewerAgentId"
@@ -41,8 +40,8 @@ export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (s
     set({ logLoading });
   },
 
-  // ── Cost Budget ───────────────────────────────────────
-  budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
+  // ── Cost Budget (hydrated client-side via hydrateUI) ──
+  budgetThreshold: null,
 
   setBudgetThreshold: (amount) => {
     if (typeof window !== "undefined") {

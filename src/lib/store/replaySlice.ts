@@ -1,6 +1,5 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
-import type { ReplayState, ReplaySpeed, RecordedSession } from "../types";
 
 export type ReplaySlice = Pick<AgentStore,
   | "replay"
@@ -28,9 +27,11 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       agents: new Map(),
       edges: [],
       activity: [],
+      nextActivityId: 0,
       teams: new Map(),
       selectedAgentId: null,
       selectedTeamId: null,
+      errorDetails: new Map(),
       replay: {
         active: true,
         session,
@@ -46,7 +47,12 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
 
   replayPlay: () => {
     const { replay } = get();
-    if (replay.active) set({ replay: { ...replay, playing: true } });
+    if (!replay.active) return;
+    // If we're at (or past) the end, rewind to the start before playing.
+    if (replay.currentTime >= replay.endTime && replay.endTime > replay.startTime) {
+      get().replaySeek(replay.startTime);
+    }
+    set({ replay: { ...get().replay, playing: true } });
   },
 
   replayPause: () => {
@@ -57,14 +63,18 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
   replaySeek: (timestamp) => {
     const { replay } = get();
     if (!replay.active || !replay.session) return;
+    // Clamp to [startTime, endTime] — out-of-range seeks leave UI at nonsensical times
+    const clamped = Math.max(replay.startTime, Math.min(timestamp, replay.endTime));
     set({
       agents: new Map(),
       edges: [],
       activity: [],
+      nextActivityId: 0,
       teams: new Map(),
+      errorDetails: new Map(),
       replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
     });
-    get().replayTick(timestamp);
+    get().replayTick(clamped);
   },
 
   replaySetSpeed: (speed) => {
@@ -77,7 +87,9 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       agents: new Map(),
       edges: [],
       activity: [],
+      nextActivityId: 0,
       teams: new Map(),
+      errorDetails: new Map(),
       replay: {
         active: false,
         session: null,
@@ -94,13 +106,14 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
   replayTick: (upToTimestamp) => {
     const { replay, handleEvent } = get();
     if (!replay.active || !replay.session) return;
+    const clamped = Math.max(replay.startTime, Math.min(upToTimestamp, replay.endTime));
     const events = replay.session.events;
     let idx = replay.currentIndex;
-    while (idx < events.length && events[idx].timestamp <= upToTimestamp) {
+    while (idx < events.length && events[idx].timestamp <= clamped) {
       handleEvent(events[idx].event, events[idx].timestamp);
       idx++;
     }
     const newReplay = get().replay;
-    set({ replay: { ...newReplay, currentIndex: idx, currentTime: upToTimestamp } });
+    set({ replay: { ...newReplay, currentIndex: idx, currentTime: clamped } });
   },
 });

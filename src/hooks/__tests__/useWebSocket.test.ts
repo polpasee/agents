@@ -87,7 +87,7 @@ describe("useWebSocket", () => {
     expect(instances[0].close).toHaveBeenCalled();
   });
 
-  it("skips connection during replay", () => {
+  it("stays connected during replay but ignores live state updates", () => {
     useAgentStore.setState({
       replay: {
         active: true,
@@ -102,8 +102,27 @@ describe("useWebSocket", () => {
     });
 
     renderHook(() => useWebSocket());
+    vi.advanceTimersByTime(1);
+    // Connection is kept alive — tearing it down on every replay toggle
+    // would lose buffered events and reset reconnect backoff.
+    expect(instances).toHaveLength(1);
 
-    expect(instances).toHaveLength(0);
+    const ws = instances[0];
+    ws.onmessage({
+      data: JSON.stringify({
+        type: "state:update",
+        event: {
+          type: "agent:register",
+          agentId: "live-during-replay",
+          agentType: "main",
+          task: "t",
+        },
+        timestamp: 1000,
+      }),
+    });
+    vi.advanceTimersByTime(WS_BATCH_INTERVAL_MS);
+    // Live event dropped — replay is active
+    expect(useAgentStore.getState().agents.has("live-during-replay")).toBe(false);
   });
 
   describe("event batching", () => {

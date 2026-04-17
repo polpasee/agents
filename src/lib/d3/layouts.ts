@@ -41,25 +41,33 @@ function buildHierarchy(nodes: LayoutNode[], _edges: LayoutLink[]) {
     children?: HierNode[];
   }
 
-  function toHierNode(node: LayoutNode): HierNode {
+  // Guard against cycles in the parent chain: a malformed session could produce
+  // an agent whose parentId transitively points back to itself, which would cause
+  // unbounded recursion here.
+  function toHierNode(node: LayoutNode, visited: Set<string>): HierNode {
+    if (visited.has(node.id)) {
+      return { id: node.id, realNode: node };
+    }
+    const nextVisited = new Set(visited);
+    nextVisited.add(node.id);
     const children = childrenMap.get(node.id);
     return {
       id: node.id,
       realNode: node,
-      children: children ? children.map(toHierNode) : undefined,
+      children: children ? children.map((c) => toHierNode(c, nextVisited)) : undefined,
     };
   }
 
   let root: HierNode;
   if (roots.length === 1) {
-    root = toHierNode(roots[0]);
+    root = toHierNode(roots[0], new Set());
   } else if (roots.length === 0) {
     root = { id: "__virtual_root__", realNode: null };
   } else {
     root = {
       id: "__virtual_root__",
       realNode: null,
-      children: roots.map(toHierNode),
+      children: roots.map((r) => toHierNode(r, new Set())),
     };
   }
 

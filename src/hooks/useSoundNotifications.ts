@@ -96,21 +96,32 @@ function playErrorTone() {
 export function useSoundNotifications() {
   const activity = useAgentStore((s) => s.activity);
   const soundMuted = useAgentStore((s) => s.soundMuted);
-  const prevLenRef = useRef(activity.length);
+  // Track by last-seen activity id (monotonic) rather than array length —
+  // the activity array is capped (ACTIVITY_MAX_ENTRIES) and a length-based
+  // delta either skips events or re-plays them once the cap is reached.
+  const lastIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (activity.length <= prevLenRef.current) {
-      prevLenRef.current = activity.length;
+    if (activity.length === 0) {
+      lastIdRef.current = null;
       return;
     }
 
-    if (soundMuted) {
-      prevLenRef.current = activity.length;
+    const lastId = lastIdRef.current;
+    const latestId = activity[activity.length - 1].id;
+
+    // On first run, just remember where we are — don't play sounds for existing entries.
+    if (lastId === null) {
+      lastIdRef.current = latestId;
       return;
     }
+    if (lastId === latestId) return;
 
-    const newEntries = activity.slice(prevLenRef.current);
-    prevLenRef.current = activity.length;
+    const startIdx = lastId === null ? 0 : activity.findIndex((e) => e.id === lastId) + 1;
+    const newEntries = startIdx <= 0 ? activity : activity.slice(startIdx);
+    lastIdRef.current = latestId;
+
+    if (soundMuted) return;
 
     for (const entry of newEntries) {
       switch (entry.event.type) {

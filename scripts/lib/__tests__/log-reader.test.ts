@@ -1,15 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockReadFileSync = vi.fn();
+const mockStatSync = vi.fn<(..._args: unknown[]) => { size: number }>(() => ({ size: 1024 }));
 
 vi.mock("fs", () => ({
-  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
+  readFileSync: (..._args: unknown[]) => mockReadFileSync(..._args),
+  statSync: (..._args: unknown[]) => mockStatSync(..._args),
+  openSync: vi.fn(),
+  readSync: vi.fn(),
+  closeSync: vi.fn(),
 }));
 
 import { readAgentLog } from "../log-reader";
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mockStatSync.mockReturnValue({ size: 1024 });
 });
 
 describe("readAgentLog", () => {

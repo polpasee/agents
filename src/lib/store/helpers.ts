@@ -9,11 +9,6 @@ export function computeTeamStatus(memberIds: string[], agents: Map<string, Agent
   return fallback;
 }
 
-export let activityCounter = 0;
-export function incrementActivityCounter(): number {
-  return ++activityCounter;
-}
-
 export function loadLocalStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {

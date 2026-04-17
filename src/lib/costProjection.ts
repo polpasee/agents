@@ -2,7 +2,13 @@ import type { ActivityEntry, AgentState, CostProjectionData } from "./types";
 import { calculateCost } from "./costs";
 import { COST_PROJECTION_WINDOW_MS } from "./config";
 
-/** Calculate the current burn rate in $/minute from recent token activity */
+/** Calculate the current burn rate in $/minute.
+ *
+ *  Uses the requested window when there are ≥2 token events within it (windowed burn),
+ *  otherwise falls back to lifetime-average burn (total cost / elapsed since first agent started).
+ *  The windowed rate is a better signal of current activity; the fallback keeps the
+ *  stat meaningful during slow sessions where events are sparse.
+ */
 export function calculateBurnRate(
   activity: ActivityEntry[],
   agents: Map<string, AgentState>,
@@ -11,36 +17,35 @@ export function calculateBurnRate(
   const now = Date.now();
   const cutoff = now - windowMs;
 
-  // Find token events in the window
-  const recentTokenEvents = activity.filter(
-    (a) => a.timestamp >= cutoff && a.event.type === "agent:tokens"
-  );
-
-  if (recentTokenEvents.length < 2) return 0;
-
-  // Calculate total cost at the start and end of the window
   let totalCostNow = 0;
   for (const agent of agents.values()) {
     totalCostNow += calculateCost(agent).total;
   }
+  if (totalCostNow <= 0) return 0;
 
-  // Estimate cost at the start of the window by subtracting tokens gained in window
-  // Simplified: use the number of token events as a proxy for activity rate
-  // Better: track cost samples over time
-  const windowMinutes = windowMs / 60_000;
-  const firstEventTime = recentTokenEvents[0].timestamp;
-  const lastEventTime = recentTokenEvents[recentTokenEvents.length - 1].timestamp;
-  const actualWindowMs = lastEventTime - firstEventTime;
+  // Windowed rate: project per-event cost contribution using a proportional share.
+  // We can't reconstruct exact costs at the window boundary without per-event snapshots,
+  // so we approximate: assume tokens accrue roughly uniformly, and use the fraction of
+  // token events that fall inside the window × totalCostNow / windowMinutes.
+  const tokenEvents = activity.filter((a) => a.event.type === "agent:tokens");
+  const recentTokenEvents = tokenEvents.filter((a) => a.timestamp >= cutoff);
+  if (recentTokenEvents.length >= 2 && tokenEvents.length > 0) {
+    const first = recentTokenEvents[0].timestamp;
+    const last = recentTokenEvents[recentTokenEvents.length - 1].timestamp;
+    const actualWindowMs = last - first;
+    if (actualWindowMs > 0) {
+      const share = recentTokenEvents.length / tokenEvents.length;
+      const costInWindow = totalCostNow * share;
+      return costInWindow / (actualWindowMs / 60_000);
+    }
+  }
 
-  if (actualWindowMs <= 0) return 0;
-
-  // Burn rate = total cost / elapsed time since first agent started
+  // Fallback: lifetime-average burn
   let earliestStart = now;
   for (const agent of agents.values()) {
     if (agent.startTime < earliestStart) earliestStart = agent.startTime;
   }
   const totalElapsedMinutes = (now - earliestStart) / 60_000;
-
   if (totalElapsedMinutes <= 0) return 0;
   return totalCostNow / totalElapsedMinutes;
 }

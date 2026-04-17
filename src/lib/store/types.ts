@@ -25,6 +25,8 @@ export interface AgentStore {
   agents: Map<string, AgentState>;
   edges: EdgeState[];
   activity: ActivityEntry[];
+  /** Monotonic counter for stable activity entry IDs. Reset on replay load. */
+  nextActivityId: number;
   selectedAgentId: string | null;
   selectedSessionIds: Set<string>; // F5: multi-session (empty = all)
   /**
