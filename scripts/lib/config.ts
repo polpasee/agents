@@ -9,11 +9,13 @@ export const STATUS_RUNNING_THRESHOLD_MS = 45_000;
 export const STATUS_IDLE_THRESHOLD_MS = 60_000;
 /** Ignore JSONL files older than this */
 export const DISCOVERY_THRESHOLD_MS = 30 * 60 * 1000;
-/** Remove agents not modified for this long. Matches DISCOVERY_THRESHOLD_MS
- *  so an agent stays resident as long as it would still be rediscoverable —
- *  prevents main sessions from vanishing while waiting on long-running
- *  background tools (e.g. a 10-minute `npm test`). */
-export const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+/** Remove agents not modified for this long. Short enough that a closed
+ *  Claude Code session fades from the topology within ~10 minutes; long
+ *  enough that a user writing a long prompt doesn't disappear mid-type.
+ *  Main sessions with active sub-agents are separately protected in
+ *  discovery.ts::selectStaleAgentIds so long background tools (e.g. a
+ *  30-minute `npm test` driven by a sub-agent) don't purge the main. */
+export const STALE_THRESHOLD_MS = 10 * 60 * 1000;
 /** Purge removed agent IDs after this long (memory leak prevention) */
 export const REMOVED_IDS_TTL_MS = 60 * 60 * 1000;
 
