@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
@@ -40,6 +40,53 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   }>>([]);
   const prevActivityLenRef = useRef(0);
 
+  const fitToView = useCallback((duration = 500) => {
+    const svg = svgRef.current;
+    const container = containerRef.current;
+    const zoom = zoomRef.current;
+    const nodes = nodesRef.current;
+    if (!svg || !container || !zoom || nodes.length === 0) return;
+
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    const paddingX = width * 0.15;
+    const paddingY = height * 0.15;
+
+    // Calculate bounding box of all nodes (including visual extent)
+    const nodeExtent = GRAPH.nodeRadius + 80; // account for labels, satellites, text below
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const n of nodes) {
+      if (n.x !== undefined && n.y !== undefined) {
+        minX = Math.min(minX, n.x - nodeExtent);
+        minY = Math.min(minY, n.y - nodeExtent);
+        maxX = Math.max(maxX, n.x + nodeExtent);
+        maxY = Math.max(maxY, n.y + nodeExtent);
+      }
+    }
+    if (!isFinite(minX)) return;
+
+    const bboxW = maxX - minX || 1;
+    const bboxH = maxY - minY || 1;
+    const scale = Math.min(
+      (width - paddingX * 2) / bboxW,
+      (height - paddingY * 2) / bboxH,
+      GRAPH.zoomExtent[1],
+    );
+    const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
+    const cx = (minX + maxX) / 2;
+    const cy = (minY + maxY) / 2;
+    const transform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(clampedScale)
+      .translate(-cx, -cy);
+
+    d3.select(svg)
+      .transition()
+      .duration(duration)
+      // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
+      .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
+  }, []);
+
   useImperativeHandle(ref, () => ({
     getNodesAndViewport() {
       const svg = svgRef.current;
@@ -62,52 +109,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         },
       };
     },
-    fitToView() {
-      const svg = svgRef.current;
-      const container = containerRef.current;
-      const zoom = zoomRef.current;
-      const nodes = nodesRef.current;
-      if (!svg || !container || !zoom || nodes.length === 0) return;
-
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      const paddingX = width * 0.15;
-      const paddingY = height * 0.15;
-
-      // Calculate bounding box of all nodes (including visual extent)
-      const nodeExtent = GRAPH.nodeRadius + 80; // account for labels, satellites, text below
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const n of nodes) {
-        if (n.x !== undefined && n.y !== undefined) {
-          minX = Math.min(minX, n.x - nodeExtent);
-          minY = Math.min(minY, n.y - nodeExtent);
-          maxX = Math.max(maxX, n.x + nodeExtent);
-          maxY = Math.max(maxY, n.y + nodeExtent);
-        }
-      }
-      if (!isFinite(minX)) return;
-
-      const bboxW = maxX - minX || 1;
-      const bboxH = maxY - minY || 1;
-      const scale = Math.min(
-        (width - paddingX * 2) / bboxW,
-        (height - paddingY * 2) / bboxH,
-        GRAPH.zoomExtent[1],
-      );
-      const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
-      const cx = (minX + maxX) / 2;
-      const cy = (minY + maxY) / 2;
-      const transform = d3.zoomIdentity
-        .translate(width / 2, height / 2)
-        .scale(clampedScale)
-        .translate(-cx, -cy);
-
-      d3.select(svg)
-        .transition()
-        .duration(500)
-        // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
-        .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
-    },
+    fitToView: () => fitToView(),
   }));
 
   const agents = useAgentStore((s) => s.agents);
@@ -136,6 +138,14 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       .join("|");
     return `${agentKeys}||${edgeKeys}`;
   }, [filteredAgents, edges]);
+
+  // Auto-fit whenever the topology changes. Wait briefly for the force
+  // simulation to settle so we fit the final layout, not the spawn positions.
+  useEffect(() => {
+    if (!topologyKey) return;
+    const timer = setTimeout(() => fitToView(), 700);
+    return () => clearTimeout(timer);
+  }, [topologyKey, fitToView]);
 
   // ── Effect 1: Rebuild simulation when topology changes ──
   useEffect(() => {
