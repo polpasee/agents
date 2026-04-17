@@ -57,4 +57,44 @@ describe("parseAgentType", () => {
   it('returns "generic" for unrecognized string', () => {
     expect(parseAgentType("random-string")).toBe("generic");
   });
+
+  it('returns "review" for "security-auditor"', () => {
+    expect(parseAgentType("security-auditor")).toBe("review");
+  });
+
+  it('returns "review" for "architect-review"', () => {
+    expect(parseAgentType("architect-review")).toBe("review");
+  });
+
+  it('returns "build" for "frontend-ui"', () => {
+    expect(parseAgentType("frontend-ui")).toBe("build");
+  });
+
+  it('returns "build" for "api-builder"', () => {
+    expect(parseAgentType("api-builder")).toBe("build");
+  });
+
+  it('returns "explore" for "db-reader"', () => {
+    expect(parseAgentType("db-reader")).toBe("explore");
+  });
+
+  it('returns "explore" for "Performance analysis"', () => {
+    expect(parseAgentType("Performance analysis")).toBe("explore");
+  });
+
+  it('returns "build" for "Fix consumer pages"', () => {
+    expect(parseAgentType("Fix consumer pages")).toBe("build");
+  });
+
+  it('returns "plan" for "architect"', () => {
+    expect(parseAgentType("architect")).toBe("plan");
+  });
+
+  it('returns "generic" for "general-purpose"', () => {
+    expect(parseAgentType("general-purpose")).toBe("generic");
+  });
+
+  it('does not match "fix" inside "prefix"', () => {
+    expect(parseAgentType("prefix-helper")).toBe("generic");
+  });
 });

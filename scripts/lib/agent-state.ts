@@ -46,12 +46,21 @@ export function broadcast(event: ServerEvent) {
 export function parseAgentType(raw?: string): AgentType {
   if (!raw) return "generic";
   const lower = raw.toLowerCase();
-  if (lower.includes("explore")) return "explore";
-  if (lower.includes("plan")) return "plan";
-  if (lower.includes("build") || lower.includes("code-architect") || lower.includes("code-simplifier")) return "build";
-  if (lower.includes("review") || lower.includes("code-review")) return "review";
-  if (lower.includes("test") || lower.includes("pr-test")) return "test";
+
   if (lower.includes("team-lead")) return "team-lead";
+  // Legacy compound names must resolve before "architect" → plan below
+  if (lower.includes("code-architect") || lower.includes("code-simplifier")) return "build";
+  // Review before plan so "architect-review" doesn't short-circuit on "architect"
+  if (lower.includes("review") || lower.includes("audit") || lower.includes("critic")) return "review";
+  if (lower.includes("test") || /\bqa\b/.test(lower)) return "test";
+  if (lower.includes("explore") || lower.includes("research")
+      || lower.includes("analy") || lower.includes("investigat")
+      || /\breader\b/.test(lower)) return "explore";
+  if (lower.includes("plan") || lower.includes("architect") || lower.includes("design")) return "plan";
+  if (lower.includes("build") || lower.includes("frontend") || lower.includes("backend")
+      || lower.includes("implement") || lower.includes("migrat") || lower.includes("debug")
+      || /\bfix\b/.test(lower) || /\bapi\b/.test(lower) || /\bui\b/.test(lower)) return "build";
+
   return "generic";
 }
 
