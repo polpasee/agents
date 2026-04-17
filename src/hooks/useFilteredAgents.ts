@@ -19,9 +19,12 @@ export function useFilteredAgents() {
 
   return useMemo(() => {
     let list = Array.from(agents.values());
-    // Remove agents idle for more than 20s
+    // Drop idle sub-agents after IDLE_TIMEOUT_MS. Main sessions are exempt —
+    // they can legitimately idle (e.g. waiting on background bash) and the
+    // server already purges truly-dead sessions via STALE_THRESHOLD_MS.
     list = list.filter((a) => {
       if (a.status !== "idle") return true;
+      if (!a.parentId) return true;
       const lastActivity = a.toolCalls.length > 0
         ? a.toolCalls[a.toolCalls.length - 1].timestamp
         : a.startTime;

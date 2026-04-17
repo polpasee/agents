@@ -704,7 +704,13 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const newToolNodes: SimNode[] = [];
     const newToolLinks: SimLink[] = [];
 
+    // Only emit tool links for agents currently in the force graph.
+    // Otherwise d3-force throws "node not found" when a link's source
+    // references an agent that was filtered out of nodesRef.
+    const visibleAgentIds = new Set(nodesRef.current.map((n) => n.id));
+
     for (const [agentId, agent] of agents) {
+      if (!visibleAgentIds.has(agentId)) continue;
       if (agent.status !== "running" && agent.status !== "idle") continue;
       const recentCalls = agent.toolCalls
         .filter((tc) => now - tc.timestamp < GRAPH.toolWindowMs)

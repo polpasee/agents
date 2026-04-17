@@ -17,8 +17,11 @@ describe("config", () => {
     }
   });
 
-  it("STALE_THRESHOLD_MS < DISCOVERY_THRESHOLD_MS", () => {
-    expect(config.STALE_THRESHOLD_MS).toBeLessThan(
+  it("STALE_THRESHOLD_MS <= DISCOVERY_THRESHOLD_MS", () => {
+    // Equal is fine: once a file ages past both, discovery stops picking it
+    // up and stale removal takes over. Strict less-than caused churn when
+    // the two thresholds were set to the same value intentionally.
+    expect(config.STALE_THRESHOLD_MS).toBeLessThanOrEqual(
       config.DISCOVERY_THRESHOLD_MS,
     );
   });

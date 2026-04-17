@@ -9,8 +9,11 @@ export const STATUS_RUNNING_THRESHOLD_MS = 45_000;
 export const STATUS_IDLE_THRESHOLD_MS = 60_000;
 /** Ignore JSONL files older than this */
 export const DISCOVERY_THRESHOLD_MS = 30 * 60 * 1000;
-/** Remove agents not modified for this long */
-export const STALE_THRESHOLD_MS = 5 * 60 * 1000;
+/** Remove agents not modified for this long. Matches DISCOVERY_THRESHOLD_MS
+ *  so an agent stays resident as long as it would still be rediscoverable —
+ *  prevents main sessions from vanishing while waiting on long-running
+ *  background tools (e.g. a 10-minute `npm test`). */
+export const STALE_THRESHOLD_MS = 30 * 60 * 1000;
 /** Purge removed agent IDs after this long (memory leak prevention) */
 export const REMOVED_IDS_TTL_MS = 60 * 60 * 1000;
 
