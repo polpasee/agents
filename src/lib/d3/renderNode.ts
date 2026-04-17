@@ -72,7 +72,17 @@ export function renderNodeVisuals(
 ) {
   const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
   const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
-  const label = AGENT_LABELS[agent.agentType] || "AGENT";
+  const typeLabel = AGENT_LABELS[agent.agentType] || "AGENT";
+  // Show the slug as a secondary name only when it looks like a human-readable identifier
+  // (short, no UUID patterns). Type label always remains the primary name.
+  const slugDisplay = (() => {
+    const s = agent.slug;
+    if (!s) return null;
+    // Skip UUIDs, session hashes, and anything longer than 18 chars
+    if (s.length > 18) return null;
+    if (/^[0-9a-f-]{32,}$/i.test(s)) return null;
+    return s.toUpperCase();
+  })();
   const tokenPercent = getTokenPercent(agent);
   const isSelected = agent.id === selectedAgentId;
   const isActive = agent.status === "running" || agent.status === "idle";
@@ -113,12 +123,8 @@ export function renderNodeVisuals(
     ? lastTool
     : agent.status === "idle" ? "thinking" : agent.status;
 
-  // Determine if activity circle mode is active
-  const lastToolCall = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : null;
-  const hasActiveToolCall = !!(lastToolCall && (agent.status === "running" || agent.status === "idle"));
-
-  // Pulsing ring for active agents (only in hex mode — activity circle has its own pulse)
-  if (isActive && !hasActiveToolCall) {
+  // Pulsing ring for active agents
+  if (isActive) {
     const ring = g.append("path")
       .attr("d", hexPath(GRAPH.glowRingRadius + 4))
       .attr("fill", "none")
@@ -132,8 +138,8 @@ export function renderNodeVisuals(
       .attr("repeatCount", "indefinite");
   }
 
-  // Outer glow ring for selected/active (only in hex mode)
-  if ((isSelected || isActive) && !hasActiveToolCall) {
+  // Outer glow ring for selected/active
+  if (isSelected || isActive) {
     g.append("path")
       .attr("d", hexPath(GRAPH.glowRingRadius))
       .attr("fill", "none")
@@ -143,56 +149,15 @@ export function renderNodeVisuals(
       .attr("filter", "url(#glow)");
   }
 
-  // ── Node shape: circle for sub-agents, hexagon for teammates/main ──
-  if (isSubAgent) {
-    // ── Circle node (sub-agent) ──
-    if (isActive) {
-      const outerGlow = g.append("circle")
-        .attr("r", r + Math.round(8 * scale))
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1.5)
-        .attr("stroke-opacity", 0.2);
-      outerGlow.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "0.1;0.35;0.1")
-        .attr("dur", isRunning ? "1.5s" : "2.5s")
-        .attr("repeatCount", "indefinite");
+  // ── Node shape: hexagon for all agents (sub-agents use smaller radius via `r`) ──
+  {
+    const glowOuter = isSubAgent ? r + Math.round(8 * scale) : GRAPH.nodeRadius + 10;
+    const glowInner = isSubAgent ? r + Math.round(4 * scale) : GRAPH.nodeRadius + 5;
+    const innerDetail = isSubAgent ? r - Math.round(7 * scale) : GRAPH.nodeRadius - 8;
 
-      g.append("circle")
-        .attr("r", r + Math.round(4 * scale))
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 1)
-        .attr("stroke-opacity", 0.35);
-    }
-
-    const mainCircle = g.append("circle")
-      .attr("r", r)
-      .attr("fill", "var(--color-bg)")
-      .attr("stroke", color)
-      .attr("stroke-width", isActive ? 2.5 : 2);
-
-    if (isRunning) {
-      mainCircle.append("animate")
-        .attr("attributeName", "stroke-opacity")
-        .attr("values", "1;0.6;1")
-        .attr("dur", "1.5s")
-        .attr("repeatCount", "indefinite");
-    }
-
-    if (isActive) {
-      g.append("circle")
-        .attr("r", r - Math.round(7 * scale))
-        .attr("fill", "none")
-        .attr("stroke", `${color}44`)
-        .attr("stroke-width", 1);
-    }
-  } else {
-    // ── Hexagon node (main / teammate / team-lead) ──
     if (isActive) {
       const outerGlow = g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius + 10))
+        .attr("d", hexPath(glowOuter))
         .attr("fill", "none")
         .attr("stroke", color)
         .attr("stroke-width", 1.5)
@@ -204,7 +169,7 @@ export function renderNodeVisuals(
         .attr("repeatCount", "indefinite");
 
       g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius + 5))
+        .attr("d", hexPath(glowInner))
         .attr("fill", "none")
         .attr("stroke", color)
         .attr("stroke-width", 1)
@@ -212,7 +177,7 @@ export function renderNodeVisuals(
     }
 
     const mainHex = g.append("path")
-      .attr("d", hexPath(GRAPH.nodeRadius))
+      .attr("d", hexPath(r))
       .attr("fill", "var(--color-bg)")
       .attr("stroke", color)
       .attr("stroke-width", isActive ? 2.5 : 2);
@@ -227,7 +192,7 @@ export function renderNodeVisuals(
 
     if (isActive) {
       g.append("path")
-        .attr("d", hexPath(GRAPH.nodeRadius - 8))
+        .attr("d", hexPath(innerDetail))
         .attr("fill", "none")
         .attr("stroke", `${color}44`)
         .attr("stroke-width", 1);
@@ -243,9 +208,9 @@ export function renderNodeVisuals(
     .attr("font-size", centerFont)
     .attr("font-weight", "bold")
     .style("pointer-events", "none")
-    .text(label.charAt(0));
+    .text(typeLabel.charAt(0));
 
-  // Label below node
+  // Type label below node (always shown)
   g.append("text")
     .attr("text-anchor", "middle")
     .attr("y", labelY)
@@ -255,12 +220,41 @@ export function renderNodeVisuals(
     .attr("font-weight", "bold")
     .attr("letter-spacing", "2px")
     .style("pointer-events", "none")
-    .text(label);
+    .text(typeLabel);
 
-  // Context usage ring (wraps the effective shape)
-  // Context usage ring (only in hex mode — activity circle keeps it clean)
+  // Slug line — shown below the type label when the slug is a meaningful short name
+  if (slugDisplay) {
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", labelY + Math.round(14 * scale))
+      .attr("fill", `${color}99`)
+      .attr("font-family", "monospace")
+      .attr("font-size", Math.max(6, Math.round(9 * scale)))
+      .style("pointer-events", "none")
+      .text(slugDisplay);
+  }
+
+  // Model label — shown below slug (or type label) for main agents only
+  if (!isSubAgent && agent.model) {
+    const m = agent.model.match(/claude-(opus|sonnet|haiku)/i);
+    const modelShort = m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : agent.model;
+    const modelY = labelY + Math.round(slugDisplay ? 26 : 14);
+    g.append("text")
+      .attr("text-anchor", "middle")
+      .attr("y", modelY)
+      .attr("fill", `${color}55`)
+      .attr("font-family", "monospace")
+      .attr("font-size", 8)
+      .style("pointer-events", "none")
+      .text(modelShort);
+  }
+
+  // Context usage ring
   const totalTokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
-  if (!hasActiveToolCall && totalTokens > 0 && agent.contextWindow > 0) {
+  if (totalTokens > 0 && agent.contextWindow > 0) {
+    // Cumulative cache tokens can exceed contextWindow across turns — use the larger
+    // value as the denominator so arcs always fit within 360° and never degenerate.
+    const effectiveWindow = Math.max(totalTokens, agent.contextWindow);
     const usagePct = Math.min(totalTokens / agent.contextWindow, 1);
     const ringR = contextRingR;
     const ringStroke = contextStroke;
@@ -275,7 +269,11 @@ export function renderNodeVisuals(
     let startAngle = -Math.PI / 2; // start from top
 
     for (const seg of segments) {
-      const sweepAngle = (seg.value / agent.contextWindow) * Math.PI * 2;
+      // Cap at just under 2π to prevent SVG arc degeneration into a full circle
+      const sweepAngle = Math.min(
+        (seg.value / effectiveWindow) * Math.PI * 2,
+        Math.PI * 2 - 0.001,
+      );
       if (sweepAngle < 0.01) continue;
       const endAngle = startAngle + sweepAngle;
       const x1 = ringR * Math.cos(startAngle);
@@ -365,57 +363,6 @@ export function renderNodeVisuals(
     .attr("font-size", statsFontSize)
     .style("pointer-events", "none")
     .text(`${formatNumber(allTokens)} tok · ${formatDuration(elapsed)}`);
-
-  // Activity child circles — show only tool calls from last 20s
-  if (agent.toolCalls.length > 0 && isActive) {
-    const now = Date.now();
-    const ACTIVITY_WINDOW = 20_000;
-    const maxChildren = 5;
-    const recentCalls = agent.toolCalls
-      .filter((tc) => now - tc.timestamp < ACTIVITY_WINDOW)
-      .slice(-maxChildren);
-    const childRadius = childR;
-    const orbitRadius = orbitR;
-    // Spread children in an arc on the right side (-60° to +60°)
-    const arcStart = -Math.PI / 3;
-    const arcEnd = Math.PI / 3;
-
-    recentCalls.forEach((tc, i) => {
-      const angle = recentCalls.length === 1
-        ? 0
-        : arcStart + (arcEnd - arcStart) * (i / (recentCalls.length - 1));
-      const cx = Math.cos(angle) * orbitRadius;
-      const cy = Math.sin(angle) * orbitRadius;
-      const isLast = i === recentCalls.length - 1;
-
-      // Connector line
-      g.append("line")
-        .attr("x1", 0).attr("y1", 0)
-        .attr("x2", cx).attr("y2", cy)
-        .attr("stroke", `${color}22`)
-        .attr("stroke-width", 1);
-
-      // Child circle
-      g.append("circle")
-        .attr("cx", cx).attr("cy", cy)
-        .attr("r", childRadius)
-        .attr("fill", isLast ? `${color}18` : `${color}08`)
-        .attr("stroke", isLast ? `${color}88` : `${color}33`)
-        .attr("stroke-width", 1);
-
-      // Tool name label
-      const toolName = tc.tool.length > 6 ? tc.tool.slice(0, 5) + "\u2026" : tc.tool;
-      g.append("text")
-        .attr("x", cx).attr("y", cy + 3)
-        .attr("text-anchor", "middle")
-        .attr("fill", isLast ? `${color}cc` : `${color}66`)
-        .attr("font-family", "monospace")
-        .attr("font-size", childFont)
-        .attr("font-weight", isLast ? "bold" : "normal")
-        .style("pointer-events", "none")
-        .text(toolName);
-    });
-  }
 
   // Sparkline
   if (agent.toolCalls.length > 0) {

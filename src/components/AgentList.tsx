@@ -7,6 +7,11 @@ import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import type { AgentState, TeamState } from "@/lib/types";
 import { UsagePanel } from "./UsagePanel";
 
+function shortModel(model: string): string {
+  const m = model.match(/claude-(opus|sonnet|haiku)/i);
+  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : model;
+}
+
 function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelected: boolean; onClick: () => void }) {
   const color = AGENT_COLORS[agent.agentType];
   const isRunning = agent.status === "running";
@@ -31,9 +36,9 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
         <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
-          {AGENT_LABELS[agent.agentType]}:
+          {AGENT_LABELS[agent.agentType]}{agent.model ? `(${shortModel(agent.model)})` : ""}
         </span>
-        <span className="text-xs capitalize truncate" style={{ color: statusColor }}>{statusLabel}</span>
+        <span className="text-xs capitalize truncate ml-auto flex-shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
       </div>
       <div className="text-xs truncate mt-0.5 ml-3" style={{ color: UI.text.dimmed }}>
         {agent.task}

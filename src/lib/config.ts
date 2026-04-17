@@ -27,6 +27,7 @@ export const GRAPH = {
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
+  subAgentLinkDistance: 160, // Ideal distance (px) between a main agent and its sub-agent
   chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
   subAgentNodeRadius: 20, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   subAgentCollideRadius: 70, // Collision radius (px) for sub-agent nodes
@@ -40,6 +41,10 @@ export const GRAPH = {
   sparklineY: 84, // Vertical offset (px) of the sparkline below the node center
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
+  toolNodeRadius: 20, // Radius (px) of tool call nodes in the force graph
+  toolLinkDistance: 100, // Ideal distance (px) between a tool node and its parent agent
+  toolWindowMs: 20_000, // Duration (ms) tool call nodes remain visible after being called
+  toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
 
 /** Returns the effective node radius based on whether the agent is a sub-agent */
@@ -61,7 +66,7 @@ export const HEATMAP = {
 } as const;
 
 /** Idle agent timeout — agents idle longer than this are hidden from the graph */
-export const IDLE_TIMEOUT_MS = 20_000;
+export const IDLE_TIMEOUT_MS = 60_000;
 
 /** Replay tick interval — how often the replay clock advances */
 export const REPLAY_TICK_MS = 50;
