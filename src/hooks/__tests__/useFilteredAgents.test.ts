@@ -113,7 +113,7 @@ describe("useFilteredAgents", () => {
 
   it("keeps idle main-session agents regardless of how long they've been idle", () => {
     const agents = new Map<string, AgentState>();
-    const ancient = Date.now() - 10 * 60 * 1000; // 10 min ago, well past IDLE_TIMEOUT_MS
+    const ancient = Date.now() - 10 * 60 * 1000;
     agents.set(
       "main-idle",
       mockAgent({ id: "main-idle", status: "idle", startTime: ancient, toolCalls: [] }),
@@ -125,14 +125,14 @@ describe("useFilteredAgents", () => {
     expect(result.current[0].id).toBe("main-idle");
   });
 
-  it("drops idle sub-agents that exceed IDLE_TIMEOUT_MS", () => {
+  it("keeps idle sub-agents — server is the single source of truth for staleness", () => {
     const agents = new Map<string, AgentState>();
     const ancient = Date.now() - 10 * 60 * 1000;
     agents.set("main-1", mockAgent({ id: "main-1" }));
     agents.set(
-      "sub-stale",
+      "sub-running-long",
       mockAgent({
-        id: "sub-stale",
+        id: "sub-running-long",
         parentId: "main-1",
         status: "idle",
         startTime: ancient,
@@ -143,7 +143,7 @@ describe("useFilteredAgents", () => {
 
     const { result } = renderHook(() => useFilteredAgents());
     const ids = result.current.map((a) => a.id).sort();
-    expect(ids).toEqual(["main-1"]);
+    expect(ids).toEqual(["main-1", "sub-running-long"]);
   });
 
   it("session filter includes agents whose parentId matches a main agent in the session", () => {

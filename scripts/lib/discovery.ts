@@ -18,6 +18,37 @@ import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS } from "
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/**
+ * Selects which agents should be purged as stale. Main sessions (no parentId)
+ * are protected while any of their sub-agents has activity within
+ * STALE_THRESHOLD_MS — Claude often parks the main's JSONL for minutes while
+ * a sub runs a long background tool, and purging the main would orphan the
+ * active sub in the graph. Exported for testing.
+ */
+export function selectStaleAgentIds(
+  agents: Map<string, { parentId?: string; status: string; startTime: number }>,
+  agentLastModified: Map<string, number>,
+  now: number,
+): string[] {
+  const freshParentIds = new Set<string>();
+  for (const [childId, child] of agents) {
+    if (!child.parentId) continue;
+    const childLastMod = agentLastModified.get(childId) || child.startTime;
+    if (now - childLastMod <= STALE_THRESHOLD_MS) {
+      freshParentIds.add(child.parentId);
+    }
+  }
+  const stale: string[] = [];
+  for (const [agentId, agent] of agents) {
+    if (agent.status !== "running" && agent.status !== "idle") continue;
+    const lastMod = agentLastModified.get(agentId) || agent.startTime;
+    if (now - lastMod <= STALE_THRESHOLD_MS) continue;
+    if (!agent.parentId && freshParentIds.has(agentId)) continue;
+    stale.push(agentId);
+  }
+  return stale;
+}
+
 export function discoverActiveSessions(projectsDir: string) {
   if (!fs.existsSync(projectsDir)) return;
 
@@ -116,6 +147,39 @@ export function discoverActiveSessions(projectsDir: string) {
         const age = Date.now() - stat.mtimeMs;
         if (age > DISCOVERY_THRESHOLD_MS) continue;
 
+        // Backfill the parent session if it hasn't been discovered yet —
+        // the main's JSONL may be older than DISCOVERY_THRESHOLD_MS while
+        // Claude is waiting on a long background tool, but the session is
+        // clearly alive because this sub-agent is writing. Without this,
+        // the sub-agent would render orphaned (no MAIN anchor).
+        if (!agents.has(sessionId)) {
+          const parentJsonl = path.join(projectPath, `${sessionId}.jsonl`);
+          let parentStat: fs.Stats | undefined;
+          try { parentStat = fs.statSync(parentJsonl); } catch { /* missing */ }
+          if (parentStat) {
+            removedAgentIds.delete(sessionId);
+            const info = extractTaskFromJSONL(parentJsonl);
+            agentFilePaths.set(sessionId, parentJsonl);
+            registerAgent({
+              agentId: sessionId,
+              sessionId,
+              projectDir,
+              agentType: "main",
+              task: info.task,
+              slug: info.slug,
+              model: info.model,
+              startTime: info.startTime || parentStat.mtimeMs,
+            });
+            // Seed lastModified from the fresher of parent mtime or child mtime
+            // so the main stays marked alive while the sub is active.
+            updateAgentStatus(sessionId, Math.max(parentStat.mtimeMs, stat.mtimeMs));
+          }
+        } else {
+          // Keep an already-registered parent fresh whenever a child writes,
+          // so the stale-purge selector doesn't target the main mid-work.
+          updateAgentStatus(sessionId, stat.mtimeMs);
+        }
+
         const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
         if (!agentIdMatch) continue;
         const agentId = agentIdMatch[1];
@@ -182,16 +246,7 @@ export function discoverActiveSessions(projectsDir: string) {
     }
   }
 
-  // Remove stale agents — collect first, then apply, to avoid mutation during iteration
-  const staleIds: string[] = [];
-  for (const [agentId, agent] of agents) {
-    if (agent.status === "running" || agent.status === "idle") {
-      const lastMod = agentLastModified.get(agentId) || agent.startTime;
-      if (Date.now() - lastMod > STALE_THRESHOLD_MS) {
-        staleIds.push(agentId);
-      }
-    }
-  }
+  const staleIds = selectStaleAgentIds(agents, agentLastModified, Date.now());
   for (const agentId of staleIds) {
     const agent = agents.get(agentId);
     agents.delete(agentId);
