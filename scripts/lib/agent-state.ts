@@ -10,7 +10,6 @@ import type {
 } from "../../src/lib/types";
 import {
   STATUS_RUNNING_THRESHOLD_MS,
-  STATUS_IDLE_THRESHOLD_MS,
   MAX_TOOL_CALLS_PER_AGENT,
   INLINE_ARGS_MAX_KEYS,
   MAX_ARG_PREVIEW_LENGTH,
@@ -176,15 +175,16 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
         timestamp: Date.now(),
       });
     }
-  } else if (timeSinceModified < STATUS_IDLE_THRESHOLD_MS) {
-    if (agent.status === "running") {
-      agent.status = "idle";
-      broadcast({
-        type: "state:update",
-        event: { type: "agent:status", agentId, status: "idle" },
-        timestamp: Date.now(),
-      });
-    }
+  } else if (agent.status === "running") {
+    // Any mtime age beyond RUNNING_THRESHOLD demotes to idle. Previously we
+    // only transitioned inside the narrow 45-60s window, so an agent first
+    // observed with an already-old mtime stayed stuck on "running" forever.
+    agent.status = "idle";
+    broadcast({
+      type: "state:update",
+      event: { type: "agent:status", agentId, status: "idle" },
+      timestamp: Date.now(),
+    });
   }
 }
 

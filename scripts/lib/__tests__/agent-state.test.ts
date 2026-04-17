@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseAgentType, registerAgent, processEntry, agents } from "../agent-state";
+import { parseAgentType, registerAgent, processEntry, updateAgentStatus, agents } from "../agent-state";
 
 describe("parseAgentType", () => {
   it('returns "explore" for "explore"', () => {
@@ -127,6 +127,27 @@ describe("processEntry: lazy model learning", () => {
     );
 
     expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
+  });
+
+  it("demotes to idle when mtime is already old at first check", () => {
+    // Reproduces the stuck-on-running bug: if an agent is registered while
+    // its JSONL mtime is already > STATUS_IDLE_THRESHOLD_MS old, the old
+    // narrow-window branch never fired and status was frozen at "running".
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now() - 10 * 60 * 1000,
+    });
+    expect(agents.get("a1")?.status).toBe("running");
+
+    // Feed in an mtime 10 minutes in the past — well beyond any threshold
+    updateAgentStatus("a1", Date.now() - 10 * 60 * 1000);
+    expect(agents.get("a1")?.status).toBe("idle");
   });
 
   it("does not overwrite a model that is already set", () => {
