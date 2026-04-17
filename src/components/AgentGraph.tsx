@@ -26,6 +26,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const simulationRef = useRef<d3.Simulation<SimNode, SimLink> | null>(null);
   const nodesRef = useRef<SimNode[]>([]);
   const linksRef = useRef<SimLink[]>([]);
+  const toolNodesRef = useRef<SimNode[]>([]);
+  const toolLinksRef = useRef<SimLink[]>([]);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const effectsRef = useRef<Array<{
     x: number;
@@ -252,6 +254,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     // Team cluster backgrounds (rendered first so they appear behind everything)
     const teamClusterGroup = canvas.append("g").attr("class", "team-clusters");
 
+    // Tool links rendered behind agent links for visual hierarchy
+    canvas.append("g").attr("class", "tool-links");
+
     // Link groups (glow + main path) — using bezier paths
     const linkGroup = canvas.append("g").attr("class", "links");
     linkGroup.selectAll<SVGPathElement, SimLink>("path.glow")
@@ -276,6 +281,9 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
 
     // Effects group for lifecycle animations
     canvas.append("g").attr("class", "effects");
+
+    // Tool nodes rendered behind agent nodes
+    canvas.append("g").attr("class", "tool-nodes");
 
     // Node groups
     const nodeGroup = canvas.append("g").attr("class", "nodes");
@@ -325,10 +333,18 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     }
 
     const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
-      .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(GRAPH.linkDistance))
-      .force("charge", d3.forceManyBody().strength(GRAPH.chargeStrength))
+      .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
+        const link = d as SimLink;
+        if (link.edgeType === "tool") return GRAPH.toolLinkDistance;
+        if (link.edgeType === "parent") return GRAPH.subAgentLinkDistance;
+        return GRAPH.linkDistance;
+      }))
+      .force("charge", d3.forceManyBody<SimNode>().strength((d) =>
+        d.toolCall ? -80 : GRAPH.chargeStrength
+      ))
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collide", d3.forceCollide<SimNode>().radius((d) => {
+        if (d.toolCall) return GRAPH.toolNodeRadius + 4;
         const isSub = !!(d.agent.parentId && !d.agent.teamId);
         return isSub ? GRAPH.subAgentCollideRadius : GRAPH.collideRadius;
       }))
@@ -343,6 +359,23 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           (d.target as SimNode).x!, (d.target as SimNode).y!
         ));
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
+
+        // Update tool node positions
+        canvas.select<SVGGElement>("g.tool-nodes")
+          .selectAll<SVGGElement, SimNode>("g.tool-node")
+          .attr("transform", (d) => `translate(${d.x ?? 0}, ${d.y ?? 0})`);
+
+        // Update tool link endpoints (source/target resolved to objects by forceLink)
+        canvas.select<SVGGElement>("g.tool-links")
+          .selectAll<SVGLineElement, SimLink>("line")
+          .each(function (d) {
+            const s = d.source as SimNode;
+            const t = d.target as SimNode;
+            if (s?.x == null || t?.x == null) return;
+            d3.select(this)
+              .attr("x1", s.x!).attr("y1", s.y!)
+              .attr("x2", t.x!).attr("y2", t.y!);
+          });
 
         // Render lifecycle effects
         const effectsGroup = d3svg.select<SVGGElement>("g.effects");
@@ -654,6 +687,135 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       }
     }
   }, [agents, selectedAgentId, activity, heatmapEnabled, heatmapMetric]);
+
+  // ── Effect 3: Sync tool call nodes with force simulation ──
+  useEffect(() => {
+    const simulation = simulationRef.current;
+    const svg = svgRef.current;
+    if (!simulation || !svg) return;
+
+    const now = Date.now();
+    const newToolNodes: SimNode[] = [];
+    const newToolLinks: SimLink[] = [];
+
+    for (const [agentId, agent] of agents) {
+      if (agent.status !== "running" && agent.status !== "idle") continue;
+      const recentCalls = agent.toolCalls
+        .filter((tc) => now - tc.timestamp < GRAPH.toolWindowMs)
+        .slice(-GRAPH.toolMaxPerAgent);
+
+      for (const tc of recentCalls) {
+        const toolNodeId = `tool:${agentId}:${tc.timestamp}`;
+        const existing = toolNodesRef.current.find((n) => n.id === toolNodeId);
+        const parentNode = nodesRef.current.find((n) => n.id === agentId);
+        const toolNode: SimNode = existing ?? {
+          id: toolNodeId,
+          agent,
+          toolCall: { tool: tc.tool, timestamp: tc.timestamp, parentAgentId: agentId },
+          // Spawn near parent so the link spring pulls them into place
+          x: (parentNode?.x ?? 0) + (Math.random() - 0.5) * 20,
+          y: (parentNode?.y ?? 0) + (Math.random() - 0.5) * 20,
+        };
+        if (existing) existing.agent = agent;
+        newToolNodes.push(toolNode);
+        newToolLinks.push({ source: agentId, target: toolNodeId, edgeType: "tool" });
+      }
+    }
+
+    // Only disturb the simulation when the node set actually changes
+    const prevIds = new Set(toolNodesRef.current.map((n) => n.id));
+    const newIds = new Set(newToolNodes.map((n) => n.id));
+    const changed = prevIds.size !== newIds.size || [...newIds].some((id) => !prevIds.has(id));
+
+    toolNodesRef.current = newToolNodes;
+    toolLinksRef.current = newToolLinks;
+
+    if (changed) {
+      simulation.nodes([...nodesRef.current, ...newToolNodes]);
+      const linkForce = simulation.force<d3.ForceLink<SimNode, SimLink>>("link");
+      if (linkForce) linkForce.links([...linksRef.current, ...newToolLinks]);
+      simulation.alpha(Math.max(simulation.alpha(), 0.1)).restart();
+    }
+
+    // Sync tool link SVG elements
+    const canvas = d3.select(svg).select<SVGGElement>("g.canvas");
+    const toolLinkGroup = canvas.select<SVGGElement>("g.tool-links");
+    if (!toolLinkGroup.empty()) {
+      toolLinkGroup
+        .selectAll<SVGLineElement, SimLink>("line")
+        .data(newToolLinks, (d) => {
+          const t = typeof d.target === "string" ? d.target : (d.target as SimNode).id;
+          return t;
+        })
+        .join("line")
+        .attr("stroke", (d) => {
+          const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
+          const agent = agents.get(sourceId);
+          const color = agent ? AGENT_COLORS[agent.agentType] : UI.text.secondary;
+          return `${color}66`;
+        })
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "3 2");
+    }
+
+    // Sync tool node SVG elements
+    const toolNodeGroup = canvas.select<SVGGElement>("g.tool-nodes");
+    if (!toolNodeGroup.empty()) {
+      toolNodeGroup
+        .selectAll<SVGGElement, SimNode>("g.tool-node")
+        .data(newToolNodes, (d) => d.id)
+        .join(
+          (enter) => {
+            const g = enter.append("g").attr("class", "tool-node").attr("cursor", "pointer");
+
+            // TODO: implement renderToolNode(g, d) here for custom tool node appearance
+            // The function receives the <g> selection and the SimNode (d.toolCall has tool name + timestamp)
+            // Default rendering below — feel free to replace with your own style:
+            g.each(function (d) {
+              const color = AGENT_COLORS[d.agent.agentType] || UI.text.secondary;
+              const displayName = d.toolCall!.tool.length > 9
+                ? d.toolCall!.tool.slice(0, 8) + "\u2026"
+                : d.toolCall!.tool;
+              d3.select(this).append("circle")
+                .attr("r", GRAPH.toolNodeRadius)
+                .attr("fill", `${color}14`)
+                .attr("stroke", `${color}66`)
+                .attr("stroke-width", 1.5);
+              d3.select(this).append("text")
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "central")
+                .attr("fill", `${color}aa`)
+                .attr("font-family", "monospace")
+                .attr("font-size", 9)
+                .style("pointer-events", "none")
+                .text(displayName);
+            });
+
+            // Tool nodes are draggable just like agent nodes
+            g.call(
+              d3.drag<SVGGElement, SimNode>()
+                .on("start", (event) => {
+                  if (!event.active) simulation.alphaTarget(0.3).restart();
+                  event.subject.fx = event.subject.x;
+                  event.subject.fy = event.subject.y;
+                })
+                .on("drag", (event) => {
+                  event.subject.fx = event.x;
+                  event.subject.fy = event.y;
+                })
+                .on("end", (event) => {
+                  if (!event.active) simulation.alphaTarget(0);
+                  event.subject.fx = null;
+                  event.subject.fy = null;
+                })
+            );
+            return g;
+          },
+          (update) => update,
+          (exit) => exit.remove()
+        );
+    }
+  }, [agents]);
 
   // ── Handle resize ──
   useEffect(() => {

@@ -5,12 +5,14 @@ import type { AgentState } from "@/lib/types";
 export interface SimNode extends d3.SimulationNodeDatum {
   id: string;
   agent: AgentState;
+  /** Present only on tool-call nodes; undefined on agent nodes */
+  toolCall?: { tool: string; timestamp: number; parentAgentId: string };
 }
 
 export interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
-  edgeType?: "parent" | "message" | "blocking";
+  edgeType?: "parent" | "message" | "blocking" | "tool";
 }
 
 /* ── Straight line path between two points ───────────────── */

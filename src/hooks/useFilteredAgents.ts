@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { IDLE_TIMEOUT_MS } from "@/lib/config";
 
@@ -9,8 +9,15 @@ export function useFilteredAgents() {
   const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
   const hiddenAgentTypes = useAgentStore((s) => s.hiddenAgentTypes);
 
+  // Tick every 5 s so the idle-timeout filter re-evaluates continuously rather
+  // than only when the agents Map changes (which caused batch disappearances).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5_000);
+    return () => clearInterval(id);
+  }, []);
+
   return useMemo(() => {
-    const now = Date.now();
     let list = Array.from(agents.values());
     // Remove agents idle for more than 20s
     list = list.filter((a) => {
@@ -31,6 +38,20 @@ export function useFilteredAgents() {
     if (hiddenAgentTypes.size > 0) {
       list = list.filter((a) => !hiddenAgentTypes.has(a.agentType));
     }
+
+    // If a sub-agent survived filtering but its parent was dropped, restore the parent
+    // so sub-agent nodes are never rendered without a visible anchor.
+    const listedIds = new Set(list.map((a) => a.id));
+    for (const a of list) {
+      if (a.parentId && !listedIds.has(a.parentId)) {
+        const parent = agents.get(a.parentId);
+        if (parent) {
+          list.push(parent);
+          listedIds.add(parent.id);
+        }
+      }
+    }
+
     return list;
-  }, [agents, selectedSessionIds, hiddenAgentTypes]);
+  }, [agents, selectedSessionIds, hiddenAgentTypes, now]);
 }
