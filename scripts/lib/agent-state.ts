@@ -200,6 +200,32 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
 
   const role = typeof message.role === "string" ? message.role : undefined;
 
+  // Learn the model lazily — extractTaskFromJSONL only scans the opening
+  // bytes, which for main sessions with long system preambles often predates
+  // the first assistant message. Pick it up here so the UI self-heals.
+  const modelField = message.model;
+  if (typeof modelField === "string" && modelField.length > 0) {
+    const agent = agents.get(agentId);
+    if (agent && !agent.model) {
+      agent.model = modelField;
+      broadcast({
+        type: "state:update",
+        event: {
+          type: "agent:register",
+          agentId,
+          agentType: agent.agentType,
+          task: agent.task,
+          sessionId: agent.sessionId,
+          slug: agent.slug,
+          model: modelField,
+          teamId: agent.teamId,
+          parentId: agent.parentId,
+        },
+        timestamp,
+      });
+    }
+  }
+
   if (role === "assistant" && Array.isArray(message.content)) {
     for (const block of message.content) {
       if (!block || typeof block !== "object") continue;

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseAgentType } from "../agent-state";
+import { describe, it, expect, beforeEach } from "vitest";
+import { parseAgentType, registerAgent, processEntry, agents } from "../agent-state";
 
 describe("parseAgentType", () => {
   it('returns "explore" for "explore"', () => {
@@ -96,5 +96,60 @@ describe("parseAgentType", () => {
 
   it('does not match "fix" inside "prefix"', () => {
     expect(parseAgentType("prefix-helper")).toBe("generic");
+  });
+});
+
+describe("processEntry: lazy model learning", () => {
+  beforeEach(() => {
+    agents.clear();
+  });
+
+  it("fills in agent.model when an assistant message carries it", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "", // not yet known at registration time
+      startTime: Date.now(),
+    });
+    expect(agents.get("a1")?.model).toBe("");
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "assistant", model: "claude-opus-4-7", content: [] },
+      },
+      "a1",
+      "a1",
+    );
+
+    expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
+  });
+
+  it("does not overwrite a model that is already set", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "claude-sonnet-4-6",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "assistant", model: "claude-opus-4-7", content: [] },
+      },
+      "a1",
+      "a1",
+    );
+
+    expect(agents.get("a1")?.model).toBe("claude-sonnet-4-6");
   });
 });

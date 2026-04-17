@@ -176,6 +176,37 @@ describe("handleEvent: agent:register", () => {
     registerAgent("solo-1");
     expect(useAgentStore.getState().edges).toHaveLength(0);
   });
+
+  it("treats re-register on an existing agent as a metadata refresh", () => {
+    registerAgent("a1", { agentType: "main", task: "original", model: "" });
+    const before = useAgentStore.getState().agents.get("a1")!;
+
+    // Simulate accumulated runtime state
+    useAgentStore.getState().handleEvent(
+      { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
+      Date.now(),
+    );
+    expect(useAgentStore.getState().agents.get("a1")!.toolCalls).toHaveLength(1);
+
+    // Re-register with the model now known — must not wipe toolCalls
+    registerAgent("a1", { agentType: "main", task: "original", model: "claude-opus-4" });
+
+    const after = useAgentStore.getState().agents.get("a1")!;
+    expect(after.model).toBe("claude-opus-4");
+    expect(after.toolCalls).toHaveLength(1);
+    expect(after.startTime).toBe(before.startTime);
+  });
+
+  it("does not duplicate edges when a child is re-registered", () => {
+    registerAgent("parent-1");
+    registerAgent("child-1", { parentId: "parent-1" });
+    registerAgent("child-1", { parentId: "parent-1", model: "claude-opus-4" });
+
+    const edges = useAgentStore.getState().edges.filter(
+      (e) => e.source === "parent-1" && e.target === "child-1",
+    );
+    expect(edges).toHaveLength(1);
+  });
 });
 
 describe("handleEvent: agent:status", () => {

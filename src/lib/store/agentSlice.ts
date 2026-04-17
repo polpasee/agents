@@ -75,50 +75,66 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
 
     switch (event.type) {
       case "agent:register": {
-        const agent: AgentState = {
-          id: event.agentId,
-          parentId: event.parentId,
-          agentType: event.agentType,
-          status: "running",
-          task: event.task,
-          sessionId: event.sessionId,
-          slug: event.slug,
-          model: event.model,
-          teamId: event.teamId,
-          toolCalls: [],
-          inputTokens: 0,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheCreateTokens: 0,
-          contextWindow: DEFAULT_CONTEXT_WINDOW,
-          startTime: timestamp,
-          metadata: event.metadata,
-        };
-        newAgents.set(event.agentId, agent);
-        if (event.parentId) {
-          newEdges = [...edges, { source: event.parentId, target: event.agentId }];
-        }
-        if (event.teamId) {
-          const { teams } = get();
-          const newTeams = new Map(teams);
-          let team = newTeams.get(event.teamId);
-          if (!team) {
-            team = {
-              id: event.teamId,
-              name: event.teamId,
-              memberIds: [event.agentId],
-              status: "forming",
+        // If the agent is already live, treat register as a metadata
+        // refresh — fill in missing fields (e.g. model learned lazily)
+        // without wiping accumulated state like toolCalls or tokens.
+        const existing = newAgents.get(event.agentId);
+        const agent: AgentState = existing
+          ? {
+              ...existing,
+              model: existing.model || event.model || "",
+              task: existing.task || event.task,
+              slug: existing.slug || event.slug,
+              agentType: event.agentType || existing.agentType,
+            }
+          : {
+              id: event.agentId,
+              parentId: event.parentId,
+              agentType: event.agentType,
+              status: "running",
               task: event.task,
+              sessionId: event.sessionId,
+              slug: event.slug,
+              model: event.model,
+              teamId: event.teamId,
+              toolCalls: [],
+              inputTokens: 0,
+              outputTokens: 0,
+              cacheReadTokens: 0,
+              cacheCreateTokens: 0,
+              contextWindow: DEFAULT_CONTEXT_WINDOW,
               startTime: timestamp,
+              metadata: event.metadata,
             };
-          } else {
-            team = { ...team, memberIds: [...team.memberIds, event.agentId] };
+        newAgents.set(event.agentId, agent);
+        // Edge and team membership only on first register — avoids duplicate
+        // edges when register is replayed as a metadata refresh.
+        if (!existing) {
+          if (event.parentId) {
+            newEdges = [...edges, { source: event.parentId, target: event.agentId }];
           }
-          if (event.agentType === "team-lead") {
-            team = { ...team, leaderId: event.agentId, status: "active" };
+          if (event.teamId) {
+            const { teams } = get();
+            const newTeams = new Map(teams);
+            let team = newTeams.get(event.teamId);
+            if (!team) {
+              team = {
+                id: event.teamId,
+                name: event.teamId,
+                memberIds: [event.agentId],
+                status: "forming",
+                task: event.task,
+                startTime: timestamp,
+              };
+            } else {
+              team = { ...team, memberIds: [...team.memberIds, event.agentId] };
+            }
+            if (event.agentType === "team-lead") {
+              team = { ...team, leaderId: event.agentId, status: "active" };
+            }
+            newTeams.set(event.teamId, team);
+            newTeamsUpdate = newTeams;
           }
-          newTeams.set(event.teamId, team);
-          newTeamsUpdate = newTeams;
         }
         break;
       }
