@@ -19,6 +19,7 @@ export type AgentEvent =
       agentId: string;
       parentId?: string;
       agentType: AgentType;
+      displayType?: string;
       task: string;
       sessionId?: string;
       slug?: string;
@@ -76,6 +77,10 @@ export interface AgentState {
   id: string;
   parentId?: string;
   agentType: AgentType;
+  /** Raw meta.agentType string (e.g. "api-builder", "frontend-ui"). Used for
+   *  display so the topology label matches what Claude shows in the terminal.
+   *  agentType still drives color and coarse categorization. */
+  displayType?: string;
   status: AgentStatus;
   task: string;
   sessionId?: string;

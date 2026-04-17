@@ -187,6 +187,7 @@ export function discoverActiveSessions(projectsDir: string) {
         if (agentId.startsWith("compact-")) continue;
 
         let agentType: ReturnType<typeof parseAgentType> = "generic";
+        let displayType: string | undefined;
         let description = "";
         let teamId: string | undefined;
         let teamName: string | undefined;
@@ -197,6 +198,9 @@ export function discoverActiveSessions(projectsDir: string) {
               fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
             );
             agentType = parseAgentType(meta.agentType);
+            if (typeof meta.agentType === "string" && meta.agentType.length > 0) {
+              displayType = meta.agentType;
+            }
             description = meta.description || "";
             teamId = meta.teamId;
             teamName = meta.teamName;
@@ -223,6 +227,7 @@ export function discoverActiveSessions(projectsDir: string) {
             sessionId,
             projectDir,
             agentType,
+            displayType,
             parentId,
             task: description || info.task,
             slug: info.slug,

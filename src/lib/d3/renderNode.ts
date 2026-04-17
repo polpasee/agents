@@ -72,7 +72,9 @@ export function renderNodeVisuals(
 ) {
   const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
   const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
-  const typeLabel = AGENT_LABELS[agent.agentType] || "AGENT";
+  // Prefer the raw displayType (e.g. "api-builder") so the graph matches what
+  // the terminal shows; fall back to the coarse category label otherwise.
+  const typeLabel = (agent.displayType || AGENT_LABELS[agent.agentType] || "AGENT").toUpperCase();
   // Show the slug as a secondary name only when it looks like a human-readable identifier
   // (short, no UUID patterns). Type label always remains the primary name.
   const slugDisplay = (() => {

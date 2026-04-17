@@ -82,16 +82,20 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         const agent: AgentState = existing
           ? {
               ...existing,
-              model: existing.model || event.model || "",
+              // Model can change mid-session (Sonnet → Opus switch) — always
+              // take the incoming value when provided so the label is live.
+              model: event.model || existing.model || "",
               task: existing.task || event.task,
               slug: existing.slug || event.slug,
               agentType: event.agentType || existing.agentType,
+              displayType: existing.displayType || event.displayType,
               metadata: existing.metadata || event.metadata,
             }
           : {
               id: event.agentId,
               parentId: event.parentId,
               agentType: event.agentType,
+              displayType: event.displayType,
               status: "running",
               task: event.task,
               sessionId: event.sessionId,

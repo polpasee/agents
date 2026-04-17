@@ -36,7 +36,7 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
         <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
-          {AGENT_LABELS[agent.agentType]}{agent.model ? `(${shortModel(agent.model)})` : ""}
+          {(agent.displayType || AGENT_LABELS[agent.agentType]).toUpperCase()}{agent.model ? `(${shortModel(agent.model)})` : ""}
         </span>
         <span className="text-xs capitalize truncate ml-auto flex-shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
       </div>

@@ -69,6 +69,7 @@ export function registerAgent(opts: {
   sessionId: string;
   projectDir: string;
   agentType: AgentType;
+  displayType?: string;
   parentId?: string;
   task: string;
   slug: string;
@@ -83,6 +84,7 @@ export function registerAgent(opts: {
     id: opts.agentId,
     parentId: opts.parentId,
     agentType: opts.agentType,
+    displayType: opts.displayType,
     status: "running",
     task: opts.task || "Session",
     sessionId: opts.sessionId,
@@ -134,6 +136,7 @@ export function registerAgent(opts: {
     agentId: opts.agentId,
     parentId: opts.parentId,
     agentType: opts.agentType,
+    displayType: opts.displayType,
     task: agent.task,
     sessionId: opts.sessionId,
     slug: opts.slug,
@@ -201,13 +204,14 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
 
   const role = typeof message.role === "string" ? message.role : undefined;
 
-  // Learn the model lazily — extractTaskFromJSONL only scans the opening
-  // bytes, which for main sessions with long system preambles often predates
-  // the first assistant message. Pick it up here so the UI self-heals.
+  // Track the model from every assistant message — users can switch models
+  // mid-session (e.g. Sonnet → Opus), and we want the label to reflect what
+  // Claude is *currently* running, not whatever it was when the session
+  // opened. Only broadcast when the value actually changes.
   const modelField = message.model;
   if (typeof modelField === "string" && modelField.length > 0) {
     const agent = agents.get(agentId);
-    if (agent && !agent.model) {
+    if (agent && agent.model !== modelField) {
       agent.model = modelField;
       broadcast({
         type: "state:update",
@@ -215,6 +219,7 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
           type: "agent:register",
           agentId,
           agentType: agent.agentType,
+          displayType: agent.displayType,
           task: agent.task,
           sessionId: agent.sessionId,
           slug: agent.slug,

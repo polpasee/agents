@@ -150,7 +150,7 @@ describe("processEntry: lazy model learning", () => {
     expect(agents.get("a1")?.status).toBe("idle");
   });
 
-  it("does not overwrite a model that is already set", () => {
+  it("updates model when the user switches mid-session (Sonnet → Opus)", () => {
     registerAgent({
       agentId: "a1",
       sessionId: "a1",
@@ -171,6 +171,6 @@ describe("processEntry: lazy model learning", () => {
       "a1",
     );
 
-    expect(agents.get("a1")?.model).toBe("claude-sonnet-4-6");
+    expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
   });
 });

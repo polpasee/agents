@@ -197,6 +197,19 @@ describe("handleEvent: agent:register", () => {
     expect(after.startTime).toBe(before.startTime);
   });
 
+  it("replaces an already-set model when the user switches mid-session", () => {
+    registerAgent("a1", { agentType: "main", model: "claude-sonnet-4-6" });
+    useAgentStore.getState().handleEvent(
+      { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
+      Date.now(),
+    );
+    registerAgent("a1", { agentType: "main", model: "claude-opus-4-7" });
+
+    const after = useAgentStore.getState().agents.get("a1")!;
+    expect(after.model).toBe("claude-opus-4-7");
+    expect(after.toolCalls).toHaveLength(1);
+  });
+
   it("does not duplicate edges when a child is re-registered", () => {
     registerAgent("parent-1");
     registerAgent("child-1", { parentId: "parent-1" });
