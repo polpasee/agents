@@ -86,6 +86,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               task: existing.task || event.task,
               slug: existing.slug || event.slug,
               agentType: event.agentType || existing.agentType,
+              metadata: existing.metadata || event.metadata,
             }
           : {
               id: event.agentId,

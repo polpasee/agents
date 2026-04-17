@@ -207,6 +207,20 @@ describe("handleEvent: agent:register", () => {
     );
     expect(edges).toHaveLength(1);
   });
+
+  it("fills in metadata on re-register when the first register carried none", () => {
+    // Simulates the live broadcast → reconnect sync pattern: first event has
+    // no metadata, later syncs carry it. projectName must appear in the end.
+    registerAgent("a1", { agentType: "main" });
+    expect(useAgentStore.getState().agents.get("a1")!.metadata).toBeUndefined();
+
+    registerAgent("a1", {
+      agentType: "main",
+      metadata: { projectName: "Users/erdos/Github/ipportal2" },
+    });
+    expect(useAgentStore.getState().agents.get("a1")!.metadata?.projectName)
+      .toBe("Users/erdos/Github/ipportal2");
+  });
 });
 
 describe("handleEvent: agent:status", () => {

@@ -139,6 +139,7 @@ export function registerAgent(opts: {
     slug: opts.slug,
     model: opts.model,
     teamId: opts.teamId,
+    metadata: agent.metadata,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
 }
@@ -220,6 +221,7 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
           model: modelField,
           teamId: agent.teamId,
           parentId: agent.parentId,
+          metadata: agent.metadata,
         },
         timestamp,
       });

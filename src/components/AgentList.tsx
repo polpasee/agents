@@ -191,6 +191,16 @@ export function AgentList() {
       }
     }
 
+    // Disambiguate label collisions: when two Claude sessions live in the same
+    // project, append a short session-id suffix so users can tell them apart.
+    const labelCounts = new Map<string, number>();
+    for (const g of groups.values()) labelCounts.set(g.label, (labelCounts.get(g.label) ?? 0) + 1);
+    for (const g of groups.values()) {
+      if ((labelCounts.get(g.label) ?? 0) > 1) {
+        g.label = `${g.label} · ${g.sessionId.slice(0, 6)}`;
+      }
+    }
+
     return Array.from(groups.values());
   }, [agents]);
 
