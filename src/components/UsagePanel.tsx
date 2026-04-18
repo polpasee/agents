@@ -27,6 +27,16 @@ interface ApiUsage {
   blockResetAt: string | null;
   weeklyResetAt: string | null;
   plan: string | null;
+  ageMs?: number | null;
+  stale?: boolean;
+}
+
+function formatAge(ms: number): string {
+  const min = Math.floor(ms / 60000);
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
 }
 
 function UsageBar({ label, percent, resetMs }: { label: string; percent: number; resetMs: number }) {
@@ -201,8 +211,22 @@ export function UsagePanel() {
           className="pt-1.5 space-y-1"
           style={agents.size > 0 ? { borderTop: "1px solid var(--color-border)" } : undefined}
         >
-          <UsageBar label="Block" percent={blockPercent} resetMs={blockResetMs} />
-          <UsageBar label="Weekly" percent={weeklyPercent} resetMs={weeklyResetMs} />
+          {apiUsage.stale && (
+            <div
+              className="text-xs flex items-center gap-1 mb-0.5"
+              title="Claude Code stopped writing ~/.claude/usage-status.json — terminal status bar has live data, this panel may be out of date."
+              style={{ color: BUDGET_COLORS.warning }}
+            >
+              <span>⚠</span>
+              <span>
+                Stale{apiUsage.ageMs != null ? ` · ${formatAge(apiUsage.ageMs)} old` : ""}
+              </span>
+            </div>
+          )}
+          <div style={apiUsage.stale ? { opacity: 0.5 } : undefined}>
+            <UsageBar label="Block" percent={blockPercent} resetMs={blockResetMs} />
+            <UsageBar label="Weekly" percent={weeklyPercent} resetMs={weeklyResetMs} />
+          </div>
         </div>
       )}
     </div>
