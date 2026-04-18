@@ -37,12 +37,28 @@ export const AGENT_COLORS: Record<AgentType, string> = {
  * to get a low-discrepancy distribution — guarantees that neighboring
  * names (like "api-builder" vs "frontend-ui") land in visually distinct
  * parts of the hue wheel instead of clustering.
+ *
+ * Returns 6-digit hex, not hsl(), so downstream code that appends hex-alpha
+ * digits (e.g. `${color}66` for 40% opacity) produces valid 8-digit hex
+ * instead of malformed "hsl(...)66" which browsers silently drop to black.
  */
 export function colorFromString(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
   const hue = Math.floor((((Math.abs(h) * 0.6180339887498949) % 1) * 360));
-  return `hsl(${hue}, 75%, 65%)`;
+  return hslToHex(hue, 75, 65);
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const sN = s / 100;
+  const lN = l / 100;
+  const a = sN * Math.min(lN, 1 - lN);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const c = lN - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(c * 255).toString(16).padStart(2, "0");
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
 }
 
 /** Resolve the display color for an agent — prefer the per-displayType

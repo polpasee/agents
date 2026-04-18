@@ -208,8 +208,13 @@ describe("colorFromString", () => {
     expect(colorFromString("api-builder")).not.toBe(colorFromString("frontend-ui"));
   });
 
-  it("returns a valid HSL string", () => {
-    expect(colorFromString("db-reader")).toMatch(/^hsl\(\d+, 75%, 65%\)$/);
+  it("returns a 6-digit hex color (so alpha concatenation stays valid)", () => {
+    expect(colorFromString("db-reader")).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it("produces 8-digit hex when an alpha suffix is concatenated", () => {
+    const c = colorFromString("api-builder");
+    expect(`${c}66`).toMatch(/^#[0-9a-f]{8}$/);
   });
 });
 
