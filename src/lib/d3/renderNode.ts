@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
+import { STATUS_COLORS, AGENT_LABELS, UI, agentColor } from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { GRAPH } from "@/lib/config";
@@ -70,7 +70,7 @@ export function renderNodeVisuals(
   agent: AgentState,
   selectedAgentId: string | null,
 ) {
-  const color = AGENT_COLORS[agent.agentType] || UI.text.secondary;
+  const color = agentColor(agent);
   const statusColor = STATUS_COLORS[agent.status] || UI.text.muted;
   // Prefer the raw displayType (e.g. "api-builder") so the graph matches what
   // the terminal shows; fall back to the coarse category label otherwise.

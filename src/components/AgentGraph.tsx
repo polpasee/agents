@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
+import { AGENT_COLORS, EDGE_COLORS, UI, agentColor } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, hexPath, bezierPath, renderHeatmapNode, renderHeatmapLegend, computeMetricValue, precomputeHeatmapNorms, createHeatmapScale } from "@/lib/d3";
@@ -97,7 +97,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         .map((n) => ({
           x: n.x!,
           y: n.y!,
-          color: AGENT_COLORS[n.agent.agentType] || UI.text.secondary,
+          color: agentColor(n.agent),
         }));
       return {
         nodes,
@@ -460,7 +460,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           const team = teams.get(teamId);
           const isSelectedTeam = teamId === selectedTeamId;
           const leader = teamNodes.find((n) => n.agent.agentType === "team-lead");
-          const clusterColor = leader ? AGENT_COLORS[leader.agent.agentType] : UI.primary;
+          const clusterColor = leader ? agentColor(leader.agent) : UI.primary;
 
           if (points.length === 2) {
             // Draw an ellipse between two nodes
@@ -595,7 +595,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
 
       if (effectNode && effectType && effectNode.x != null && effectNode.y != null) {
         const a = agents.get(effectNode.id);
-        const color = a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
+        const color = a ? agentColor(a) : UI.text.secondary;
         const effectRadius = a ? getNodeRadius(a) : GRAPH.nodeRadius;
         effectsRef.current.push({
           x: effectNode.x,
@@ -674,7 +674,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           const a = agents.get(targetId);
           if (!a || (a.status !== "running" && a.status !== "idle")) return;
 
-          const color = AGENT_COLORS[a.agentType];
+          const color = agentColor(a);
           const source = d.source as SimNode;
           const target = d.target as SimNode;
           if (source.x == null || source.y == null || target.x == null || target.y == null) return;
@@ -773,7 +773,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
         .attr("stroke", (d) => {
           const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
           const agent = agents.get(sourceId);
-          const color = agent ? AGENT_COLORS[agent.agentType] : UI.text.secondary;
+          const color = agent ? agentColor(agent) : UI.text.secondary;
           return `${color}66`;
         })
         .attr("stroke-width", 2)
@@ -794,7 +794,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
             // The function receives the <g> selection and the SimNode (d.toolCall has tool name + timestamp)
             // Default rendering below — feel free to replace with your own style:
             g.each(function (d) {
-              const color = AGENT_COLORS[d.agent.agentType] || UI.text.secondary;
+              const color = agentColor(d.agent);
               const displayName = d.toolCall!.tool.length > 9
                 ? d.toolCall!.tool.slice(0, 8) + "\u2026"
                 : d.toolCall!.tool;

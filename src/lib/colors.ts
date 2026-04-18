@@ -1,4 +1,4 @@
-import type { AgentType, AgentStatus } from "./types";
+import type { AgentType, AgentStatus, AgentState } from "./types";
 
 /** Semantic UI colors used across components */
 export const UI = {
@@ -26,6 +26,31 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   "team-lead": "#fbbf24",
   generic: "#94a3b8",
 };
+
+/**
+ * Deterministic hue-family color from a string — used to give each distinct
+ * sub-agent displayType (api-builder, frontend-ui, db-reader, …) its own
+ * color even when they share the same coarse agentType category. Uses HSL
+ * with fixed saturation/lightness so colors stay vivid on the dark canvas.
+ *
+ * Hash values are multiplied by the golden-ratio conjugate (φ⁻¹ ≈ 0.618)
+ * to get a low-discrepancy distribution — guarantees that neighboring
+ * names (like "api-builder" vs "frontend-ui") land in visually distinct
+ * parts of the hue wheel instead of clustering.
+ */
+export function colorFromString(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  const hue = Math.floor((((Math.abs(h) * 0.6180339887498949) % 1) * 360));
+  return `hsl(${hue}, 75%, 65%)`;
+}
+
+/** Resolve the display color for an agent — prefer the per-displayType
+ *  hash color for sub-agents, fall back to the coarse-category palette. */
+export function agentColor(agent: Pick<AgentState, "agentType" | "displayType">): string {
+  if (agent.displayType) return colorFromString(agent.displayType);
+  return AGENT_COLORS[agent.agentType] || UI.text.secondary;
+}
 
 export const STATUS_COLORS: Record<AgentStatus, string> = {
   running: "#00ff88",

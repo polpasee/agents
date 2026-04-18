@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
+import { STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS, agentColor } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import type { AgentState, TeamState } from "@/lib/types";
 import { UsagePanel } from "./UsagePanel";
@@ -13,7 +13,7 @@ function shortModel(model: string): string {
 }
 
 function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelected: boolean; onClick: () => void }) {
-  const color = AGENT_COLORS[agent.agentType];
+  const color = agentColor(agent);
   const isRunning = agent.status === "running";
   const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1].tool : null;
   const statusLabel = isRunning && lastTool

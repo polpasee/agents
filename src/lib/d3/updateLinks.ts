@@ -1,5 +1,5 @@
 import * as d3 from "d3";
-import { AGENT_COLORS, EDGE_COLORS, UI } from "@/lib/colors";
+import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
 import type { AgentState } from "@/lib/types";
 
 export interface SimNode extends d3.SimulationNodeDatum {
@@ -38,7 +38,7 @@ export function updateLinkVisuals<E extends SVGElement>(
       return UI.tool; // amber for message edges
     }
     const a = agents.get(getTargetId(d));
-    return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
+    return a ? agentColor(a) : UI.text.secondary;
   });
   linkLine
     .attr("stroke", (d) => {
@@ -46,7 +46,7 @@ export function updateLinkVisuals<E extends SVGElement>(
         return UI.tool;
       }
       const a = agents.get(getTargetId(d));
-      return a ? AGENT_COLORS[a.agentType] : UI.text.secondary;
+      return a ? agentColor(a) : UI.text.secondary;
     })
     .attr("stroke-dasharray", (d) => {
       if (d.edgeType === "message") return "4 3";

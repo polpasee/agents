@@ -10,6 +10,8 @@ import {
   ANNOTATION_COLOR,
   METRIC_COLORS,
   COMPARISON_COLORS,
+  colorFromString,
+  agentColor,
 } from "../colors";
 import type { AgentType, AgentStatus } from "../types";
 
@@ -194,5 +196,36 @@ describe("COMPARISON_COLORS", () => {
   it("has better and worse keys with valid hex colors", () => {
     expect(COMPARISON_COLORS.better).toMatch(HEX_COLOR_RE);
     expect(COMPARISON_COLORS.worse).toMatch(HEX_COLOR_RE);
+  });
+});
+
+describe("colorFromString", () => {
+  it("returns the same color for the same string", () => {
+    expect(colorFromString("api-builder")).toBe(colorFromString("api-builder"));
+  });
+
+  it("returns different colors for different strings", () => {
+    expect(colorFromString("api-builder")).not.toBe(colorFromString("frontend-ui"));
+  });
+
+  it("returns a valid HSL string", () => {
+    expect(colorFromString("db-reader")).toMatch(/^hsl\(\d+, 75%, 65%\)$/);
+  });
+});
+
+describe("agentColor", () => {
+  it("hashes displayType when present (sub-agent with specific name)", () => {
+    const a = { agentType: "build" as const, displayType: "api-builder" };
+    const b = { agentType: "build" as const, displayType: "frontend-ui" };
+    // Both are agentType="build" but different displayType → different colors
+    expect(agentColor(a)).not.toBe(agentColor(b));
+    expect(agentColor(a)).toBe(colorFromString("api-builder"));
+  });
+
+  it("falls back to AGENT_COLORS[agentType] when displayType is absent (main agents)", () => {
+    expect(agentColor({ agentType: "main", displayType: undefined }))
+      .toBe(AGENT_COLORS.main);
+    expect(agentColor({ agentType: "main" }))
+      .toBe(AGENT_COLORS.main);
   });
 });
