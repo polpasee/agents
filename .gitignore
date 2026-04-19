@@ -36,3 +36,9 @@ next-env.d.ts
 .claude/
 
 .remember/
+
+# v2 workspace
+/v2/node_modules
+/v2/**/node_modules
+/v2/**/dist
+/v2/server/data

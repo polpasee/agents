@@ -18,7 +18,7 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
   const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1].tool : null;
   const statusLabel = isRunning && lastTool
     ? lastTool
-    : agent.status === "idle" ? "thinking" : agent.status;
+    : agent.status;
   const statusColor = STATUS_COLORS[agent.status];
   return (
     <button
@@ -162,6 +162,7 @@ export function AgentList() {
   const agents = useAgentStore((s) => s.agents);
   const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
   const toggleSession = useAgentStore((s) => s.toggleSession);
+  const removeAgent = useAgentStore((s) => s.removeAgent);
 
   const agentList = useFilteredAgents();
 
@@ -270,6 +271,9 @@ export function AgentList() {
               const isSelected = selectedSessionIds.has(group.sessionId);
               const isActive = selectedSessionIds.size === 0 || isSelected;
               const filtered = filteredSessionGroups.get(group.sessionId);
+              const canDismiss = group.agents.every(
+                (a) => a.status === "idle" || a.status === "completed" || a.status === "error"
+              );
               return (
                 <div key={group.sessionId} className="space-y-0.5">
                   <button
@@ -293,6 +297,21 @@ export function AgentList() {
                       <span className="text-xs ml-auto flex-shrink-0" style={{ color: UI.text.dimmed }}>
                         {group.agents.length}
                       </span>
+                      {canDismiss && (
+                        <span
+                          role="button"
+                          aria-label="Dismiss session"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            group.agents.forEach((a) => removeAgent(a.id));
+                          }}
+                          className="flex-shrink-0 leading-none"
+                          style={{ color: UI.text.dimmed, fontSize: 10, lineHeight: 1 }}
+                          title="Dismiss idle session"
+                        >
+                          ✕
+                        </span>
+                      )}
                     </div>
                   </button>
                   {isActive && filtered && (

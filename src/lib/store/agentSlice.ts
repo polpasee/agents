@@ -263,10 +263,32 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       }
     }
 
-    const newActivity = [
-      ...activity,
-      { id: `act-${incrementActivityCounter()}`, timestamp, event },
-    ].slice(-ACTIVITY_MAX_ENTRIES);
+    // Suppress duplicate events to reduce noise:
+    // - agent:status: skip if same agent already has the same status in recent entries
+    // - agent:register: skip if this agent was already registered in recent entries
+    const isDuplicateStatus =
+      event.type === "agent:status" &&
+      activity.length > 0 &&
+      (() => {
+        for (let i = activity.length - 1; i >= Math.max(0, activity.length - 5); i--) {
+          const prev = activity[i].event;
+          if (prev.type === "agent:status" && prev.agentId === event.agentId) {
+            return prev.status === event.status;
+          }
+        }
+        return false;
+      })();
+
+    const isDuplicateRegister =
+      event.type === "agent:register" &&
+      activity.some((e) => e.event.type === "agent:register" && e.event.agentId === event.agentId);
+
+    const newActivity = (isDuplicateStatus || isDuplicateRegister)
+      ? activity
+      : [
+          ...activity,
+          { id: `act-${incrementActivityCounter()}`, timestamp, event },
+        ].slice(-ACTIVITY_MAX_ENTRIES);
 
     set({
       agents: newAgents,

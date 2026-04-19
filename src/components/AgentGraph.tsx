@@ -783,7 +783,23 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           return `${color}66`;
         })
         .attr("stroke-width", 2)
-        .attr("stroke-dasharray", "3 2");
+        .attr("stroke-dasharray", "3 2")
+        .each(function (d) {
+          const line = d3.select(this);
+          line.selectAll("animate").remove();
+          const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
+          const targetNode = typeof d.target === "string" ? null : (d.target as SimNode);
+          const agent = agents.get(sourceId);
+          if (!targetNode?.toolCall || agent?.status !== "running") return;
+          // Animate only the most-recent tool call link
+          const latestTs = Math.max(...agent.toolCalls.map((tc) => tc.timestamp));
+          if (targetNode.toolCall.timestamp !== latestTs) return;
+          line.append("animate")
+            .attr("attributeName", "stroke-dashoffset")
+            .attr("values", "10;0")
+            .attr("dur", "0.6s")
+            .attr("repeatCount", "indefinite");
+        });
     }
 
     // Sync tool node SVG elements

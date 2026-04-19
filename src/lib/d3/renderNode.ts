@@ -123,7 +123,7 @@ export function renderNodeVisuals(
     : null;
   const statusLabel = isRunning && lastTool
     ? lastTool
-    : agent.status === "idle" ? "thinking" : agent.status;
+    : agent.status;
 
   // Pulsing ring for active agents
   if (isActive) {
@@ -354,7 +354,7 @@ export function renderNodeVisuals(
     .attr("font-family", "monospace")
     .attr("font-size", statusFontSize)
     .style("pointer-events", "none")
-    .text(agent.status);
+    .text(statusLabel);
 
   // Line 2: tokens + duration
   g.append("text")

@@ -16,6 +16,8 @@ export const DISCOVERY_THRESHOLD_MS = 30 * 60 * 1000;
  *  discovery.ts::selectStaleAgentIds so long background tools (e.g. a
  *  30-minute `npm test` driven by a sub-agent) don't purge the main. */
 export const STALE_THRESHOLD_MS = 10 * 60 * 1000;
+/** Sub-agents (those with a parentId) are purged sooner when idle */
+export const SUBAGENT_STALE_THRESHOLD_MS = 60_000;
 /** Purge removed agent IDs after this long (memory leak prevention) */
 export const REMOVED_IDS_TTL_MS = 60 * 60 * 1000;
 

@@ -43,7 +43,7 @@ export const GRAPH = {
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
   toolNodeRadius: 20, // Radius (px) of tool call nodes in the force graph
   toolLinkDistance: 100, // Ideal distance (px) between a tool node and its parent agent
-  toolWindowMs: 20_000, // Duration (ms) tool call nodes remain visible after being called
+  toolWindowMs: 15_000, // Duration (ms) tool call nodes remain visible after being called
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
 

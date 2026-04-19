@@ -56,15 +56,14 @@ export function updateLinkVisuals<E extends SVGElement>(
     })
     .each(function (d) {
       const a = agents.get(getTargetId(d));
-      const active = a?.status === "running" || a?.status === "idle";
       const line = d3.select(this);
       // Remove existing animate children before adding new ones
       line.selectAll("animate").remove();
-      if (d.edgeType !== "message" && active) {
+      if (d.edgeType !== "message" && a?.status === "running") {
         line.append("animate")
           .attr("attributeName", "stroke-dashoffset")
           .attr("values", "24;0")
-          .attr("dur", a?.status === "running" ? "0.8s" : "1.6s")
+          .attr("dur", "0.8s")
           .attr("repeatCount", "indefinite");
       }
     });

@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { parseAgentType, registerAgent, processEntry, updateAgentStatus, agents } from "../agent-state";
+import {
+  parseAgentType,
+  registerAgent,
+  processEntry,
+  updateAgentStatus,
+  agents,
+} from "../agent-state";
 
 describe("parseAgentType", () => {
   it('returns "explore" for "explore"', () => {
@@ -204,3 +210,4 @@ describe("processEntry: lazy model learning", () => {
     expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
   });
 });
+
