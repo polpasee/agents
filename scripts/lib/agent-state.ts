@@ -166,10 +166,16 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
   const agent = agents.get(agentId);
   if (!agent) return;
 
+  // Status reflects activity across ANY file we watch for this agent (main
+  // JSONL + each sub-agent JSONL). Discovery calls us multiple times per poll
+  // with different mtimes; we must decide based on the freshest write seen so
+  // far, otherwise a later stale call clobbers an earlier fresh one and we
+  // flip idle↔running every poll cycle.
   const prev = agentLastModified.get(agentId) || 0;
-  if (mtimeMs > prev) agentLastModified.set(agentId, mtimeMs);
+  const effectiveMtime = Math.max(mtimeMs, prev);
+  agentLastModified.set(agentId, effectiveMtime);
 
-  const timeSinceModified = Date.now() - mtimeMs;
+  const timeSinceModified = Date.now() - effectiveMtime;
   if (timeSinceModified < STATUS_RUNNING_THRESHOLD_MS) {
     if (agent.status !== "running") {
       agent.status = "running";

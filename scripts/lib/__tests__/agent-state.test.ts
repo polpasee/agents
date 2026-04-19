@@ -150,6 +150,36 @@ describe("processEntry: lazy model learning", () => {
     expect(agents.get("a1")?.status).toBe("idle");
   });
 
+  it("does not flip idle/running when called with mixed fresh and stale mtimes in one cycle", () => {
+    // Reproduces the 2s idle↔running oscillation: during a single poll, discovery
+    // calls updateAgentStatus with the main's own (stale) mtime AND with the
+    // fresh mtime of an active sub-agent. Once we have observed a fresh write
+    // for this agent, a later call with a stale mtime in the same poll must NOT
+    // demote it back to idle — the max of all writes is what defines activity.
+    registerAgent({
+      agentId: "main1",
+      sessionId: "main1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    // Sub-agent just wrote: fresh mtime flows in (discovery.ts:180)
+    updateAgentStatus("main1", Date.now() - 500);
+    expect(agents.get("main1")?.status).toBe("running");
+
+    // Next poll: main's own JSONL is still parked (stale), fed first (discovery.ts:115)
+    updateAgentStatus("main1", Date.now() - 2 * 60 * 1000);
+    expect(agents.get("main1")?.status).toBe("running");
+
+    // Sub writes again, still fresh
+    updateAgentStatus("main1", Date.now() - 300);
+    expect(agents.get("main1")?.status).toBe("running");
+  });
+
   it("updates model when the user switches mid-session (Sonnet → Opus)", () => {
     registerAgent({
       agentId: "a1",
