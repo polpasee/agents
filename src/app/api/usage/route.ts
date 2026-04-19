@@ -3,33 +3,73 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 
-const USAGE_PATH = path.join(os.homedir(), ".claude", "usage-status.json");
-/** Data older than this is surfaced to the UI as "stale" — Claude Code only
- *  refreshes usage-status.json when rate-limit headers come back, and newer
- *  versions have stopped writing it entirely, so an hour is a liberal bound. */
+/** ccstatusline writes fresh data here every ~3 minutes (it calls the Anthropic
+ *  /api/oauth/usage endpoint and caches the response). This matches exactly
+ *  what the terminal status line shows. */
+const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");
+
+/** Legacy fallback: Claude Code's own file. Older versions wrote it when
+ *  rate-limit headers came back; newer versions have stopped writing it
+ *  entirely, so it is usually stale or missing. */
+const LEGACY_USAGE_PATH = path.join(os.homedir(), ".claude", "usage-status.json");
+
+/** Mark the panel stale once data is older than this. ccstatusline's own
+ *  cache window is 3 minutes, so an hour is a generous upper bound. */
 const STALENESS_THRESHOLD_MS = 60 * 60 * 1000;
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+interface UsagePayload {
+  blockPercent: number | null;
+  weeklyPercent: number | null;
+  blockResetAt: string | null;
+  weeklyResetAt: string | null;
+  timestamp: number | null;
+  ageMs: number | null;
+  stale: boolean;
+}
+
+function readCcstatuslineCache(): UsagePayload | null {
   try {
-    const raw = fs.readFileSync(USAGE_PATH, "utf-8");
+    const stat = fs.statSync(CCSTATUSLINE_CACHE);
+    const raw = fs.readFileSync(CCSTATUSLINE_CACHE, "utf-8");
     const data = JSON.parse(raw);
-    if (!data) return NextResponse.json(null);
+    if (data?.sessionUsage == null && data?.weeklyUsage == null) return null;
+    const timestamp = stat.mtimeMs;
+    const ageMs = Date.now() - timestamp;
+    return {
+      blockPercent: data.sessionUsage ?? null,
+      weeklyPercent: data.weeklyUsage ?? null,
+      blockResetAt: data.sessionResetAt ?? null,
+      weeklyResetAt: data.weeklyResetAt ?? null,
+      timestamp,
+      ageMs,
+      stale: ageMs > STALENESS_THRESHOLD_MS,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readLegacyUsage(): UsagePayload | null {
+  try {
+    const raw = fs.readFileSync(LEGACY_USAGE_PATH, "utf-8");
+    const data = JSON.parse(raw);
+    if (!data) return null;
 
     // resets_at from Claude Code is Unix seconds — convert to ISO string
     const blockResetAt = typeof data.blockResetAt === "number"
       ? new Date(data.blockResetAt * 1000).toISOString()
-      : data.blockResetAt;
+      : data.blockResetAt ?? null;
     const weeklyResetAt = typeof data.weeklyResetAt === "number"
       ? new Date(data.weeklyResetAt * 1000).toISOString()
-      : data.weeklyResetAt;
+      : data.weeklyResetAt ?? null;
 
     const timestamp: number | null = typeof data.timestamp === "number" ? data.timestamp : null;
     const ageMs = timestamp != null ? Date.now() - timestamp : null;
     const stale = ageMs != null ? ageMs > STALENESS_THRESHOLD_MS : true;
 
-    return NextResponse.json({
+    return {
       blockPercent: data.blockPercent ?? null,
       weeklyPercent: data.weeklyPercent ?? null,
       blockResetAt,
@@ -37,8 +77,13 @@ export async function GET() {
       timestamp,
       ageMs,
       stale,
-    });
+    };
   } catch {
-    return NextResponse.json(null);
+    return null;
   }
+}
+
+export async function GET() {
+  const payload = readCcstatuslineCache() ?? readLegacyUsage();
+  return NextResponse.json(payload);
 }

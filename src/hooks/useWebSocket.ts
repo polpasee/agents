@@ -90,6 +90,8 @@ export function useWebSocket() {
       ws.onmessage = (msg) => {
         try {
           const data = JSON.parse(msg.data);
+          // Heartbeat reply from the server — transport-level, no app state to update.
+          if (data?.type === "pong") return;
           if (!isValidServerEvent(data)) {
             console.warn("Invalid ServerEvent received:", data?.type);
             return;

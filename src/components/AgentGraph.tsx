@@ -752,10 +752,16 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     toolNodesRef.current = newToolNodes;
     toolLinksRef.current = newToolLinks;
 
+    // Always refresh the simulation's view of tool nodes/links. The brand-new
+    // link objects built above still have string source/target refs; without
+    // this call d3 never resolves them to SimNode objects, which leaves the
+    // tick handler unable to update line endpoints (causing orphaned dashed
+    // lines and detached tool circles). Only restart alpha when the node set
+    // actually changed, to avoid constant layout jitter.
+    simulation.nodes([...nodesRef.current, ...newToolNodes]);
+    const linkForce = simulation.force<d3.ForceLink<SimNode, SimLink>>("link");
+    if (linkForce) linkForce.links([...linksRef.current, ...newToolLinks]);
     if (changed) {
-      simulation.nodes([...nodesRef.current, ...newToolNodes]);
-      const linkForce = simulation.force<d3.ForceLink<SimNode, SimLink>>("link");
-      if (linkForce) linkForce.links([...linksRef.current, ...newToolLinks]);
       simulation.alpha(Math.max(simulation.alpha(), 0.1)).restart();
     }
 

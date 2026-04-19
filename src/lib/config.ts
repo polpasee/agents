@@ -38,7 +38,7 @@ export const GRAPH = {
   particleSpeed: 1500, // Duration (ms) for a particle to traverse a link
   sparklineWidth: 50, // Width (px) of the per-node sparkline chart
   sparklineHeight: 10, // Height (px) of the per-node sparkline chart
-  sparklineY: 84, // Vertical offset (px) of the sparkline below the node center
+  sparklineY: 100, // Vertical offset (px) of the sparkline below the node center (must sit below the stats line at statusY+18)
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
   toolNodeRadius: 20, // Radius (px) of tool call nodes in the force graph

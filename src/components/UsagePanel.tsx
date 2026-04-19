@@ -205,7 +205,7 @@ export function UsagePanel() {
         </div>
       )}
 
-      {/* Block & Weekly usage bars from real API data */}
+      {/* Session & Weekly usage bars from real API data */}
       {apiUsage && (
         <div
           className="pt-1.5 space-y-1"
@@ -224,7 +224,7 @@ export function UsagePanel() {
             </div>
           )}
           <div style={apiUsage.stale ? { opacity: 0.5 } : undefined}>
-            <UsageBar label="Block" percent={blockPercent} resetMs={blockResetMs} />
+            <UsageBar label="Session" percent={blockPercent} resetMs={blockResetMs} />
             <UsageBar label="Weekly" percent={weeklyPercent} resetMs={weeklyResetMs} />
           </div>
         </div>
