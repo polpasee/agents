@@ -92,7 +92,10 @@ export function renderNodeVisuals(
 
   const isSubAgent = !!(agent.parentId && !agent.teamId);
   const isFinished = agent.status === "completed" || agent.status === "error";
-  if (isFinished) {
+  // Sub-agents also dim when they go idle; main agents stay at full opacity
+  // between turns so a waiting session doesn't look "done".
+  const isDimmed = isFinished || (isSubAgent && agent.status === "idle");
+  if (isDimmed) {
     g.attr("opacity", 0.35);
   }
 

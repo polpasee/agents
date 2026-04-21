@@ -49,8 +49,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
 
     const width = container.clientWidth;
     const height = container.clientHeight;
-    const paddingX = width * 0.15;
-    const paddingY = height * 0.15;
+    const paddingX = width * 0.20;
+    const paddingY = height * 0.20;
 
     // Calculate bounding box of all nodes (including visual extent)
     const nodeExtent = GRAPH.nodeRadius + 80; // account for labels, satellites, text below
@@ -525,8 +525,8 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       if (!svg || !container || !zoom || nodes.length === 0) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
-      const padX = w * 0.15;
-      const padY = h * 0.15;
+      const padX = w * 0.20;
+      const padY = h * 0.20;
       const nodeExtent = GRAPH.nodeRadius + 80;
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const n of nodes) {
@@ -817,18 +817,21 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
             // Default rendering below — feel free to replace with your own style:
             g.each(function (d) {
               const color = agentColor(d.agent);
+              // Tool nodes only emit for running|idle parents; dim the idle
+              // ones so live tool calls pop against stale / between-turn ones.
+              const dim = d.agent.status !== "running";
               const displayName = d.toolCall!.tool.length > 9
                 ? d.toolCall!.tool.slice(0, 8) + "\u2026"
                 : d.toolCall!.tool;
               d3.select(this).append("circle")
                 .attr("r", GRAPH.toolNodeRadius)
-                .attr("fill", `${color}14`)
-                .attr("stroke", `${color}66`)
+                .attr("fill", dim ? `${color}08` : `${color}14`)
+                .attr("stroke", dim ? `${color}33` : `${color}66`)
                 .attr("stroke-width", 1.5);
               d3.select(this).append("text")
                 .attr("text-anchor", "middle")
                 .attr("dominant-baseline", "central")
-                .attr("fill", `${color}aa`)
+                .attr("fill", dim ? `${color}55` : `${color}aa`)
                 .attr("font-family", "monospace")
                 .attr("font-size", 9)
                 .style("pointer-events", "none")
@@ -870,10 +873,11 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     const observer = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
       d3.select(svg).attr("width", width).attr("height", height);
+      fitToView(250);
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [fitToView]);
 
   // ── Effect: Apply non-force layouts ──
   useEffect(() => {

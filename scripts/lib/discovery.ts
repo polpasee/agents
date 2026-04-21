@@ -107,6 +107,10 @@ export function selectStaleAgentIds(
     if (now - childLastMod <= STALE_THRESHOLD_MS) {
       freshParentIds.add(child.parentId);
     }
+    // Protect main as long as any child is not idle (running/waiting/completed/error).
+    if (child.status !== "idle") {
+      freshParentIds.add(child.parentId);
+    }
   }
   const stale: string[] = [];
   for (const [agentId, agent] of agents) {

@@ -12,11 +12,16 @@ function getBarColor(percent: number): string {
   return BUDGET_COLORS.ok;
 }
 
-/** Format ms as "Xhr Xm" for reset timers (matches Claude Code status line) */
+/** Format ms as "Xd Xhr" / "Xhr Xm" / "Xm" for reset timers (matches Claude Code status line) */
 function formatResetTime(ms: number): string {
   const totalMin = Math.floor(ms / 60000);
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}d ${remHours}hr`;
+  }
   if (hours > 0) return `${hours}hr ${minutes}m`;
   return `${minutes}m`;
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
@@ -16,6 +17,43 @@ const LEGACY_USAGE_PATH = path.join(os.homedir(), ".claude", "usage-status.json"
 /** Mark the panel stale once data is older than this. ccstatusline's own
  *  cache window is 3 minutes, so an hour is a generous upper bound. */
 const STALENESS_THRESHOLD_MS = 60 * 60 * 1000;
+
+/** Age at which we proactively fire ccstatusline in the background to refresh
+ *  the cache. Matches ccstatusline's own CACHE_MAX_AGE (180s) so we only spawn
+ *  when it would actually hit the upstream API. */
+const REFRESH_THRESHOLD_MS = 180 * 1000;
+
+/** Minimum gap between background refreshes. ccstatusline itself takes ~1–2s
+ *  and the UI polls every 10s, so we throttle to avoid stacking spawns. */
+const REFRESH_COOLDOWN_MS = 30 * 1000;
+
+let lastRefreshAt = 0;
+
+/** Fire-and-forget ccstatusline invocation. Feeds it a minimal stdin payload
+ *  so it renders a status line, which as a side effect refreshes usage.json. */
+function triggerBackgroundRefresh() {
+  const now = Date.now();
+  if (now - lastRefreshAt < REFRESH_COOLDOWN_MS) return;
+  lastRefreshAt = now;
+  try {
+    const child = spawn("npx", ["-y", "ccstatusline@latest"], {
+      detached: true,
+      stdio: ["pipe", "ignore", "ignore"],
+      env: process.env,
+    });
+    child.on("error", () => {});
+    const payload = JSON.stringify({
+      workspace: { current_dir: process.cwd(), project_dir: process.cwd() },
+      cost: { total_cost_usd: 0, total_duration_ms: 0, total_api_duration_ms: 0 },
+      model: { display_name: "Opus 4.7" },
+      session_id: "usage-refresh",
+    });
+    child.stdin?.end(payload);
+    child.unref();
+  } catch {
+    // Spawn can fail if npx is missing — silently skip, caller still gets cache.
+  }
+}
 
 export const dynamic = "force-dynamic";
 
@@ -85,5 +123,8 @@ function readLegacyUsage(): UsagePayload | null {
 
 export async function GET() {
   const payload = readCcstatuslineCache() ?? readLegacyUsage();
+  if (payload?.ageMs != null && payload.ageMs > REFRESH_THRESHOLD_MS) {
+    triggerBackgroundRefresh();
+  }
   return NextResponse.json(payload);
 }
