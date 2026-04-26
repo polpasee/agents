@@ -321,7 +321,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   },
 
   removeAgent: (agentId) => {
-    const { agents, edges, teams } = get();
+    const { agents, edges, teams, selectedSessionIds } = get();
     const agent = agents.get(agentId);
     const newAgents = new Map(agents);
     newAgents.delete(agentId);
@@ -340,7 +340,26 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         }
       }
     }
-    set({ agents: newAgents, edges: newEdges, teams: newTeams });
+    // Prune the dismissed main's session id from the filter so the user isn't
+    // left staring at an empty graph. Falling to empty here is a *consequence*
+    // of dismissal, not an explicit "All" — but showing the remaining sessions
+    // is a saner fallback than a blank canvas.
+    let nextSelectedSessionIds = selectedSessionIds;
+    if (agent && !agent.parentId) {
+      const sid = agent.sessionId || agent.id;
+      if (selectedSessionIds.has(sid)) {
+        nextSelectedSessionIds = new Set(selectedSessionIds);
+        nextSelectedSessionIds.delete(sid);
+      }
+    }
+    set({
+      agents: newAgents,
+      edges: newEdges,
+      teams: newTeams,
+      ...(nextSelectedSessionIds !== selectedSessionIds
+        ? { selectedSessionIds: nextSelectedSessionIds }
+        : {}),
+    });
   },
 
   // ── F2: Error Drill-Down ──────────────────────────────

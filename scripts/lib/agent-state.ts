@@ -78,7 +78,13 @@ export function registerAgent(opts: {
   teamId?: string;
   teamName?: string;
 }) {
-  const projectName = opts.projectDir.replace(/-/g, "/").replace(/^\//, "");
+  // macOS resolves /tmp, /var, /etc through /private/* symlinks, so cwds there
+  // are stored on disk as `-private-tmp` etc. Strip the cosmetic prefix from
+  // the *label* only — projectDir keeps the canonical path for de-duplication.
+  const projectName = opts.projectDir
+    .replace(/-/g, "/")
+    .replace(/^\//, "")
+    .replace(/^private\/(tmp|var|etc)\b/, "$1");
 
   const agent: AgentState = {
     id: opts.agentId,

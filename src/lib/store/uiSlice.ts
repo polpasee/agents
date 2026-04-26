@@ -5,12 +5,14 @@ import type { ThemeMode, GraphLayout, ComparisonState, HeatmapMetric } from "../
 
 export type UISlice = Pick<AgentStore,
   | "selectedAgentId" | "selectedTeamId" | "selectedSessionIds"
+  | "sessionFilterInitialized"
   | "viewMode" | "hiddenAgentTypes"
   | "transcriptOpen" | "fileAttentionOpen"
   | "heatmapEnabled" | "heatmapMetric"
   | "graphLayout" | "showExportModal" | "showLiveMetrics"
   | "theme" | "soundMuted" | "comparison"
   | "selectAgent" | "selectTeam" | "toggleSession" | "selectAllSessions"
+  | "autoSelectInitialSession"
   | "setViewMode" | "toggleAgentType"
   | "toggleTranscript" | "toggleFileAttention"
   | "toggleHeatmap" | "setHeatmapMetric"
@@ -20,23 +22,63 @@ export type UISlice = Pick<AgentStore,
   | "hydrateUI"
 >;
 
+const SESSION_FILTER_KEY = "selectedSessionIds";
+
+function persistSessionFilter(ids: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(SESSION_FILTER_KEY, JSON.stringify([...ids]));
+  } catch { /* quota / privacy mode — silently skip, in-memory state is still correct */ }
+}
+
 export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, get) => ({
   selectedAgentId: null,
   selectedTeamId: null,
   selectedSessionIds: new Set(), // F5: empty = all sessions
+  sessionFilterInitialized: false,
 
   selectAgent: (id) => set({ selectedAgentId: id }),
 
-  // F5: multi-session toggle
+  // F5: multi-session toggle. Any user toggle counts as "initialized" so the
+  // boot-time auto-pick won't fire afterward and clobber their choice.
   toggleSession: (sessionId) => {
     const { selectedSessionIds } = get();
     const next = new Set(selectedSessionIds);
     if (next.has(sessionId)) next.delete(sessionId);
     else next.add(sessionId);
-    set({ selectedSessionIds: next, selectedAgentId: null });
+    persistSessionFilter(next);
+    set({ selectedSessionIds: next, selectedAgentId: null, sessionFilterInitialized: true });
   },
 
-  selectAllSessions: () => set({ selectedSessionIds: new Set(), selectedAgentId: null }),
+  selectAllSessions: () => {
+    const empty = new Set<string>();
+    persistSessionFilter(empty);
+    set({ selectedSessionIds: empty, selectedAgentId: null, sessionFilterInitialized: true });
+  },
+
+  autoSelectInitialSession: () => {
+    const { agents, selectedSessionIds, sessionFilterInitialized } = get();
+    if (sessionFilterInitialized) return;
+    if (selectedSessionIds.size > 0) {
+      // Hydration restored a prior selection — just mark initialized.
+      set({ sessionFilterInitialized: true });
+      return;
+    }
+    // Pick the most-recently-started main session (parentless agents define a session).
+    let bestId: string | null = null;
+    let bestStart = -Infinity;
+    for (const a of agents.values()) {
+      if (a.parentId) continue;
+      if (a.startTime > bestStart) {
+        bestStart = a.startTime;
+        bestId = a.sessionId || a.id;
+      }
+    }
+    if (!bestId) return; // no eligible session yet — try again on the next agent arrival
+    const next = new Set<string>([bestId]);
+    persistSessionFilter(next);
+    set({ selectedSessionIds: next, sessionFilterInitialized: true });
+  },
 
   selectTeam: (teamId) => set({ selectedTeamId: teamId }),
 
@@ -111,9 +153,17 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
 
   // ── Hydration: sync from localStorage after client mount ──
   hydrateUI: () => {
-    set({
+    const stored = loadLocalStorage<string[] | null>(SESSION_FILTER_KEY, null);
+    const updates: Partial<UISlice> = {
       soundMuted: loadLocalStorage("soundMuted", false),
       theme: loadLocalStorage<ThemeMode>("theme", "dark"),
-    });
+    };
+    if (Array.isArray(stored)) {
+      // Storage present (incl. empty array = explicit "All") — respect it and
+      // do NOT auto-pick later. Empty array means user already chose "show all".
+      updates.selectedSessionIds = new Set(stored);
+      updates.sessionFilterInitialized = true;
+    }
+    set(updates);
   },
 });

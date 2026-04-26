@@ -27,6 +27,13 @@ export interface AgentStore {
   activity: ActivityEntry[];
   selectedAgentId: string | null;
   selectedSessionIds: Set<string>; // F5: multi-session (empty = all)
+  /**
+   * False until either (a) the auto-pick fires once on first agent arrival, or
+   * (b) the user explicitly toggles a session / All. Distinguishes "fresh boot"
+   * (auto-default to one session) from "user chose All" (empty set respected).
+   * Not persisted — derived from presence/absence of selectedSessionIds in storage.
+   */
+  sessionFilterInitialized: boolean;
   connected: boolean;
   teams: Map<string, TeamState>;
   selectedTeamId: string | null;
@@ -36,6 +43,8 @@ export interface AgentStore {
   selectAgent: (id: string | null) => void;
   toggleSession: (sessionId: string) => void; // F5
   selectAllSessions: () => void; // F5
+  /** Pick the most-recent main session into selectedSessionIds — runs once on boot. */
+  autoSelectInitialSession: () => void;
   selectTeam: (teamId: string | null) => void;
   getTeamStats: (teamId: string) => TeamStats;
   syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[]) => void;

@@ -211,3 +211,39 @@ describe("processEntry: lazy model learning", () => {
   });
 });
 
+describe("registerAgent: project label", () => {
+  beforeEach(() => {
+    agents.clear();
+  });
+
+  it("collapses macOS /private/{tmp,var,etc} symlink prefix on the label only", () => {
+    registerAgent({
+      agentId: "m1",
+      sessionId: "m1",
+      projectDir: "-private-tmp",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+    const md = agents.get("m1")?.metadata;
+    expect(md?.projectName).toBe("tmp");
+    expect(md?.projectDir).toBe("-private-tmp"); // canonical id preserved
+  });
+
+  it("does not strip 'private' when it's part of a real project path", () => {
+    registerAgent({
+      agentId: "m2",
+      sessionId: "m2",
+      projectDir: "-Users-erdos-private-notes",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+    expect(agents.get("m2")?.metadata?.projectName).toBe("Users/erdos/private/notes");
+  });
+});
+

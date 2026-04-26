@@ -39,6 +39,17 @@ export function Dashboard() {
   const hydrateUI = useAgentStore((s) => s.hydrateUI);
   useEffect(() => { hydrateUI(); }, [hydrateUI]);
 
+  // Default the topology to a single (most-recent) session on first agent arrival.
+  // Skipped if the user has already made a choice in a prior visit (hydrated from storage).
+  const sessionFilterInitialized = useAgentStore((s) => s.sessionFilterInitialized);
+  const autoSelectInitialSession = useAgentStore((s) => s.autoSelectInitialSession);
+  const agentsForInit = useAgentStore((s) => s.agents);
+  useEffect(() => {
+    if (sessionFilterInitialized) return;
+    if (agentsForInit.size === 0) return;
+    autoSelectInitialSession();
+  }, [sessionFilterInitialized, agentsForInit, autoSelectInitialSession]);
+
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
   const viewMode = useAgentStore((s) => s.viewMode);

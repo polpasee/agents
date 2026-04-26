@@ -162,6 +162,7 @@ export function AgentList() {
   const agents = useAgentStore((s) => s.agents);
   const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
   const toggleSession = useAgentStore((s) => s.toggleSession);
+  const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
   const removeAgent = useAgentStore((s) => s.removeAgent);
 
   const agentList = useFilteredAgents();
@@ -266,6 +267,34 @@ export function AgentList() {
           </div>
         )}
 
+        {hasMultipleSessions && (() => {
+          const allActive = selectedSessionIds.size === 0;
+          return (
+            <button
+              onClick={() => { if (!allActive) selectAllSessions(); }}
+              aria-pressed={allActive}
+              className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
+              style={{
+                background: allActive ? `${UI.primary}18` : "transparent",
+                border: `1px dashed ${allActive ? UI.primary : `${UI.primary}30`}`,
+              }}
+              title="Show all sessions in topology"
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="text-xs font-medium uppercase tracking-wider"
+                  style={{ color: allActive ? UI.primary : UI.text.dimmed }}
+                >
+                  All Sessions
+                </span>
+                <span className="text-xs ml-auto" style={{ color: UI.text.dimmed }}>
+                  {allSessionGroups.length}
+                </span>
+              </div>
+            </button>
+          );
+        })()}
+
         {hasMultipleSessions
           ? allSessionGroups.map((group) => {
               const isSelected = selectedSessionIds.has(group.sessionId);
@@ -274,27 +303,30 @@ export function AgentList() {
               const canDismiss = group.agents.every(
                 (a) => a.status === "idle" || a.status === "completed" || a.status === "error"
               );
+              // Note: unselected pills used to dim to opacity 0.4 to signal
+              // "filtered out." With the new "default to one session" model,
+              // *not selected* is the normal state — keep them fully readable
+              // and let the bright border + cyan label signal selection on its own.
               return (
                 <div key={group.sessionId} className="space-y-0.5">
                   <button
                     onClick={() => toggleSession(group.sessionId)}
                     aria-pressed={isSelected}
-                    className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
+                    className="w-full text-left rounded-md px-2 py-1.5 transition-colors hover:brightness-125"
                     style={{
-                      background: isSelected ? `${UI.primary}18` : `${UI.primary}08`,
-                      border: `1px solid ${isSelected ? UI.primary : `${UI.primary}20`}`,
-                      opacity: isActive ? 1 : 0.4,
+                      background: isSelected ? `${UI.primary}18` : `${UI.primary}0d`,
+                      border: `1px solid ${isSelected ? UI.primary : `${UI.primary}40`}`,
                     }}
                   >
                     <div className="flex items-center gap-1.5">
                       <span
                         className="text-xs font-medium truncate"
-                        style={{ color: isSelected ? UI.primary : UI.text.secondary }}
+                        style={{ color: isSelected ? UI.primary : UI.text.primary }}
                         title={group.label}
                       >
                         {group.label}
                       </span>
-                      <span className="text-xs ml-auto flex-shrink-0" style={{ color: UI.text.dimmed }}>
+                      <span className="text-xs ml-auto flex-shrink-0" style={{ color: UI.text.muted }}>
                         {group.agents.length}
                       </span>
                       {canDismiss && (
@@ -306,7 +338,7 @@ export function AgentList() {
                             group.agents.forEach((a) => removeAgent(a.id));
                           }}
                           className="flex-shrink-0 leading-none"
-                          style={{ color: UI.text.dimmed, fontSize: 10, lineHeight: 1 }}
+                          style={{ color: UI.text.muted, fontSize: 10, lineHeight: 1 }}
                           title="Dismiss idle session"
                         >
                           ✕

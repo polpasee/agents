@@ -582,3 +582,86 @@ describe("setConnected", () => {
     expect(useAgentStore.getState().connected).toBe(false);
   });
 });
+
+describe("autoSelectInitialSession", () => {
+  beforeEach(() => {
+    useAgentStore.setState({ sessionFilterInitialized: false, selectedSessionIds: new Set() });
+  });
+
+  it("picks the most-recently-started main session", () => {
+    // handleEvent sets startTime=timestamp arg, so register with explicit timestamps via the slice directly.
+    const now = Date.now();
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "old-main", agentType: "main", task: "t", sessionId: "old-main" },
+      now - 60_000,
+    );
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "new-main", agentType: "main", task: "t", sessionId: "new-main" },
+      now,
+    );
+
+    useAgentStore.getState().autoSelectInitialSession();
+
+    const { selectedSessionIds, sessionFilterInitialized } = useAgentStore.getState();
+    expect([...selectedSessionIds]).toEqual(["new-main"]);
+    expect(sessionFilterInitialized).toBe(true);
+  });
+
+  it("ignores sub-agents (parentId set) when picking the session", () => {
+    const now = Date.now();
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "main1", agentType: "main", task: "t", sessionId: "main1" },
+      now - 60_000,
+    );
+    // A *later* sub-agent must NOT be picked — only main sessions count.
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "sub1", agentType: "build", task: "t", parentId: "main1" },
+      now,
+    );
+
+    useAgentStore.getState().autoSelectInitialSession();
+    expect([...useAgentStore.getState().selectedSessionIds]).toEqual(["main1"]);
+  });
+
+  it("is a no-op once initialized — does not clobber a user choice", () => {
+    const now = Date.now();
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "m1", agentType: "main", task: "t", sessionId: "m1" },
+      now - 60_000,
+    );
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "m2", agentType: "main", task: "t", sessionId: "m2" },
+      now,
+    );
+    // User explicitly chose the older one, then a new session arrives — auto-pick must NOT switch them away.
+    useAgentStore.getState().toggleSession("m1");
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(true);
+
+    useAgentStore.getState().autoSelectInitialSession();
+    expect([...useAgentStore.getState().selectedSessionIds]).toEqual(["m1"]);
+  });
+
+  it("respects an explicit 'All' choice (empty set after user toggle)", () => {
+    const now = Date.now();
+    useAgentStore.getState().handleEvent(
+      { type: "agent:register", agentId: "m1", agentType: "main", task: "t", sessionId: "m1" },
+      now,
+    );
+    // User picked a session, then clicked All → empty set, but initialized=true.
+    useAgentStore.getState().toggleSession("m1");
+    useAgentStore.getState().selectAllSessions();
+    expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(true);
+
+    // Auto-pick must not re-narrow them to a single session.
+    useAgentStore.getState().autoSelectInitialSession();
+    expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
+  });
+
+  it("does nothing when there are no agents yet (will retry on next arrival)", () => {
+    useAgentStore.getState().autoSelectInitialSession();
+    const { selectedSessionIds, sessionFilterInitialized } = useAgentStore.getState();
+    expect(selectedSessionIds.size).toBe(0);
+    expect(sessionFilterInitialized).toBe(false); // not initialized — leaves room for the next call to fire
+  });
+});
