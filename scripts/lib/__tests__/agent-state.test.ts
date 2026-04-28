@@ -103,6 +103,111 @@ describe("parseAgentType", () => {
   it('does not match "fix" inside "prefix"', () => {
     expect(parseAgentType("prefix-helper")).toBe("generic");
   });
+
+  // Plugin agent names from CLAUDE.md cheatsheet
+  it('returns "build" for "voltagent-core-dev:websocket-engineer"', () => {
+    expect(parseAgentType("voltagent-core-dev:websocket-engineer")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-lang:react-specialist"', () => {
+    expect(parseAgentType("voltagent-lang:react-specialist")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-lang:nextjs-developer"', () => {
+    expect(parseAgentType("voltagent-lang:nextjs-developer")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-lang:typescript-pro"', () => {
+    expect(parseAgentType("voltagent-lang:typescript-pro")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-data-ai:postgres-pro"', () => {
+    expect(parseAgentType("voltagent-data-ai:postgres-pro")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-data-ai:database-optimizer"', () => {
+    expect(parseAgentType("voltagent-data-ai:database-optimizer")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-lang:sql-pro"', () => {
+    expect(parseAgentType("voltagent-lang:sql-pro")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-core-dev:fullstack-developer"', () => {
+    expect(parseAgentType("voltagent-core-dev:fullstack-developer")).toBe("build");
+  });
+
+  it('returns "build" for "voltagent-core-dev:ui-designer"', () => {
+    // ui-designer is listed under Build in CLAUDE.md; carve-out before "design" → plan
+    expect(parseAgentType("voltagent-core-dev:ui-designer")).toBe("build");
+  });
+
+  it('returns "test" for "agent-skills:test-engineer"', () => {
+    // "test" keyword wins before "engineer"
+    expect(parseAgentType("agent-skills:test-engineer")).toBe("test");
+  });
+
+  it('returns "test" for "voltagent-qa-sec:test-automator"', () => {
+    expect(parseAgentType("voltagent-qa-sec:test-automator")).toBe("test");
+  });
+
+  it('returns "test" for "voltagent-qa-sec:ui-ux-tester"', () => {
+    expect(parseAgentType("voltagent-qa-sec:ui-ux-tester")).toBe("test");
+  });
+
+  it('returns "review" for "agent-skills:code-reviewer"', () => {
+    expect(parseAgentType("agent-skills:code-reviewer")).toBe("review");
+  });
+
+  it('returns "review" for "agent-skills:security-auditor"', () => {
+    expect(parseAgentType("agent-skills:security-auditor")).toBe("review");
+  });
+
+  it('returns "review" for "pr-review-toolkit:silent-failure-hunter"', () => {
+    expect(parseAgentType("pr-review-toolkit:silent-failure-hunter")).toBe("review");
+  });
+
+  it('returns "review" for "pr-review-toolkit:type-design-analyzer"', () => {
+    // "review" wins over "design" and "analy" because review check comes first
+    expect(parseAgentType("pr-review-toolkit:type-design-analyzer")).toBe("review");
+  });
+
+  it('returns "review" for "pr-review-toolkit:pr-test-analyzer"', () => {
+    // "review" (from toolkit prefix) wins over "test"
+    expect(parseAgentType("pr-review-toolkit:pr-test-analyzer")).toBe("review");
+  });
+
+  it('returns "build" for "voltagent-qa-sec:performance-engineer"', () => {
+    // No review/test signal; falls through to engineer → build
+    expect(parseAgentType("voltagent-qa-sec:performance-engineer")).toBe("build");
+  });
+
+  it('returns "build" for "feature-dev:code-architect" (regression)', () => {
+    // Existing carve-out: compound "code-architect" resolves to build, not plan
+    expect(parseAgentType("feature-dev:code-architect")).toBe("build");
+  });
+
+  it('returns "explore" for "feature-dev:code-explorer"', () => {
+    expect(parseAgentType("feature-dev:code-explorer")).toBe("explore");
+  });
+
+  it('returns "build" for "voltagent-dev-exp:documentation-engineer"', () => {
+    // engineer → build wins; no "doc" category exists
+    expect(parseAgentType("voltagent-dev-exp:documentation-engineer")).toBe("build");
+  });
+
+  it('returns "generic" for "voltagent-dev-exp:git-workflow-manager"', () => {
+    // No recognisable signal in the slug
+    expect(parseAgentType("voltagent-dev-exp:git-workflow-manager")).toBe("generic");
+  });
+
+  it('returns "review" for "failure-hunter"', () => {
+    expect(parseAgentType("failure-hunter")).toBe("review");
+  });
+
+  it('returns "review" for "type-design-analyzer"', () => {
+    expect(parseAgentType("type-design-analyzer")).toBe("review");
+  });
 });
 
 describe("processEntry: lazy model learning", () => {

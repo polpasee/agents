@@ -92,6 +92,11 @@ export function AgentDetail() {
           <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
+          {agent.displayType && agent.displayType.toLowerCase() !== AGENT_LABELS[agent.agentType].toLowerCase() && (
+            <span className="text-xs font-mono" style={{ color: UI.text.muted }}>
+              {agent.displayType}
+            </span>
+          )}
           <button
             onClick={handleViewLog}
             className="ml-auto px-1.5 py-0.5 rounded text-xs font-mono"
