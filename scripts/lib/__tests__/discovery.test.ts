@@ -43,7 +43,12 @@ vi.mock("../agent-state", () => ({
   broadcast: vi.fn(),
 }));
 
-import { discoverActiveSessions, selectStaleAgentIds, selectLosingMains } from "../discovery";
+import {
+  discoverActiveSessions,
+  selectStaleAgentIds,
+  selectLosingMains,
+  isEphemeralProjectDir,
+} from "../discovery";
 import { STALE_THRESHOLD_MS } from "../config";
 
 beforeEach(() => {
@@ -70,6 +75,53 @@ describe("discoverActiveSessions", () => {
     mockReaddirSync.mockReturnValue([]);
 
     expect(() => discoverActiveSessions("/projects")).not.toThrow();
+  });
+
+  it("skips ephemeral project dirs (temp / var-folders) so background SDK runs don't pollute the topology", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReaddirSync.mockReturnValueOnce([
+      "-private-tmp",
+      "-private-var-folders-nd-vn6fz1m57xvf7c4mn",
+      "-Users-erdos-Github-agents",
+    ]);
+    // statSync only invoked for non-ephemeral candidates that survive the filter
+    mockStatSync.mockReturnValue({ isDirectory: () => true, mtimeMs: 0, size: 0 });
+    // readdirSync called again for each surviving project dir's contents — return [] to short-circuit
+    mockReaddirSync.mockReturnValue([]);
+
+    discoverActiveSessions("/projects");
+
+    const statedDirs = mockStatSync.mock.calls.map((c) => String(c[0]));
+    expect(statedDirs.some((p) => p.includes("-private-tmp"))).toBe(false);
+    expect(statedDirs.some((p) => p.includes("-private-var-folders"))).toBe(false);
+    expect(statedDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(true);
+  });
+});
+
+describe("isEphemeralProjectDir", () => {
+  it.each([
+    "-private-tmp",
+    "-private-tmp-some-script",
+    "-private-var-folders-nd-vn6fz1m57xvf7c4mn2gn8lmr0000gn-T",
+    "-private-var-tmp",
+    "-private-var-tmp-staging",
+    "-tmp",
+    "-tmp-foo",
+    "-var-folders-nd-abc",
+    "-var-tmp-something",
+  ])("matches ephemeral path: %s", (dir) => {
+    expect(isEphemeralProjectDir(dir)).toBe(true);
+  });
+
+  it.each([
+    "-Users-erdos-Github-agents",
+    "-Users-erdos-Github-ipportal2",
+    "-Users-erdos-Documents-GitHub-myproj",
+    "-Users-erdos-tmp-project",
+    "-Users-foo-var-folders-bar",
+    "-Users-erdos-Github-cacti-api",
+  ])("does not match real workspace: %s", (dir) => {
+    expect(isEphemeralProjectDir(dir)).toBe(false);
   });
 });
 

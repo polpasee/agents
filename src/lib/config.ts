@@ -29,7 +29,7 @@ export const GRAPH = {
   linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
   subAgentLinkDistance: 160, // Ideal distance (px) between a main agent and its sub-agent
   chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
-  subAgentNodeRadius: 20, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
+  subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   subAgentCollideRadius: 70, // Collision radius (px) for sub-agent nodes
   collideRadius: 120, // Collision radius (px) preventing node overlap
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
@@ -41,8 +41,8 @@ export const GRAPH = {
   sparklineY: 100, // Vertical offset (px) of the sparkline below the node center (must sit below the stats line at statusY+18)
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
-  toolNodeRadius: 20, // Radius (px) of tool call nodes in the force graph
-  toolLinkDistance: 100, // Ideal distance (px) between a tool node and its parent agent
+  toolNodeRadius: 14, // Radius (px) of tool call nodes in the force graph
+  toolLinkDistance: 80, // Ideal distance (px) between a tool node and its parent agent
   toolWindowMs: 15_000, // Duration (ms) tool call nodes remain visible after being called
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;

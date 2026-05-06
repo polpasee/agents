@@ -12,6 +12,10 @@ export type AgentType =
 
 export type TeamStatus = "forming" | "active" | "completed" | "error";
 
+/** Extended-thinking effort tier surfaced on the topology under main agents. */
+export const THINKING_EFFORTS = ["low", "medium", "high", "xhigh", "max", "auto"] as const;
+export type ThinkingEffort = typeof THINKING_EFFORTS[number];
+
 // Events sent from the file watcher to the dashboard
 export type AgentEvent =
   | {
@@ -26,6 +30,8 @@ export type AgentEvent =
       model?: string;
       teamId?: string;
       metadata?: Record<string, unknown>;
+      effort?: ThinkingEffort;
+      is1MContext?: boolean;
     }
   | {
       type: "agent:status";
@@ -99,6 +105,13 @@ export interface AgentState {
   metadata?: Record<string, unknown>;
   waitingOn?: string; // F1: dependency tracking
   budgetExceeded?: boolean; // F3: token budget exceeded flag
+  /** Extended-thinking effort tier (low|medium|high|xhigh|max|auto). Shown
+   *  under the hexagon for main agents; sub-agents inherit visually if unset. */
+  effort?: ThinkingEffort;
+  /** True when the user has the 1M-context beta enabled (settings.json
+   *  `model` field carries the `[1m]` suffix). Renders as a "1M" line under
+   *  the model name in the hexagon center. */
+  is1MContext?: boolean;
 }
 
 export interface ToolCallEntry {

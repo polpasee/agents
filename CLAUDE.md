@@ -1,4 +1,6 @@
-# Approach
+# Approach Rule
+
+YOU MUST FOLLOW 4 RULES BELOW
 
 ## 1. Think Before Coding
 
@@ -69,11 +71,22 @@ The main agent MUST delegate implementation work. The main agent implements code
 
 - Change is ≤5 lines AND touches 1 file
 - No business logic decisions involved
+-
 - It is glue code between subagent outputs, OR a review-feedback fix with an exact line reference
 
 **Everything else → dispatch a subagent.** This includes: exploring the codebase (>3 queries), writing any new component/action/query, refactors, debugging, tests, reviews, schema changes, docs.
 
 If tempted to "just do it quickly" — stop. That instinct is what turns the main agent into the implementer. Dispatch instead.
+
+## Always Pickup subagent
+
+**Check on all agents in list/Existing or library first** before spawn new agents for Delegation. you cannot find agent to support this delegate please write detiail task for that Before dispatching to not in library agents
+
+```
+No Agent in Library for support this tasks.
+Task Detail : ......
+
+```
 
 ## Triage Protocol (required before any implementation work)
 
@@ -91,87 +104,6 @@ TRIAGE:
 ```
 
 Then dispatch. Independent workstreams MUST go out in a single message with multiple `Agent` tool calls — never sequential when parallel is possible.
-
-## Subagent Selection Cheatsheet
-
-Plugin agents are namespaced `plugin:agent`. Pick the most specific match. When two fit, the **role** agent (e.g. `websocket-engineer`) usually beats the **language** agent (e.g. `node-specialist`) for systems work.
-
-### Build (frontend / framework)
-
-| Agent | Use when |
-|---|---|
-| `voltagent-lang:nextjs-developer` | App Router work, route handlers, server components, `src/app/**` |
-| `voltagent-lang:react-specialist` | React 19 features, component splitting, render perf in `src/components/**` |
-| `voltagent-lang:typescript-pro` | Generics, discriminated unions, strict-mode type design (e.g. `AgentEvent` variants) |
-| `voltagent-core-dev:frontend-developer` | Frontend work that spans several concerns (UI + state + styling) |
-| `voltagent-core-dev:fullstack-developer` | Feature crosses WS server (`scripts/ws-server.ts`) and UI together |
-| `voltagent-core-dev:ui-designer` | Visual design, topology aesthetics, component-library decisions |
-
-### Build (real-time / Node)
-
-| Agent | Use when |
-|---|---|
-| `voltagent-core-dev:websocket-engineer` | Anything in `scripts/ws-server.ts`, `useWebSocket.ts`: backpressure, reconnect, replay, heartbeat |
-| `voltagent-lang:node-specialist` | Node runtime tuning for `tsx scripts/ws-server.ts` |
-
-### Build (database)
-
-| Agent | Use when |
-|---|---|
-| `voltagent-data-ai:postgres-pro` | PostgreSQL-specific: query tuning, replication, HA, advanced PG features |
-| `voltagent-data-ai:database-optimizer` | Slow-query analysis & indexing across PG / MySQL / SQL Server / Oracle |
-| `voltagent-lang:sql-pro` | Pure SQL: complex queries, schema design, query plans |
-
-### Verify (test / debug)
-
-| Agent | Use when |
-|---|---|
-| `agent-skills:test-engineer` | Vitest + RTL test design, coverage gaps (e.g. `src/lib/store/*`) |
-| `voltagent-qa-sec:test-automator` | Wiring tests into CI |
-| `voltagent-qa-sec:ui-ux-tester` | Browser-driven flows on the live dashboard (has chrome-mcp access) |
-| `voltagent-qa-sec:debugger` | Runtime errors, stack traces, repro-then-fix |
-| `voltagent-qa-sec:error-detective` | Cross-component error correlation, root-cause analysis |
-
-### Review (pre-merge)
-
-| Agent | Use when |
-|---|---|
-| `agent-skills:code-reviewer` | Default 5-axis review before merge |
-| `pr-review-toolkit:silent-failure-hunter` | Reviewing WS / replay / catch-block code — high payoff here |
-| `pr-review-toolkit:type-design-analyzer` | New types in `src/lib/types.ts` or store slices |
-| `pr-review-toolkit:pr-test-analyzer` | Verify tests actually cover the new behavior |
-| `agent-skills:security-auditor` | WS Origin / payload validation, replay clamp, file-size cap audits |
-| `voltagent-qa-sec:performance-engineer` | D3 graph fps, WS message throughput, render hotspots |
-
-### Explore / plan (no code changes)
-
-| Agent | Use when |
-|---|---|
-| `Explore` | Open-ended search across the codebase (>3 queries) — quick / medium / very thorough |
-| `feature-dev:code-explorer` | Trace execution paths (e.g. WS event → store → component) |
-| `feature-dev:code-architect` | Implementation blueprint before dispatching builders |
-| `Plan` | Multi-step plan with critical-files list and tradeoffs |
-
-### Ship
-
-| Agent | Use when |
-|---|---|
-| `voltagent-dev-exp:git-workflow-manager` | Branching strategy, rebase plans, history cleanup |
-| `voltagent-dev-exp:documentation-engineer` | README / ADR / docs work in `docs/` |
-
-### Default rotation (covers ~90% of changes here)
-
-```
-WS / real-time     → voltagent-core-dev:websocket-engineer
-UI / components    → voltagent-lang:react-specialist  (or nextjs-developer for routes)
-Tests              → agent-skills:test-engineer
-Pre-merge review   → agent-skills:code-reviewer + pr-review-toolkit:silent-failure-hunter
-Open-ended search  → Explore (medium)
-```
-
-### Not relevant for this repo (do not dispatch)
-
-`voltagent-data-ai:ml-engineer` / `machine-learning-engineer` / `ai-engineer` / `nlp-engineer` / `reinforcement-learning-engineer` / `llm-architect` / `data-scientist` / `data-analyst` (no ML), `voltagent-infra:*` (no infra here), mobile/Flutter/Swift/PHP/Go/Rust/Java/.NET/PowerShell language agents, Windows/AD specialists.
 
 ## Core Orchestration Rules
 
@@ -214,18 +146,6 @@ After every sub-agent returns, verify:
 - No hardcoded values or magic strings
 
 If review fails: re-assign with specific correction instructions. Fix trivial issues (typos, imports) directly.
-
-## Anti-Patterns to Flag
-
-- Using `fetch()` for internal API calls — use Server Functions
-- Raw try-catch in actions — use `withAction()` wrapper
-- Business logic in components — extract to `lib/db/queries/` or action layer
-- `useEffect` for server data — use Server Components or pass as props
-- Inline SQL — use Drizzle query builder
-- `console.log` left in code — use project logger (`lib/logger.ts`)
-- Components over 200 lines without clear reason — consider splitting
-- Missing Zod validation on mutation inputs
-- Cache reads without TTL
 
 
 # Project Overview

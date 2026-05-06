@@ -836,20 +836,20 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
               // Tool nodes only emit for running|idle parents; dim the idle
               // ones so live tool calls pop against stale / between-turn ones.
               const dim = d.agent.status !== "running";
-              const displayName = d.toolCall!.tool.length > 9
-                ? d.toolCall!.tool.slice(0, 8) + "\u2026"
+              const displayName = d.toolCall!.tool.length > 6
+                ? d.toolCall!.tool.slice(0, 5) + "\u2026"
                 : d.toolCall!.tool;
               d3.select(this).append("circle")
                 .attr("r", GRAPH.toolNodeRadius)
                 .attr("fill", dim ? `${color}08` : `${color}14`)
                 .attr("stroke", dim ? `${color}33` : `${color}66`)
-                .attr("stroke-width", 1.5);
+                .attr("stroke-width", 1);
               d3.select(this).append("text")
                 .attr("text-anchor", "middle")
                 .attr("dominant-baseline", "central")
                 .attr("fill", dim ? `${color}55` : `${color}aa`)
                 .attr("font-family", "monospace")
-                .attr("font-size", 9)
+                .attr("font-size", 7)
                 .style("pointer-events", "none")
                 .text(displayName);
             });

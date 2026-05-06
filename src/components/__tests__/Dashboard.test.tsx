@@ -22,9 +22,6 @@ vi.mock("../MiniMap", () => ({
 vi.mock("../Timeline", () => ({
   Timeline: () => <div data-testid="timeline">Timeline</div>,
 }));
-vi.mock("../GraphControls", () => ({
-  GraphControls: () => <div data-testid="graph-controls">GraphControls</div>,
-}));
 vi.mock("../LiveMetrics", () => ({
   LiveMetrics: () => null,
 }));

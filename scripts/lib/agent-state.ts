@@ -6,6 +6,7 @@ import type {
   EdgeState,
   ServerEvent,
   TeamState,
+  ThinkingEffort,
   ToolCallEntry,
 } from "../../src/lib/types";
 import {
@@ -86,6 +87,8 @@ export function registerAgent(opts: {
   startTime: number;
   teamId?: string;
   teamName?: string;
+  effort?: ThinkingEffort;
+  is1MContext?: boolean;
 }) {
   // macOS resolves /tmp, /var, /etc through /private/* symlinks, so cwds there
   // are stored on disk as `-private-tmp` etc. Strip the cosmetic prefix from
@@ -114,6 +117,8 @@ export function registerAgent(opts: {
     contextWindow: 1000000,
     startTime: opts.startTime,
     metadata: { projectName, projectDir: opts.projectDir },
+    effort: opts.effort,
+    is1MContext: opts.is1MContext,
   };
 
   agents.set(opts.agentId, agent);
@@ -158,6 +163,8 @@ export function registerAgent(opts: {
     model: opts.model,
     teamId: opts.teamId,
     metadata: agent.metadata,
+    effort: opts.effort,
+    is1MContext: opts.is1MContext,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
 }
@@ -248,6 +255,8 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
           teamId: agent.teamId,
           parentId: agent.parentId,
           metadata: agent.metadata,
+          effort: agent.effort,
+          is1MContext: agent.is1MContext,
         },
         timestamp,
       });

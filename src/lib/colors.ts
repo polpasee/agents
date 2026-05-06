@@ -1,64 +1,114 @@
 import type { AgentType, AgentStatus, AgentState } from "./types";
 
+/**
+ * Curated subset of Tailwind v3 colors (https://tailwindcss.com/docs/colors).
+ * All UI hex values flow from this single source — change a swatch here and
+ * the whole dashboard follows.
+ */
+const TW = {
+  red500: "#ef4444",
+  amber400: "#fbbf24",
+  amber500: "#f59e0b",
+  yellow500: "#eab308",
+  green400: "#4ade80",
+  emerald400: "#34d399",
+  cyan400: "#22d3ee",
+  sky400: "#38bdf8",
+  blue400: "#60a5fa",
+  blue500: "#3b82f6",
+  indigo400: "#818cf8",
+  violet400: "#a78bfa",
+  purple400: "#c084fc",
+  fuchsia400: "#e879f9",
+  pink400: "#f472b6",
+  rose400: "#fb7185",
+  red400: "#f87171",
+  orange400: "#fb923c",
+  yellow400: "#facc15",
+  lime400: "#a3e635",
+  teal400: "#2dd4bf",
+  slate200: "#e2e8f0",
+  slate400: "#94a3b8",
+  slate800: "#1e293b",
+  slate900: "#0f172a",
+  slate950: "#020617",
+  gray500: "#6b7280",
+  gray600: "#4b5563",
+  gray700: "#374151",
+} as const;
+
 /** Semantic UI colors used across components */
 export const UI = {
-  primary: "#00f5ff",
-  error: "#ff4444",
-  tool: "#ffaa00",
-  cache: { read: "#00ff88", write: "#ffaa00" },
+  primary: TW.cyan400,
+  error: TW.red500,
+  tool: TW.amber500,
+  cache: { read: TW.emerald400, write: TW.amber500 },
   text: {
-    primary: "#e2e8f0",
-    secondary: "#94a3b8",
-    muted: "#666",
-    dimmed: "#555",
-    empty: "#444",
+    primary: TW.slate200,
+    secondary: TW.slate400,
+    muted: TW.gray500,
+    dimmed: TW.gray600,
+    empty: TW.gray700,
   },
-  model: "#a78bfa",
+  model: TW.violet400,
 } as const;
 
 export const AGENT_COLORS: Record<AgentType, string> = {
-  main: "#00f5ff",
-  explore: "#ff00ff",
-  plan: "#00ff88",
-  build: "#ffaa00",
-  review: "#a78bfa",
-  test: "#f472b6",
-  "team-lead": "#fbbf24",
-  generic: "#94a3b8",
+  main: TW.amber400,
+  explore: TW.fuchsia400,
+  plan: TW.emerald400,
+  build: TW.amber500,
+  review: TW.violet400,
+  test: TW.pink400,
+  "team-lead": TW.amber400,
+  generic: TW.slate400,
 };
 
 /**
- * Deterministic hue-family color from a string — used to give each distinct
- * sub-agent displayType (api-builder, frontend-ui, db-reader, …) its own
- * color even when they share the same coarse agentType category. Uses HSL
- * with fixed saturation/lightness so colors stay vivid on the dark canvas.
+ * Hash-driven palette pool used by {@link colorFromString} to give each
+ * distinct sub-agent displayType (api-builder, frontend-ui, db-reader, …)
+ * its own color. All entries are Tailwind -400 shade so they sit at a
+ * consistent vibrance on the dark canvas.
+ */
+const HASH_PALETTE: readonly string[] = [
+  // Listed in the natural Tailwind rainbow order: warm → cool → warm.
+  TW.red400,
+  TW.orange400,
+  TW.amber400,
+  TW.yellow400,
+  TW.lime400,
+  TW.green400,
+  TW.emerald400,
+  TW.teal400,
+  TW.cyan400,
+  TW.sky400,
+  TW.blue400,
+  TW.indigo400,
+  TW.violet400,
+  TW.purple400,
+  TW.fuchsia400,
+  TW.pink400,
+  TW.rose400,
+];
+
+/**
+ * Deterministic Tailwind-palette color from a string — used to give each
+ * distinct sub-agent displayType its own color even when they share the
+ * same coarse agentType category.
  *
  * Hash values are multiplied by the golden-ratio conjugate (φ⁻¹ ≈ 0.618)
- * to get a low-discrepancy distribution — guarantees that neighboring
- * names (like "api-builder" vs "frontend-ui") land in visually distinct
- * parts of the hue wheel instead of clustering.
+ * to get a low-discrepancy distribution, so neighboring names ("api-builder"
+ * vs "frontend-ui") land in visually distinct slots of the palette instead
+ * of clustering together.
  *
- * Returns 6-digit hex, not hsl(), so downstream code that appends hex-alpha
- * digits (e.g. `${color}66` for 40% opacity) produces valid 8-digit hex
- * instead of malformed "hsl(...)66" which browsers silently drop to black.
+ * Returns 6-digit hex so downstream code that appends hex-alpha digits
+ * (e.g. `${color}66` for 40% opacity) produces valid 8-digit hex.
  */
 export function colorFromString(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  const hue = Math.floor((((Math.abs(h) * 0.6180339887498949) % 1) * 360));
-  return hslToHex(hue, 75, 65);
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const sN = s / 100;
-  const lN = l / 100;
-  const a = sN * Math.min(lN, 1 - lN);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const c = lN - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-    return Math.round(c * 255).toString(16).padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
+  const fraction = (Math.abs(h) * 0.6180339887498949) % 1;
+  return HASH_PALETTE[Math.floor(fraction * HASH_PALETTE.length)];
 }
 
 /** Resolve the display color for an agent — prefer the per-displayType
@@ -69,23 +119,23 @@ export function agentColor(agent: Pick<AgentState, "agentType" | "displayType">)
 }
 
 export const STATUS_COLORS: Record<AgentStatus, string> = {
-  running: "#00ff88",
-  waiting: "#eab308",
-  idle: "#3b82f6",
-  completed: "#6b7280",
-  error: "#ff4444",
+  running: TW.emerald400,
+  waiting: TW.yellow500,
+  idle: TW.blue500,
+  completed: TW.gray500,
+  error: TW.red500,
 };
 
 export const BUDGET_COLORS = {
-  ok: "#00ff88",
-  warning: "#eab308",
-  critical: "#ff4444",
+  ok: TW.emerald400,
+  warning: TW.yellow500,
+  critical: TW.red500,
 } as const;
 
 export const HEATMAP_COLORS = {
-  healthy: "#00ff88",
-  moderate: "#eab308",
-  bottleneck: "#ff4444",
+  healthy: TW.emerald400,
+  moderate: TW.yellow500,
+  bottleneck: TW.red500,
 } as const;
 
 export const AGENT_LABELS: Record<AgentType, string> = {
@@ -101,51 +151,51 @@ export const AGENT_LABELS: Record<AgentType, string> = {
 
 // F1: Dependency/blocking edge colors
 export const EDGE_COLORS = {
-  blocking: "#ff4444",
-  dependency: "#eab308",
+  blocking: TW.red500,
+  dependency: TW.yellow500,
 } as const;
 
 // F11: Theme color palettes
 export const THEME_COLORS = {
-  dark: { bg: "#0a0a1a", panel: "#0d1117", border: "#1a1a2e", text: "#e2e8f0" },
-  light: { bg: "#f8fafc", panel: "#ffffff", border: "#e2e8f0", text: "#1e293b" },
+  dark: { bg: TW.slate950, panel: TW.slate900, border: TW.slate800, text: TW.slate200 },
+  light: { bg: "#f8fafc", panel: "#ffffff", border: TW.slate200, text: "#1e293b" },
 } as const;
 
 // F15: Efficiency score colors
 export const EFFICIENCY_COLORS = {
-  excellent: "#00ff88",
-  good: "#eab308",
-  poor: "#ff4444",
+  excellent: TW.emerald400,
+  good: TW.yellow500,
+  poor: TW.red500,
 } as const;
 
 export const TEAM_STATUS_COLORS: Record<string, string> = {
-  forming: "#eab308",
-  active: "#00ff88",
-  completed: "#6b7280",
-  error: "#ff4444",
+  forming: TW.yellow500,
+  active: TW.emerald400,
+  completed: TW.gray500,
+  error: TW.red500,
 };
 
 export const CHANGE_COLORS: Record<string, string> = {
-  create: "#00ff88",
-  edit: "#eab308",
-  delete: "#ff4444",
+  create: TW.emerald400,
+  edit: TW.yellow500,
+  delete: TW.red500,
 };
 
 export const ROLE_COLORS: Record<string, string> = {
-  user: "#00f5ff",
-  assistant: "#00ff88",
-  system: "#6b7280",
-  default: "#94a3b8",
+  user: TW.cyan400,
+  assistant: TW.emerald400,
+  system: TW.gray500,
+  default: TW.slate400,
 };
 
-export const ANNOTATION_COLOR = "#f59e0b";
+export const ANNOTATION_COLOR = TW.amber500;
 
 export const METRIC_COLORS = {
-  active: "#00ff88",
-  cost: "#ffaa00",
+  active: TW.emerald400,
+  cost: TW.amber500,
 } as const;
 
 export const COMPARISON_COLORS = {
-  better: "#00ff88",
-  worse: "#ff4444",
+  better: TW.emerald400,
+  worse: TW.red500,
 } as const;
