@@ -13,7 +13,7 @@ import {
   parseAgentType,
   broadcast,
 } from "./agent-state";
-import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
+import { readNewLines, extractTaskFromJSONL, readEffortLevel, readIs1MContext, cleanupFileOffsets } from "./file-reader";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS } from "./config";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -177,6 +177,8 @@ export function discoverActiveSessions(projectsDir: string) {
           slug: info.slug,
           model: info.model,
           startTime: info.startTime || stat.mtimeMs,
+          effort: readEffortLevel(projectDir),
+          is1MContext: readIs1MContext(projectDir),
         });
       }
 
@@ -253,6 +255,8 @@ export function discoverActiveSessions(projectsDir: string) {
               slug: info.slug,
               model: info.model,
               startTime: info.startTime || parentStat.mtimeMs,
+              effort: readEffortLevel(projectDir),
+              is1MContext: readIs1MContext(projectDir),
             });
             // Seed lastModified from the fresher of parent mtime or child mtime
             // so the main stays marked alive while the sub is active.
@@ -321,6 +325,8 @@ export function discoverActiveSessions(projectsDir: string) {
             startTime: info.startTime || stat.mtimeMs,
             teamId,
             teamName,
+            effort: readEffortLevel(projectDir),
+            is1MContext: readIs1MContext(projectDir),
           });
         }
 

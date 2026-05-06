@@ -92,6 +92,10 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               agentType: event.agentType || existing.agentType,
               displayType: existing.displayType || event.displayType,
               metadata: existing.metadata || event.metadata,
+              // Effort and 1M-context can be flipped mid-session by toggling
+              // settings.json, so prefer the incoming value when present.
+              effort: event.effort ?? existing.effort,
+              is1MContext: event.is1MContext ?? existing.is1MContext,
             }
           : {
               id: event.agentId,
@@ -112,6 +116,8 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               contextWindow: DEFAULT_CONTEXT_WINDOW,
               startTime: timestamp,
               metadata: event.metadata,
+              effort: event.effort,
+              is1MContext: event.is1MContext,
             };
         newAgents.set(event.agentId, agent);
         // Edge and team membership only on first register — avoids duplicate

@@ -11,8 +11,8 @@ import { AgentGraph } from "./AgentGraph";
 import type { AgentGraphHandle } from "./AgentGraph";
 import { AgentDetail } from "./AgentDetail";
 import { TimelineBar } from "./TimelineBar";
-import { GraphControls } from "./GraphControls";
 import { Timeline } from "./Timeline";
+import { TopologyUsageStatus } from "./TopologyUsageStatus";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
 import { TeamPanel } from "./TeamPanel";
@@ -155,7 +155,7 @@ export function Dashboard() {
           ) : viewMode === "graph" ? (
             <ErrorBoundary>
               <AgentGraph ref={graphRef} />
-              <GraphControls />
+              <TopologyUsageStatus />
             </ErrorBoundary>
           ) : (
             <ErrorBoundary>
