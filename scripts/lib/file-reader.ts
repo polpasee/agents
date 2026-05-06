@@ -2,9 +2,13 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
-import type { ThinkingEffort } from "../../src/lib/types";
+import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
 
-const VALID_EFFORTS: readonly string[] = ["low", "medium", "high", "xhigh", "max", "auto"];
+function warnNonMissing(file: string, err: unknown): void {
+  if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+    console.warn(`Failed to read settings ${file}:`, err);
+  }
+}
 
 /**
  * Resolve the candidate settings.json paths (project-first, user fallback).
@@ -29,10 +33,12 @@ export function readEffortLevel(projectDir?: string): ThinkingEffort | undefined
       const raw = fs.readFileSync(file, "utf-8");
       const parsed = JSON.parse(raw);
       const value = parsed?.effortLevel;
-      if (typeof value === "string" && VALID_EFFORTS.includes(value)) {
+      if (typeof value === "string" && (THINKING_EFFORTS as readonly string[]).includes(value)) {
         return value as ThinkingEffort;
       }
-    } catch { /* missing file or malformed JSON — try next candidate */ }
+    } catch (err) {
+      warnNonMissing(file, err);
+    }
   }
   return undefined;
 }
@@ -40,18 +46,23 @@ export function readEffortLevel(projectDir?: string): ThinkingEffort | undefined
 /**
  * Detect whether the user has the 1M-context beta enabled — encoded as a
  * `[1m]` suffix on the `model` field of `.claude/settings.json` (e.g.
- * `"model": "opus[1m]"`). Returns `false` when missing or malformed.
+ * `"model": "opus[1m]"`). Returns `undefined` when no candidate file
+ * yields a usable `model` string — distinguishing "we don't know" from
+ * "definitely off" so the slice's `??` merge can preserve a known value
+ * across transient read failures.
  */
-export function readIs1MContext(projectDir?: string): boolean {
+export function readIs1MContext(projectDir?: string): boolean | undefined {
   for (const file of settingsCandidates(projectDir)) {
     try {
       const raw = fs.readFileSync(file, "utf-8");
       const parsed = JSON.parse(raw);
       const model = parsed?.model;
-      if (typeof model === "string" && /\[1m\]/i.test(model)) return true;
-    } catch { /* missing or malformed — try next candidate */ }
+      if (typeof model === "string") return /\[1m\]/i.test(model);
+    } catch (err) {
+      warnNonMissing(file, err);
+    }
   }
-  return false;
+  return undefined;
 }
 
 const fileOffsets = new Map<string, number>();

@@ -92,8 +92,9 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               agentType: event.agentType || existing.agentType,
               displayType: existing.displayType || event.displayType,
               metadata: existing.metadata || event.metadata,
-              // Effort and 1M-context can be flipped mid-session by toggling
-              // settings.json, so prefer the incoming value when present.
+              // Effort/1M-context are read at register time; carry forward
+              // the existing value if a refresh event happens to lack them
+              // (e.g. transient settings.json read failure upstream).
               effort: event.effort ?? existing.effort,
               is1MContext: event.is1MContext ?? existing.is1MContext,
             }

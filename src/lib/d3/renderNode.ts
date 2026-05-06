@@ -69,27 +69,19 @@ export function renderNodeVisuals(
   selectedAgentId: string | null,
 ) {
   const color = agentColor(agent);
-  // Caption layout under the hexagon is two lines max:
-  //   Line 1: agent name (hidden for main agents)
-  //   Line 2: extended-thinking effort tier (when known)
-  // Slug and model-name labels were removed — model identity still appears as
-  // the O/S/H letter in the hexagon center.
   // Plugin-namespaced agent names ("voltagent-core-dev:backend-developer")
-  // get the prefix stripped — only the agent name itself reads under the
-  // hexagon. Defensive: also handle multi-colon names by keeping the last segment.
+  // get the prefix stripped — only the trailing segment reads under the hex.
   const rawDisplay = agent.displayType || AGENT_LABELS[agent.agentType] || "AGENT";
   const typeLabel = rawDisplay.split(":").pop()!.toUpperCase();
   const effortFromMeta = typeof agent.metadata?.effort === "string"
-    ? (agent.metadata.effort as string)
+    ? agent.metadata.effort
     : undefined;
   const effort = agent.effort ?? effortFromMeta;
   const showName = agent.agentType !== "main";
-  // Model family letter for the node center: O=Opus, S=Sonnet, H=Haiku.
-  // Falls back to the type initial when the model is unknown.
+  // Hexagon center shows the model family ("Opus"/"Sonnet"/"Haiku") when
+  // known; falls back to the agent-type initial otherwise.
   const modelMatch = agent.model?.match(/claude-(opus|sonnet|haiku)/i);
   const modelName = modelMatch ? modelMatch[1].toUpperCase() : null;
-  // Full model name in the hexagon center ("Opus"/"Sonnet"/"Haiku"); falls
-  // back to the type initial when the model is unknown.
   const centerText = modelName ?? typeLabel.charAt(0);
   // When the user has the 1M-context beta on, render a second smaller "1M"
   // line under the model name so it's obvious at a glance.
@@ -104,18 +96,18 @@ export function renderNodeVisuals(
   // between turns so a waiting session doesn't look "done".
   const isDimmed = isFinished || (isSubAgent && agent.status === "idle");
 
+  // Effective radius & scale (used by backplate, body hex, and label sizing).
+  const r = isSubAgent ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
+  const scale = r / GRAPH.nodeRadius;
+
   // Opaque backplate keeps links occluded when the rest of the node dims —
   // group opacity would otherwise make the hex fill translucent and the
   // bezier link behind would bleed through.
   g.append("path")
-    .attr("d", hexPath(isSubAgent ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius))
+    .attr("d", hexPath(r))
     .attr("fill", "var(--color-bg)");
 
   const work = isDimmed ? g.append("g").attr("opacity", 0.35) : g;
-
-  // ── Effective radius & scale for sub-agents ──
-  const r = isSubAgent ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
-  const scale = r / GRAPH.nodeRadius;
   // 24px base is right for a single letter; full model names need a smaller
   // base so "Sonnet" (6 chars × ~0.6em) clears the hexagon's interior width.
   const centerFontBase = centerText.length <= 1 ? 24 : 14;

@@ -13,7 +13,8 @@ export type AgentType =
 export type TeamStatus = "forming" | "active" | "completed" | "error";
 
 /** Extended-thinking effort tier surfaced on the topology under main agents. */
-export type ThinkingEffort = "low" | "medium" | "high" | "xhigh" | "max" | "auto";
+export const THINKING_EFFORTS = ["low", "medium", "high", "xhigh", "max", "auto"] as const;
+export type ThinkingEffort = typeof THINKING_EFFORTS[number];
 
 // Events sent from the file watcher to the dashboard
 export type AgentEvent =
