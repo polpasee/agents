@@ -64,6 +64,7 @@ export function Dashboard() {
   const comparison = useAgentStore((s) => s.comparison);
   const exitComparison = useAgentStore((s) => s.exitComparison);
   const agents = useAgentStore((s) => s.agents);
+  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
 
   const [mobileAgentList, setMobileAgentList] = useState(false);
   const [mobileAgentDetail, setMobileAgentDetail] = useState(false);
@@ -71,6 +72,18 @@ export function Dashboard() {
     setMobileAgentList(false);
     setMobileAgentDetail(false);
   }, []);
+
+  // On narrow viewports the Agents/Details panels are hidden off-screen until
+  // their tab button is tapped. Without this, selecting an agent (in the graph
+  // or the agents list) updates state silently and the user sees no feedback.
+  useEffect(() => {
+    if (selectedAgentId) {
+      setMobileAgentDetail(true);
+      setMobileAgentList(false);
+    } else {
+      setMobileAgentDetail(false);
+    }
+  }, [selectedAgentId]);
 
   return (
     <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
