@@ -17,7 +17,7 @@ import type { AgentStore } from "./types";
 import { computeTeamStatus } from "./helpers";
 
 export type AgentSlice = Pick<AgentStore,
-  | "agents" | "edges" | "activity" | "nextActivityId" | "teams" | "connected" | "recording" | "recordedEvents"
+  | "agents" | "edges" | "activity" | "nextActivityId" | "topologyVersion" | "teams" | "connected" | "recording" | "recordedEvents"
   | "setConnected" | "syncState" | "handleEvent" | "removeAgent" | "getTeamStats"
   | "startRecording" | "downloadRecording"
   | "errorDetails" | "setErrorDetail"
@@ -29,6 +29,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   edges: [],
   activity: [],
   nextActivityId: 0,
+  topologyVersion: 0,
   teams: new Map(),
   connected: false,
   recording: false,
@@ -65,22 +66,38 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     for (const team of teamsList) {
       teams.set(team.id, team);
     }
-    set({ agents, edges, teams });
+    // Full snapshot replace — anything could have moved.
+    set({ agents, edges, teams, topologyVersion: get().topologyVersion + 1 });
   },
 
   handleEvent: (event, timestamp) => {
-    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets, nextActivityId, errorDetails } = get();
-    const newAgents = new Map(agents);
+    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets, nextActivityId, errorDetails, topologyVersion } = get();
+    // Lazy clones — only allocate a new Map when the case actually mutates.
+    // Without this, every `agent:tokens` (one per turn, fires constantly)
+    // creates a fresh `agents` Map identity, invalidates `useFilteredAgents`'s
+    // memo, and cascades into AgentGraph's force-simulation rebuild.
+    let newAgents: Map<string, AgentState> | null = null;
+    const cloneAgents = () => (newAgents ??= new Map(agents));
     let newEdges = edges;
     let newTeamsUpdate: Map<string, TeamState> | null = null;
     let newErrorDetails: Map<string, ErrorDetail> | null = null;
+    // Topology bumps only when the rendered graph shape changes:
+    //   - agent added/removed (handled in this reducer + `removeAgent`)
+    //   - parentId changed for an existing agent
+    //   - edge added or removed (parent links are derived from agent.parentId
+    //     so they piggyback on agent topology; message + blocking edges live
+    //     in `edges`)
+    // Pure-status changes (running/completed/error), token updates, and
+    // tool-call appends do NOT change topology. Their visual effects are
+    // handled by AgentGraph's Effect 2b which keys off `agents` directly.
+    let topologyDirty = false;
 
     switch (event.type) {
       case "agent:register": {
         // If the agent is already live, treat register as a metadata
         // refresh — fill in missing fields (e.g. model learned lazily)
         // without wiping accumulated state like toolCalls or tokens.
-        const existing = newAgents.get(event.agentId);
+        const existing = agents.get(event.agentId);
         const agent: AgentState = existing
           ? {
               ...existing,
@@ -120,7 +137,15 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               effort: event.effort,
               is1MContext: event.is1MContext,
             };
-        newAgents.set(event.agentId, agent);
+        cloneAgents().set(event.agentId, agent);
+        // New agent = topology change. A metadata-refresh re-register on an
+        // already-known agent only counts as a topology change if its
+        // parentId or teamId moved (extremely rare in practice).
+        if (!existing) {
+          topologyDirty = true;
+        } else if (existing.parentId !== agent.parentId || existing.teamId !== agent.teamId) {
+          topologyDirty = true;
+        }
         // Edge and team membership only on first register — avoids duplicate
         // edges when register is replayed as a metadata refresh.
         if (!existing) {
@@ -153,7 +178,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         break;
       }
       case "agent:status": {
-        const agent = newAgents.get(event.agentId);
+        const agent = agents.get(event.agentId);
         if (agent) {
           const updates: Partial<AgentState> = { status: event.status };
           // F1: dependency tracking
@@ -162,11 +187,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             const blockingEdge: EdgeState = { source: event.waitingOn, target: event.agentId, edgeType: "blocking" };
             if (!newEdges.some(e => e.source === event.waitingOn && e.target === event.agentId && e.edgeType === "blocking")) {
               newEdges = [...newEdges, blockingEdge];
+              topologyDirty = true;
             }
           } else if (agent.waitingOn && event.status !== "waiting") {
             // Clear blocking edge when no longer waiting
             updates.waitingOn = undefined;
             newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
+            topologyDirty = true;
           }
           // F2: error detail extraction
           //
@@ -196,7 +223,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             // parentId — registration normally forms a tree, but cheap.
             const seen = new Set<string>([event.agentId]);
             let cursorId = agent.parentId;
-            const maxSteps = newAgents.size;
+            const maxSteps = agents.size;
             let steps = 0;
             while (cursorId && !seen.has(cursorId) && steps++ < maxSteps) {
               seen.add(cursorId);
@@ -208,7 +235,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
                   cascadeIds: [...(ancestorDetail.cascadeIds ?? []), event.agentId],
                 });
               }
-              const ancestor = newAgents.get(cursorId);
+              const ancestor = agents.get(cursorId);
               cursorId = ancestor?.parentId;
             }
 
@@ -221,15 +248,15 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
               timestamp,
             });
           }
-          newAgents.set(event.agentId, { ...agent, ...updates });
+          cloneAgents().set(event.agentId, { ...agent, ...updates });
         }
-        const updatedAgentStatus = newAgents.get(event.agentId);
+        const updatedAgentStatus = (newAgents ?? agents).get(event.agentId);
         if (updatedAgentStatus?.teamId) {
           const { teams } = get();
           const newTeams = new Map(teams);
           const team = newTeams.get(updatedAgentStatus.teamId);
           if (team) {
-            const newStatus = computeTeamStatus(team.memberIds, newAgents, team.status);
+            const newStatus = computeTeamStatus(team.memberIds, (newAgents ?? agents), team.status);
             newTeams.set(team.id, { ...team, status: newStatus });
             newTeamsUpdate = newTeams;
           }
@@ -237,7 +264,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         break;
       }
       case "agent:tool_call": {
-        const agent = newAgents.get(event.agentId);
+        const agent = agents.get(event.agentId);
         if (agent) {
           const entry: ToolCallEntry = {
             tool: event.tool,
@@ -246,18 +273,18 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             timestamp,
           };
           const toolCalls = [...agent.toolCalls, entry].slice(-TOOL_CALLS_MAX_PER_AGENT);
-          newAgents.set(event.agentId, { ...agent, toolCalls });
+          cloneAgents().set(event.agentId, { ...agent, toolCalls });
         }
         break;
       }
       case "agent:tokens": {
-        const agent = newAgents.get(event.agentId);
+        const agent = agents.get(event.agentId);
         if (agent) {
           const totalTokens = event.inputTokens + event.outputTokens;
           // F3: check token budget
           const budgetLimit = agentTypeBudgets[agent.agentType];
           const budgetExceeded = budgetLimit != null && totalTokens > budgetLimit;
-          newAgents.set(event.agentId, {
+          cloneAgents().set(event.agentId, {
             ...agent,
             inputTokens: event.inputTokens,
             outputTokens: event.outputTokens,
@@ -267,12 +294,15 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             budgetExceeded,
           });
         }
+        // Note: tokens for an unknown agent (no `agent` above) is a no-op —
+        // we deliberately do NOT clone the Map in that branch. This is the
+        // hottest path during steady-state, so it must stay free.
         break;
       }
       case "agent:complete": {
-        const agent = newAgents.get(event.agentId);
+        const agent = agents.get(event.agentId);
         if (agent) {
-          newAgents.set(event.agentId, {
+          cloneAgents().set(event.agentId, {
             ...agent,
             status: "completed",
             duration: event.duration,
@@ -280,15 +310,17 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             waitingOn: undefined,
           });
           // Clear any blocking edges
+          const beforeLen = newEdges.length;
           newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
+          if (newEdges.length !== beforeLen) topologyDirty = true;
         }
-        const updatedAgentComplete = newAgents.get(event.agentId);
+        const updatedAgentComplete = (newAgents ?? agents).get(event.agentId);
         if (updatedAgentComplete?.teamId) {
           const { teams } = get();
           const newTeams = new Map(teams);
           const team = newTeams.get(updatedAgentComplete.teamId);
           if (team) {
-            const newStatus = computeTeamStatus(team.memberIds, newAgents, team.status);
+            const newStatus = computeTeamStatus(team.memberIds, (newAgents ?? agents), team.status);
             newTeams.set(team.id, { ...team, status: newStatus });
             newTeamsUpdate = newTeams;
           }
@@ -296,9 +328,11 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         break;
       }
       case "agent:message": {
+        // Only mutates `edges`, never `agents` — Map identity stays stable.
         const messageEdge = { source: event.fromId, target: event.toId, edgeType: "message" as const };
         if (!newEdges.some(e => e.source === event.fromId && e.target === event.toId && e.edgeType === "message")) {
           newEdges = [...newEdges, messageEdge];
+          topologyDirty = true;
         }
         break;
       }
@@ -334,12 +368,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         ].slice(-ACTIVITY_MAX_ENTRIES);
 
     set({
-      agents: newAgents,
-      edges: newEdges,
+      ...(newAgents ? { agents: newAgents } : {}),
+      ...(newEdges !== edges ? { edges: newEdges } : {}),
       activity: newActivity,
       nextActivityId: newActivityId,
       ...(newTeamsUpdate ? { teams: newTeamsUpdate } : {}),
       ...(newErrorDetails ? { errorDetails: newErrorDetails } : {}),
+      ...(topologyDirty ? { topologyVersion: topologyVersion + 1 } : {}),
       ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
@@ -401,6 +436,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       agents: newAgents,
       edges: newEdges,
       teams: newTeams,
+      topologyVersion: get().topologyVersion + 1,
       ...(nextSelectedSessionIds !== selectedSessionIds
         ? { selectedSessionIds: nextSelectedSessionIds }
         : {}),
