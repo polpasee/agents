@@ -18,7 +18,14 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
 
   switch (obj.type) {
     case "state:sync":
-      return Array.isArray(obj.agents) && Array.isArray(obj.edges) && Array.isArray(obj.teams);
+      // protocolVersion is optional for back-compat with pre-v1 servers; when
+      // present it must be a number so the client can compare it to PROTOCOL_VERSION.
+      return (
+        Array.isArray(obj.agents) &&
+        Array.isArray(obj.edges) &&
+        Array.isArray(obj.teams) &&
+        (obj.protocolVersion === undefined || typeof obj.protocolVersion === "number")
+      );
     case "state:update":
       return typeof obj.timestamp === "number" && isValidAgentEvent(obj.event);
     case "state:remove":
@@ -31,6 +38,8 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
       return Array.isArray(obj.annotations);
     case "annotation:update":
       return obj.annotation != null && (obj.action === "add" || obj.action === "remove");
+    case "pong":
+      return true;
     default:
       return false;
   }
@@ -47,6 +56,8 @@ export function isValidClientEvent(data: unknown): data is ClientEvent {
       return obj.annotation != null && typeof obj.annotation === "object";
     case "annotation:remove":
       return typeof obj.annotationId === "string";
+    case "ping":
+      return true;
     default:
       return false;
   }

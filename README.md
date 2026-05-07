@@ -34,25 +34,26 @@ npm run mock-agents
 ## Architecture
 
 ```
-┌─────────────────┐     WebSocket      ┌──────────────────┐
-│  Claude Code     │ ──────────────────>│                  │
-│  CLI Agents      │                    │   WebSocket      │
-└─────────────────┘                    │   Server         │
-                                       │   (standalone    │
-┌─────────────────┐     WebSocket      │    port 4001)    │
-│  Agent SDK       │ ──────────────────>│                  │
-│  Applications    │                    └────────┬─────────┘
-└─────────────────┘                             │
-                                                │ broadcast
-                                                v
-                                       ┌──────────────────┐
-                                       │  React Frontend  │
-                                       │  (D3.js Graph +  │
-                                       │   Neon Theme)    │
-                                       └──────────────────┘
+  Claude Code                ~/.claude/projects/**/*.jsonl
+      |  writes                           |
+      v                                   v
+  [ JSONL files ] <------ tails --  [ WS Server :4001 ]  -----> [ WebSocket ]
+                                          |                             |
+                                          v                             v
+                                  [ discovery.ts ]          [ React Dashboard ]
+                                  [ file-reader.ts ]        [ D3 topology +   ]
+                                  [ agent-state.ts ]        [ side panels     ]
+                                  [ broadcast()   ]
 ```
 
-Agents and SDK applications connect to a standalone WebSocket server on port 4001. The server broadcasts events to the React frontend, which renders a real-time force-directed graph and supporting panels.
+**How It Works**: Claude Code writes structured transcripts to `~/.claude/projects/<project>/<session>.jsonl` for the main agent and parallel subagent files in the same directory. The WS server (`scripts/ws-server.ts`) discovers and tails these files via `scripts/lib/discovery.ts` and `scripts/lib/file-reader.ts`, polling every 1.5 seconds for new content. New JSONL entries are parsed into typed `AgentEvent`s by `scripts/lib/agent-state.ts::processEntry`, which also tracks derived state (edge type, stale detection, team membership). Processed events are broadcast over the WebSocket to all connected dashboard clients. The dashboard deserializes events through `useWebSocket.ts` into the Zustand store, driving a real-time D3 force-directed topology and supporting side panels.
+
+## Integration Modes
+
+| Mode | How agents connect | When to use |
+|------|--------------------|-------------|
+| File-watch (default) | WS server tails `~/.claude/projects/**/*.jsonl` automatically | Standard Claude Code usage — no agent-side changes required |
+| Direct push (SDK) | Agent sends events to `ws://localhost:4001` directly. See `scripts/mock-agents.ts` for the message shape | Custom agents built with the Anthropic SDK that don't write to `~/.claude/projects/` |
 
 ## Features
 
@@ -136,19 +137,27 @@ Agents and SDK applications connect to a standalone WebSocket server on port 400
 
 ### Server to Dashboard Events
 
-| Event | Description |
-|-------|-------------|
-| `state:sync` | Full state sync on connect (agents, edges, teams) |
-| `state:update` | Incremental event update with timestamp |
-| `state:remove` | Agent removed |
-| `log:response` | Conversation log entries for an agent |
-| `log:error` | Log fetch error |
+| Event | Description | Key fields |
+|-------|-------------|------------|
+| `state:sync` | Full state on connect; sent first after every reconnect | `agents`, `edges`, `teams`, `protocolVersion` |
+| `state:update` | Incremental agent event forwarded to all viewers | `event` (AgentEvent), `timestamp` |
+| `state:remove` | Agent removed from active state | `agentId` |
+| `log:response` | Conversation log entries for an agent | `agentId`, `entries` |
+| `log:error` | Log fetch error | `agentId`, `error` |
+| `annotation:sync` | Full annotation list sent after `state:sync` on connect | `annotations` |
+| `annotation:update` | Single annotation added or removed | `annotation`, `action` (`"add"` or `"remove"`) |
+| `pong` | Heartbeat reply to a client `ping` | _(no fields)_ |
+
+> **Protocol version**: `state:sync` carries `protocolVersion: 1` (defined as `PROTOCOL_VERSION` in `src/lib/types.ts`). Clients should warn — but not disconnect — if this field is absent or does not match the expected value. Incrementing `PROTOCOL_VERSION` signals a backwards-incompatible change; adding new optional fields or new event variants does not require a bump.
 
 ### Dashboard to Server Events
 
-| Event | Description |
-|-------|-------------|
-| `log:request` | Request conversation log for an agent |
+| Event | Description | Key fields |
+|-------|-------------|------------|
+| `log:request` | Request conversation log for an agent | `agentId` |
+| `annotation:add` | Broadcast a new annotation to all viewers | `annotation` (Annotation) |
+| `annotation:remove` | Remove an annotation by id | `annotationId` |
+| `ping` | Heartbeat; server replies with `pong` | _(no fields)_ |
 
 ## Agent Types & Colors
 
@@ -215,6 +224,8 @@ See `.env.example` for a template. Origin allowlist is hardcoded in `scripts/lib
 3. Click **LOAD** to load a previously recorded session.
 4. Use transport controls: play/pause, speed (0.5x-4x), and the seek slider.
 
+> **Note**: Recorded sessions are held in browser memory, capped at **50,000 events** (`RECORDING_MAX_EVENTS` in `src/lib/config.ts`). Once the cap is reached, the oldest events are dropped. At ~20 events/sec sustained, that's ~40 minutes of recording. Stop and download recordings periodically during long sessions.
+
 ## Keyboard Shortcuts
 
 | Key | Action |
@@ -238,64 +249,78 @@ agents/
 │   │   ├── layout.tsx              # Root layout with neon theme
 │   │   └── page.tsx                # Dashboard page
 │   ├── components/
+│   │   ├── AgentGraph/             # D3.js force-directed graph canvas (orchestrator + extracted hooks)
+│   │   │   ├── index.tsx           # Component entry point; composes the hooks below
+│   │   │   ├── refs.ts             # Shared D3 ref container
+│   │   │   ├── useTopologyEffect.ts
+│   │   │   ├── useNodeVisualsEffect.ts
+│   │   │   ├── useToolNodesEffect.ts
+│   │   │   └── ...                 # see src/components/AgentGraph/ for full list
 │   │   ├── Dashboard.tsx           # Main dashboard container
 │   │   ├── TopBar.tsx              # Header with stats, recording, replay load
 │   │   ├── AgentList.tsx           # Left sidebar agent list
-│   │   ├── AgentGraph.tsx          # D3.js force-directed graph canvas
 │   │   ├── AgentDetail.tsx         # Right sidebar detail panel
 │   │   ├── ActivityStream.tsx      # Bottom activity log
-│   │   ├── GraphControls.tsx       # Fit-to-view, type filters, heatmap toggle
-│   │   ├── MiniMap.tsx             # Graph overview navigation
 │   │   ├── Timeline.tsx            # Timeline view mode
 │   │   ├── TeamPanel.tsx           # Team grouping panel
 │   │   ├── ErrorBoundary.tsx       # React error boundary wrapper
 │   │   ├── ReplayBar.tsx           # Session replay transport controls
 │   │   ├── LogViewer.tsx           # Modal conversation log viewer
 │   │   ├── CostProjection.tsx      # Cost burn rate and budget alerts
-│   │   ├── HeatmapControls.tsx     # Heatmap metric selector
-│   │   ├── ErrorDrillDown.tsx      # F2: Error cascade drill-down modal
-│   │   ├── LiveMetrics.tsx         # F4: Real-time sparkline metrics panel
-│   │   ├── AnnotationOverlay.tsx   # F6: Per-agent annotation overlay
-│   │   ├── DiffViewer.tsx          # F8: File modification viewer
-│   │   ├── ExportModal.tsx         # F10: Session export (JSON/CSV/MD)
-│   │   └── SessionComparison.tsx   # F14: Side-by-side session comparison
+│   │   ├── ErrorDrillDown.tsx      # Error cascade drill-down modal
+│   │   ├── LiveMetrics.tsx         # Real-time sparkline metrics panel
+│   │   ├── AnnotationOverlay.tsx   # Per-agent annotation overlay
+│   │   ├── DiffViewer.tsx          # File modification viewer
+│   │   ├── ExportModal.tsx         # Session export (JSON/CSV/MD)
+│   │   ├── SessionComparison.tsx   # Side-by-side session comparison
+│   │   └── ...                     # see src/components/ for full list
 │   ├── hooks/
 │   │   ├── useWebSocket.ts         # WebSocket client with reconnection
 │   │   ├── useReplay.ts            # Replay engine tick loop
 │   │   ├── useKeyboardShortcuts.ts # Global keyboard shortcuts
 │   │   ├── useFilteredAgents.ts    # Agent filtering logic
 │   │   ├── useSoundNotifications.ts # Audio alert hook
-│   │   └── useMetricSampler.ts     # F4: Live metrics sampling hook
+│   │   └── useMetricSampler.ts     # Live metrics sampling hook
 │   ├── lib/
-│   │   ├── types.ts                # TypeScript types and interfaces
-│   │   ├── store.ts                # Zustand store
-│   │   ├── config.ts               # Configuration constants
+│   │   ├── types.ts                # WS protocol contract (ServerEvent, ClientEvent, AgentEvent)
+│   │   ├── store.ts                # Re-export barrel for src/lib/store/
+│   │   ├── store/                  # Zustand store slices
+│   │   │   ├── index.ts            # Composed store
+│   │   │   ├── agentSlice.ts       # Agent/edge/team domain state + event reducer
+│   │   │   ├── replaySlice.ts      # Replay clock and session state
+│   │   │   ├── uiSlice.ts          # UI flags (heatmap, layout, mobile) + localStorage
+│   │   │   ├── panelSlice.ts       # Overlay panel visibility
+│   │   │   ├── eventHandlers.ts    # Per-event handler functions
+│   │   │   ├── helpers.ts          # Shared store utilities
+│   │   │   └── types.ts            # Store-internal TypeScript types
+│   │   ├── config.ts               # Configuration constants (RECORDING_MAX_EVENTS, etc.)
 │   │   ├── colors.ts               # Color maps (agent, status, budget, heatmap)
 │   │   ├── validation.ts           # Event validation utilities
 │   │   ├── utils.ts                # Formatting and utility functions
 │   │   ├── costs.ts                # Token cost calculation (per-model pricing)
 │   │   ├── costProjection.ts       # Burn rate and budget projection
+│   │   ├── efficiency.ts           # Agent efficiency score calculation
 │   │   ├── d3/
 │   │   │   ├── index.ts            # D3 barrel exports
 │   │   │   ├── renderNode.ts       # D3 node rendering
 │   │   │   ├── updateLinks.ts      # D3 edge/link rendering
 │   │   │   ├── heatmap.ts          # D3 heatmap color scale and rendering
-│   │   │   └── layouts.ts          # F12: Tree, radial, hierarchical layouts
-│   │   └── __tests__/              # 11 test files, 191 tests
+│   │   │   └── layouts.ts          # Tree, radial, hierarchical layouts
+│   │   └── __tests__/              # Unit tests
 │   └── styles/
 │       ├── neon.css                # Custom neon glow CSS utilities
-│       └── responsive.css          # F13: Responsive breakpoint styles
+│       └── responsive.css          # Responsive breakpoint styles
 ├── scripts/
-│   ├── ws-server.ts                # Standalone WebSocket server
-│   ├── mock-agents.ts              # Mock agent simulator
+│   ├── ws-server.ts                # Standalone WebSocket server (tails JSONL files)
+│   ├── mock-agents.ts              # Mock agent simulator (direct-push integration mode)
 │   └── lib/
-│       ├── agent-state.ts          # Server-side agent state management
-│       ├── config.ts               # Server configuration
-│       ├── discovery.ts            # Agent JSONL file discovery
-│       ├── file-reader.ts          # JSONL file reader/watcher
+│       ├── agent-state.ts          # Server-side agent state management + event broadcasting
+│       ├── config.ts               # Server configuration (POLL_INTERVAL_MS, etc.)
+│       ├── discovery.ts            # Agent JSONL file discovery under ~/.claude/projects/
+│       ├── file-reader.ts          # JSONL file tail reader
 │       └── log-reader.ts           # Conversation log parser
 └── docs/
-    └── superpowers/
+    └── superpowers/                # Historical planning artifacts (pre-implementation specs)
         ├── specs/
         │   └── 2026-03-26-agent-monitor-design.md
         └── plans/

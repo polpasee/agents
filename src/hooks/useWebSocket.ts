@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS, WS_BATCH_INTERVAL_MS, WS_BATCH_MAX_SIZE } from "@/lib/config";
 import type { ClientEvent } from "@/lib/types";
+import { PROTOCOL_VERSION } from "@/lib/types";
 import { isValidServerEvent } from "@/lib/validation";
 
 /** Module-level reference to the active WebSocket for sending messages */
@@ -34,6 +35,7 @@ export function useWebSocket() {
     let eventBuffer: Array<{ event: import("@/lib/types").AgentEvent; timestamp: number }> = [];
     let destroyed = false;
     let reconnectDelay = WS_RECONNECT_DELAY_MS;
+    let protocolWarned = false;
 
     function flushEventBuffer() {
       if (eventBuffer.length === 0) return;
@@ -82,19 +84,25 @@ export function useWebSocket() {
       ws.onmessage = (msg) => {
         try {
           const data = JSON.parse(msg.data);
-          // Heartbeat reply from the server — transport-level, no app state to update.
-          if (data?.type === "pong") return;
           if (!isValidServerEvent(data)) {
             console.warn("Invalid ServerEvent received:", data?.type);
             return;
           }
           const event = data;
+          // Heartbeat reply from the server — transport-level, no app state to update.
+          if (event.type === "pong") return;
           const store = useAgentStore.getState();
           // Drop live state deltas during replay — viewers are watching recorded history.
           // Annotations and log responses still flow through so collaborators see updates.
           const replayActive = store.replay.active;
           switch (event.type) {
             case "state:sync":
+              if (!protocolWarned && event.protocolVersion !== PROTOCOL_VERSION) {
+                console.warn(
+                  `WS protocol version mismatch: server=${event.protocolVersion ?? "unset"}, client=${PROTOCOL_VERSION}. Continuing.`,
+                );
+                protocolWarned = true;
+              }
               if (!replayActive) store.syncState(event.agents, event.edges, event.teams);
               break;
             case "state:update":
