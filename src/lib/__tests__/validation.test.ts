@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidServerEvent, isValidAgentEvent } from "../validation";
+import { isValidServerEvent, isValidAgentEvent, isValidClientEvent } from "../validation";
 
 describe("isValidServerEvent", () => {
   it("accepts valid state:sync event", () => {
@@ -36,6 +36,32 @@ describe("isValidServerEvent", () => {
 
   it("rejects state:remove without agentId", () => {
     expect(isValidServerEvent({ type: "state:remove" })).toBe(false);
+  });
+
+  it("accepts state:sync with protocolVersion", () => {
+    expect(
+      isValidServerEvent({ type: "state:sync", agents: [], edges: [], teams: [], protocolVersion: 1 }),
+    ).toBe(true);
+  });
+
+  it("accepts state:sync without protocolVersion (back-compat)", () => {
+    expect(isValidServerEvent({ type: "state:sync", agents: [], edges: [], teams: [] })).toBe(true);
+  });
+
+  it("rejects state:sync with non-numeric protocolVersion", () => {
+    expect(
+      isValidServerEvent({ type: "state:sync", agents: [], edges: [], teams: [], protocolVersion: "1" }),
+    ).toBe(false);
+  });
+
+  it("accepts pong heartbeat", () => {
+    expect(isValidServerEvent({ type: "pong" })).toBe(true);
+  });
+});
+
+describe("isValidClientEvent", () => {
+  it("accepts ping heartbeat", () => {
+    expect(isValidClientEvent({ type: "ping" })).toBe(true);
   });
 });
 

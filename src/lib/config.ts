@@ -71,6 +71,12 @@ export const IDLE_TIMEOUT_MS = 60_000;
 /** Replay tick interval — how often the replay clock advances */
 export const REPLAY_TICK_MS = 50;
 
+/** Cap on the in-memory recording buffer to prevent OOM during long sessions.
+ *  At ~20 events/sec sustained that's ~40 minutes of recording before the
+ *  oldest entries start dropping. Documented in README "Session Recording &
+ *  Replay". */
+export const RECORDING_MAX_EVENTS = 50_000;
+
 /** F4: Live metrics configuration */
 export const METRIC_HISTORY_MAX = 120; // 2 min at 1 sample/sec
 export const METRIC_SAMPLE_INTERVAL_MS = 1000;

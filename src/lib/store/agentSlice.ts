@@ -3,7 +3,7 @@ import type {
   AgentState,
   TeamState,
 } from "../types";
-import { ACTIVITY_MAX_ENTRIES } from "../config";
+import { ACTIVITY_MAX_ENTRIES, RECORDING_MAX_EVENTS } from "../config";
 import { calculateCost } from "../costs";
 import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
@@ -103,6 +103,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
           { id: `act-${newActivityId}`, timestamp, event },
         ].slice(-ACTIVITY_MAX_ENTRIES);
 
+    if (recording) {
+      recordedEvents.push({ timestamp, event });
+      if (recordedEvents.length > RECORDING_MAX_EVENTS) {
+        recordedEvents.splice(0, recordedEvents.length - RECORDING_MAX_EVENTS);
+      }
+    }
+
     set({
       ...(ctx.newAgents ? { agents: ctx.newAgents } : {}),
       ...(ctx.newEdges !== edges ? { edges: ctx.newEdges } : {}),
@@ -111,7 +118,6 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       ...(ctx.newTeams ? { teams: ctx.newTeams } : {}),
       ...(ctx.newErrorDetails ? { errorDetails: ctx.newErrorDetails } : {}),
       ...(ctx.topologyDirty ? { topologyVersion: topologyVersion + 1 } : {}),
-      ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
 

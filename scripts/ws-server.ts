@@ -2,6 +2,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import * as path from "path";
 import * as os from "os";
 import type { ServerEvent, ClientEvent, Annotation } from "../src/lib/types";
+import { PROTOCOL_VERSION } from "../src/lib/types";
 import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-state";
 import { isValidClientEvent } from "../src/lib/validation";
 import { readAgentLog } from "./lib/log-reader";
@@ -13,8 +14,11 @@ import {
   ANNOTATION_MAX_ENTRIES,
   ANNOTATION_MAX_TEXT_LENGTH,
   ANNOTATION_ID_PATTERN,
+  USAGE_REFRESH_INTERVAL_MS,
+  USAGE_REFRESH_THRESHOLD_MS,
 } from "./lib/config";
 import { loadWebhookConfig } from "./lib/webhooks";
+import { readCacheMtime, triggerCcstatuslineRefresh } from "./lib/ccstatusline";
 
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
@@ -75,6 +79,7 @@ wss.on("connection", (ws) => {
     agents: Array.from(agents.values()),
     edges: [...edges],
     teams: Array.from(teams.values()),
+    protocolVersion: PROTOCOL_VERSION,
   };
   ws.send(JSON.stringify(syncEvent));
 
@@ -90,12 +95,14 @@ wss.on("connection", (ws) => {
   ws.on("message", (raw) => {
     try {
       const data = JSON.parse(String(raw));
-      // Handle heartbeat ping
+      if (!isValidClientEvent(data)) return;
+
+      // Heartbeat ping — typed protocol member; reply pong and return.
       if (data.type === "ping") {
-        ws.send(JSON.stringify({ type: "pong" }));
+        const pong: ServerEvent = { type: "pong" };
+        ws.send(JSON.stringify(pong));
         return;
       }
-      if (!isValidClientEvent(data)) return;
 
       if (data.type === "annotation:add") {
         const raw = (data as Extract<ClientEvent, { type: "annotation:add" }>).annotation;
@@ -179,3 +186,14 @@ console.log(`Found ${agents.size} active agent(s)\n`);
 setInterval(() => {
   discoverActiveSessions(PROJECTS_DIR);
 }, POLL_INTERVAL_MS);
+
+// ── Usage cache refresh loop ───────────────────────────
+// Owns ccstatusline spawn cadence so /api/usage can stay a pure cache reader.
+// Closes A-H3 (HTTP GET side effects) and S-L3 (TOCTOU on cooldown var).
+setInterval(() => {
+  const mtime = readCacheMtime();
+  // No cache yet, or cache older than threshold → refresh.
+  if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
+    triggerCcstatuslineRefresh();
+  }
+}, USAGE_REFRESH_INTERVAL_MS);
