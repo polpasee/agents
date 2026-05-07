@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type * as d3 from "d3";
+import type { Simulation, ZoomBehavior } from "d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 
 export interface LifecycleEffect {
@@ -19,12 +19,12 @@ export interface LifecycleEffect {
 export interface AgentGraphRefs {
   svgRef: React.RefObject<SVGSVGElement | null>;
   containerRef: React.RefObject<HTMLDivElement | null>;
-  simulationRef: React.MutableRefObject<d3.Simulation<SimNode, SimLink> | null>;
+  simulationRef: React.MutableRefObject<Simulation<SimNode, SimLink> | null>;
   nodesRef: React.MutableRefObject<SimNode[]>;
   linksRef: React.MutableRefObject<SimLink[]>;
   toolNodesRef: React.MutableRefObject<SimNode[]>;
   toolLinksRef: React.MutableRefObject<SimLink[]>;
-  zoomRef: React.MutableRefObject<d3.ZoomBehavior<SVGSVGElement, unknown> | null>;
+  zoomRef: React.MutableRefObject<ZoomBehavior<SVGSVGElement, unknown> | null>;
   effectsRef: React.MutableRefObject<LifecycleEffect[]>;
   prevActivityLenRef: React.MutableRefObject<number>;
 }
@@ -33,12 +33,12 @@ export function useAgentGraphRefs(): AgentGraphRefs {
   return {
     svgRef: useRef<SVGSVGElement>(null),
     containerRef: useRef<HTMLDivElement>(null),
-    simulationRef: useRef<d3.Simulation<SimNode, SimLink> | null>(null),
+    simulationRef: useRef<Simulation<SimNode, SimLink> | null>(null),
     nodesRef: useRef<SimNode[]>([]),
     linksRef: useRef<SimLink[]>([]),
     toolNodesRef: useRef<SimNode[]>([]),
     toolLinksRef: useRef<SimLink[]>([]),
-    zoomRef: useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null),
+    zoomRef: useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null),
     effectsRef: useRef<LifecycleEffect[]>([]),
     prevActivityLenRef: useRef(0),
   };

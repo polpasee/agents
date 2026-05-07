@@ -1,12 +1,14 @@
-import * as d3 from "d3";
+import { scaleLinear } from "d3-scale";
+import type { ScaleLinear } from "d3-scale";
+import type { Selection } from "d3-selection";
 import type { AgentState, HeatmapMetric } from "../types";
 import { GRAPH, HEATMAP, getNodeRadius } from "../config";
 import { HEATMAP_COLORS } from "../colors";
 import { AGENT_LABELS } from "../colors";
 
 /** Create a green→yellow→red color scale */
-export function createHeatmapScale(): d3.ScaleLinear<string, string> {
-  return d3.scaleLinear<string>()
+export function createHeatmapScale(): ScaleLinear<string, string> {
+  return scaleLinear<string>()
     .domain([0, 0.5, 1])
     .range(HEATMAP.colors)
     .clamp(true);
@@ -74,10 +76,10 @@ export function computeMetricValue(
 
 /** Render a single node in heatmap mode */
 export function renderHeatmapNode(
-  g: d3.Selection<SVGGElement, any, any, any>,
+  g: Selection<SVGGElement, any, any, any>,
   agent: AgentState,
   metricValue: number,
-  colorScale: d3.ScaleLinear<string, string>,
+  colorScale: ScaleLinear<string, string>,
   isSelected: boolean,
 ): void {
   const color = colorScale(metricValue);
@@ -139,7 +141,7 @@ export function renderHeatmapNode(
 
 /** Render the heatmap legend gradient bar */
 export function renderHeatmapLegend(
-  svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  svg: Selection<SVGSVGElement, unknown, null, undefined>,
   metric: HeatmapMetric,
   x: number,
   y: number,

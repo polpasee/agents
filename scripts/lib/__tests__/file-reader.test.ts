@@ -6,7 +6,7 @@ const mockReadSync = vi.fn();
 const mockCloseSync = vi.fn();
 const mockExistsSync = vi.fn();
 
-vi.mock("fs", () => ({
+vi.mock("node:fs", () => ({
   statSync: (...args: unknown[]) => mockStatSync(...args),
   openSync: (...args: unknown[]) => mockOpenSync(...args),
   readSync: (...args: unknown[]) => mockReadSync(...args),

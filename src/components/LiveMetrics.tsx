@@ -4,7 +4,10 @@ import { useRef, useEffect, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, METRIC_COLORS } from "@/lib/colors";
 import type { MetricSample } from "@/lib/types";
-import * as d3 from "d3";
+import { max } from "d3-array";
+import { scaleLinear } from "d3-scale";
+import { line, area, curveMonotoneX } from "d3-shape";
+import { select } from "d3-selection";
 
 const CHART_WIDTH = 140;
 const CHART_HEIGHT = 36;
@@ -63,38 +66,34 @@ function Sparkline({
 
     const values = data.map((d) => d[metric.key] as number);
 
-    const xScale = d3
-      .scaleLinear()
+    const xScale = scaleLinear()
       .domain([0, values.length - 1])
       .range([CHART_PADDING, CHART_WIDTH - CHART_PADDING]);
 
-    const yMax = d3.max(values) ?? 1;
-    const yScale = d3
-      .scaleLinear()
+    const yMax = max(values) ?? 1;
+    const yScale = scaleLinear()
       .domain([0, yMax === 0 ? 1 : yMax])
       .range([CHART_HEIGHT - CHART_PADDING, CHART_PADDING]);
 
-    const line = d3
-      .line<number>()
+    const lineGen = line<number>()
       .x((_, i) => xScale(i))
       .y((d) => yScale(d))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
-    const area = d3
-      .area<number>()
+    const areaGen = area<number>()
       .x((_, i) => xScale(i))
       .y0(CHART_HEIGHT - CHART_PADDING)
       .y1((d) => yScale(d))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
-    const sel = d3.select(svg);
+    const sel = select(svg);
 
     // Update existing paths or create them on first render
     let areaPath = sel.select<SVGPathElement>("path.sparkline-area");
     if (areaPath.empty()) {
       areaPath = sel.append("path").attr("class", "sparkline-area");
     }
-    areaPath.datum(values).attr("d", area).attr("fill", `${metric.color}18`);
+    areaPath.datum(values).attr("d", areaGen).attr("fill", `${metric.color}18`);
 
     let linePath = sel.select<SVGPathElement>("path.sparkline-line");
     if (linePath.empty()) {
@@ -102,7 +101,7 @@ function Sparkline({
     }
     linePath
       .datum(values)
-      .attr("d", line)
+      .attr("d", lineGen)
       .attr("fill", "none")
       .attr("stroke", metric.color)
       .attr("stroke-width", 1.5)

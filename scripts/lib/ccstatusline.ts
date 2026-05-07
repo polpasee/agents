@@ -13,10 +13,10 @@
 // Sprint 1 hardening retained: pinned local binary resolution and a strictly
 // filtered env so a compromised ccstatusline cannot exfiltrate ambient secrets.
 
-import { spawn } from "child_process";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import { createRequire } from "node:module";
 
 /** ccstatusline writes fresh data here every ~3 minutes. */

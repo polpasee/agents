@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
-import * as path from "path";
-import * as os from "os";
+import * as path from "node:path";
+import * as os from "node:os";
 import type { ServerEvent, ClientEvent, Annotation } from "../src/lib/types";
 import { PROTOCOL_VERSION } from "../src/lib/types";
 import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-state";
@@ -143,22 +143,21 @@ wss.on("connection", (ws) => {
           return;
         }
 
-        try {
-          const entries = readAgentLog(filePath);
+        readAgentLog(filePath).then((entries) => {
           const response: ServerEvent = {
             type: "log:response",
             agentId: data.agentId,
             entries,
           };
           ws.send(JSON.stringify(response));
-        } catch (err) {
+        }).catch((err) => {
           const errEvent: ServerEvent = {
             type: "log:error",
             agentId: data.agentId,
             error: `Failed to read log: ${err}`,
           };
           ws.send(JSON.stringify(errEvent));
-        }
+        });
       }
     } catch {
       // Ignore malformed messages
@@ -180,20 +179,55 @@ console.log(`Watching: ${PROJECTS_DIR}`);
 loadWebhookConfig();
 console.log(`Poll interval: ${POLL_INTERVAL_MS}ms\n`);
 
-discoverActiveSessions(PROJECTS_DIR);
-console.log(`Found ${agents.size} active agent(s)\n`);
+// Self-rescheduling loop: each cycle waits for the previous to complete before
+// scheduling the next tick, so a slow disk pass never causes overlapping polls
+// that block heartbeats or handshakes (P-H6).
+let pollHandle: NodeJS.Timeout | null = null;
+async function pollLoop(): Promise<void> {
+  try {
+    await discoverActiveSessions(PROJECTS_DIR);
+  } catch (err) {
+    console.warn("[poll] discovery failed:", err);
+  } finally {
+    pollHandle = setTimeout(pollLoop, POLL_INTERVAL_MS);
+  }
+}
 
-setInterval(() => {
-  discoverActiveSessions(PROJECTS_DIR);
-}, POLL_INTERVAL_MS);
+// Run an initial discovery immediately so the state is populated on startup,
+// then hand off to the self-rescheduling loop.
+discoverActiveSessions(PROJECTS_DIR).then(() => {
+  console.log(`Found ${agents.size} active agent(s)\n`);
+  pollLoop();
+}).catch((err) => {
+  console.warn("[startup] initial discovery failed:", err);
+  pollLoop();
+});
 
 // ── Usage cache refresh loop ───────────────────────────
 // Owns ccstatusline spawn cadence so /api/usage can stay a pure cache reader.
 // Closes A-H3 (HTTP GET side effects) and S-L3 (TOCTOU on cooldown var).
-setInterval(() => {
-  const mtime = readCacheMtime();
-  // No cache yet, or cache older than threshold → refresh.
-  if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
-    triggerCcstatuslineRefresh();
+// Self-rescheduling to prevent overlap on slow ccstatusline spawns (P-H6).
+let usagePollHandle: NodeJS.Timeout | null = null;
+async function usagePollLoop(): Promise<void> {
+  try {
+    const mtime = readCacheMtime();
+    // No cache yet, or cache older than threshold → refresh.
+    if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
+      triggerCcstatuslineRefresh();
+    }
+  } catch (err) {
+    console.warn("[usage-poll] refresh failed:", err);
+  } finally {
+    usagePollHandle = setTimeout(usagePollLoop, USAGE_REFRESH_INTERVAL_MS);
   }
-}, USAGE_REFRESH_INTERVAL_MS);
+}
+usagePollLoop();
+
+// ── Graceful shutdown ──────────────────────────────────
+function shutdown() {
+  if (pollHandle) clearTimeout(pollHandle);
+  if (usagePollHandle) clearTimeout(usagePollHandle);
+  process.exit(0);
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

@@ -1,4 +1,5 @@
-import * as d3 from "d3";
+import { hierarchy, tree } from "d3-hierarchy";
+import type { HierarchyNode } from "d3-hierarchy";
 
 interface LayoutNode {
   id: string;
@@ -71,8 +72,7 @@ function buildHierarchy(nodes: LayoutNode[], _edges: LayoutLink[]) {
     };
   }
 
-  return d3
-    .hierarchy<HierNode>(root)
+  return hierarchy<HierNode>(root)
     .sum(() => 1);
 }
 
@@ -91,7 +91,7 @@ export function applyTreeLayout(
   }
 
   const hier = buildHierarchy(nodes, edges);
-  const treeLayout = d3.tree<ReturnType<typeof buildHierarchy> extends d3.HierarchyNode<infer T> ? T : never>()
+  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
     .size([width * 0.8, height * 0.7]);
 
   treeLayout(hier);
@@ -123,7 +123,7 @@ export function applyRadialLayout(
 
   const hier = buildHierarchy(nodes, edges);
   const radius = Math.min(width, height) * 0.35;
-  const treeLayout = d3.tree<ReturnType<typeof buildHierarchy> extends d3.HierarchyNode<infer T> ? T : never>()
+  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
     .size([2 * Math.PI, radius]);
 
   treeLayout(hier);
@@ -156,7 +156,7 @@ export function applyHierarchicalLayout(
   }
 
   const hier = buildHierarchy(nodes, edges);
-  const treeLayout = d3.tree<ReturnType<typeof buildHierarchy> extends d3.HierarchyNode<infer T> ? T : never>()
+  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
     .size([height * 0.8, width * 0.7]);
 
   treeLayout(hier);

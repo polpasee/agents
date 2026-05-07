@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import type { Selection } from "d3-selection";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import {
@@ -37,7 +38,7 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
     const svg = refs.svgRef.current;
     if (!svg) return;
 
-    const d3svg = d3.select(svg);
+    const d3svg = select(svg);
     const nodeGroup = d3svg.select<SVGGElement>("g.nodes");
     if (nodeGroup.empty()) return;
 
@@ -52,10 +53,10 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
       // Build a lightweight hash of visual-relevant fields to skip unchanged nodes
       const lastTool = latest.toolCalls.length > 0 ? latest.toolCalls[latest.toolCalls.length - 1].tool : "";
       const hash = `${latest.status}|${latest.agentType}|${lastTool}|${latest.toolCalls.length}|${latest.inputTokens + latest.outputTokens}|${d.id === selectedAgentId}|${heatmapEnabled}|${heatmapMetric}`;
-      const prev = d3.select(this).attr("data-hash");
+      const prev = select(this).attr("data-hash");
       d.agent = latest;
       if (prev === hash) return; // skip re-render — nothing visual changed
-      const g = d3.select(this);
+      const g = select(this);
       g.attr("data-hash", hash);
       g.selectAll("*").remove();
       if (heatmapEnabled && heatmapScale && heatmapNorms) {
@@ -69,12 +70,12 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
     // Heatmap legend
     d3svg.select("#heatmap-legend").remove();
     if (heatmapEnabled) {
-      const svgSel = d3svg as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>;
+      const svgSel = d3svg as unknown as Selection<SVGSVGElement, unknown, null, undefined>;
       renderHeatmapLegend(svgSel, heatmapMetric, 16, svg.clientHeight - 60);
     }
 
     // Update link colors / dash patterns
-    const linkGroup = d3.select(svg).select<SVGGElement>("g.links");
+    const linkGroup = select(svg).select<SVGGElement>("g.links");
     if (!linkGroup.empty()) {
       updateLinkVisuals(
         linkGroup.selectAll<SVGPathElement, SimLink>("path.glow"),
@@ -83,7 +84,7 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
       );
     }
     // Animate particles on active links — only rebuild when active link set changes
-    const particleGroup = d3.select(svg).select<SVGGElement>("g.particles");
+    const particleGroup = select(svg).select<SVGGElement>("g.particles");
     if (!particleGroup.empty()) {
       // Build a hash of active links to skip unnecessary DOM rebuilds
       const activeLinkIds: string[] = [];

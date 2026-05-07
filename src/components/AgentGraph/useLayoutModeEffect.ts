@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
 import { bezierPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
@@ -49,7 +49,7 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
       layoutFn(nodes, links, width, height);
 
       // Update SVG positions directly
-      const d3svg = d3.select(svg);
+      const d3svg = select(svg);
       d3svg.selectAll<SVGGElement, SimNode>("g.node")
         .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
       const linkGroup = d3svg.select<SVGGElement>("g.links");

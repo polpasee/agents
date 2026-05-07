@@ -1,5 +1,8 @@
 import { useCallback } from "react";
-import * as d3 from "d3";
+import { zoomIdentity } from "d3-zoom";
+import { select } from "d3-selection";
+import "d3-transition";
+import type { Transition } from "d3";
 import { GRAPH } from "@/lib/config";
 import type { AgentGraphRefs } from "./refs";
 
@@ -47,15 +50,15 @@ export function useFitToView(refs: AgentGraphRefs) {
     const clampedScale = Math.max(GRAPH.zoomExtent[0], Math.min(scale, GRAPH.zoomExtent[1]));
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
-    const transform = d3.zoomIdentity
+    const transform = zoomIdentity
       .translate(width / 2, height / 2)
       .scale(clampedScale)
       .translate(-cx, -cy);
 
-    d3.select(svg)
+    select(svg)
       .transition()
       .duration(duration)
       // D3's zoom.transform overload doesn't match Transition types exactly — safe cast
-      .call(zoom.transform as unknown as (t: d3.Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
+      .call(zoom.transform as unknown as (t: Transition<SVGSVGElement, unknown, null, undefined>) => void, transform);
   }, [refs]);
 }

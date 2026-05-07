@@ -1,4 +1,4 @@
-import * as d3 from "d3";
+import type { Selection } from "d3-selection";
 import { AGENT_LABELS, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import type { AgentState } from "@/lib/types";
@@ -64,7 +64,7 @@ export function wrapToolText(tool: string, args: string | undefined, maxLines: n
 /* ── Render the visual elements inside a node <g> ──────── */
 export function renderNodeVisuals(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  g: d3.Selection<SVGGElement, any, any, any>,
+  g: Selection<SVGGElement, any, any, any>,
   agent: AgentState,
   selectedAgentId: string | null,
 ) {
