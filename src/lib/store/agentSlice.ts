@@ -1,20 +1,22 @@
 import type { StateCreator } from "zustand";
 import type {
   AgentState,
-  EdgeState,
-  ActivityEntry,
-  AgentEvent,
   TeamState,
-  TeamStats,
-  ErrorDetail,
-  AgentTypeBudgets,
-  AgentType,
-  ToolCallEntry,
 } from "../types";
-import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "../config";
+import { ACTIVITY_MAX_ENTRIES } from "../config";
 import { calculateCost } from "../costs";
+import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
-import { computeTeamStatus } from "./helpers";
+import { isDuplicateActivity } from "./helpers";
+import {
+  createMutationContext,
+  applyRegister,
+  applyStatus,
+  applyToolCall,
+  applyTokens,
+  applyComplete,
+  applyMessage,
+} from "./eventHandlers";
 
 export type AgentSlice = Pick<AgentStore,
   | "agents" | "edges" | "activity" | "nextActivityId" | "topologyVersion" | "teams" | "connected" | "recording" | "recordedEvents"
@@ -71,294 +73,28 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   },
 
   handleEvent: (event, timestamp) => {
-    const { agents, edges, activity, recording, recordedEvents, agentTypeBudgets, nextActivityId, errorDetails, topologyVersion } = get();
-    // Lazy clones — only allocate a new Map when the case actually mutates.
-    // Without this, every `agent:tokens` (one per turn, fires constantly)
-    // creates a fresh `agents` Map identity, invalidates `useFilteredAgents`'s
-    // memo, and cascades into AgentGraph's force-simulation rebuild.
-    let newAgents: Map<string, AgentState> | null = null;
-    const cloneAgents = () => (newAgents ??= new Map(agents));
-    let newEdges = edges;
-    let newTeamsUpdate: Map<string, TeamState> | null = null;
-    let newErrorDetails: Map<string, ErrorDetail> | null = null;
-    // Topology bumps only when the rendered graph shape changes:
-    //   - agent added/removed (handled in this reducer + `removeAgent`)
-    //   - parentId changed for an existing agent
-    //   - edge added or removed (parent links are derived from agent.parentId
-    //     so they piggyback on agent topology; message + blocking edges live
-    //     in `edges`)
-    // Pure-status changes (running/completed/error), token updates, and
-    // tool-call appends do NOT change topology. Their visual effects are
-    // handled by AgentGraph's Effect 2b which keys off `agents` directly.
-    let topologyDirty = false;
+    if (!isValidAgentEvent(event)) return;
+    const snapshot = get();
+    const ctx = createMutationContext({
+      agents: snapshot.agents,
+      edges: snapshot.edges,
+      errorDetails: snapshot.errorDetails,
+      teams: snapshot.teams,
+      agentTypeBudgets: snapshot.agentTypeBudgets,
+    });
 
     switch (event.type) {
-      case "agent:register": {
-        // If the agent is already live, treat register as a metadata
-        // refresh — fill in missing fields (e.g. model learned lazily)
-        // without wiping accumulated state like toolCalls or tokens.
-        const existing = agents.get(event.agentId);
-        const agent: AgentState = existing
-          ? {
-              ...existing,
-              // Model can change mid-session (Sonnet → Opus switch) — always
-              // take the incoming value when provided so the label is live.
-              model: event.model || existing.model || "",
-              task: existing.task || event.task,
-              slug: existing.slug || event.slug,
-              agentType: event.agentType || existing.agentType,
-              displayType: existing.displayType || event.displayType,
-              metadata: existing.metadata || event.metadata,
-              // Effort/1M-context are read at register time; carry forward
-              // the existing value if a refresh event happens to lack them
-              // (e.g. transient settings.json read failure upstream).
-              effort: event.effort ?? existing.effort,
-              is1MContext: event.is1MContext ?? existing.is1MContext,
-            }
-          : {
-              id: event.agentId,
-              parentId: event.parentId,
-              agentType: event.agentType,
-              displayType: event.displayType,
-              status: "running",
-              task: event.task,
-              sessionId: event.sessionId,
-              slug: event.slug,
-              model: event.model,
-              teamId: event.teamId,
-              toolCalls: [],
-              inputTokens: 0,
-              outputTokens: 0,
-              cacheReadTokens: 0,
-              cacheCreateTokens: 0,
-              contextWindow: DEFAULT_CONTEXT_WINDOW,
-              startTime: timestamp,
-              metadata: event.metadata,
-              effort: event.effort,
-              is1MContext: event.is1MContext,
-            };
-        cloneAgents().set(event.agentId, agent);
-        // New agent = topology change. A metadata-refresh re-register on an
-        // already-known agent only counts as a topology change if its
-        // parentId or teamId moved (extremely rare in practice).
-        if (!existing) {
-          topologyDirty = true;
-        } else if (existing.parentId !== agent.parentId || existing.teamId !== agent.teamId) {
-          topologyDirty = true;
-        }
-        // Edge and team membership only on first register — avoids duplicate
-        // edges when register is replayed as a metadata refresh.
-        if (!existing) {
-          if (event.parentId) {
-            newEdges = [...edges, { source: event.parentId, target: event.agentId }];
-          }
-          if (event.teamId) {
-            const { teams } = get();
-            const newTeams = new Map(teams);
-            let team = newTeams.get(event.teamId);
-            if (!team) {
-              team = {
-                id: event.teamId,
-                name: event.teamId,
-                memberIds: [event.agentId],
-                status: "forming",
-                task: event.task,
-                startTime: timestamp,
-              };
-            } else {
-              team = { ...team, memberIds: [...team.memberIds, event.agentId] };
-            }
-            if (event.agentType === "team-lead") {
-              team = { ...team, leaderId: event.agentId, status: "active" };
-            }
-            newTeams.set(event.teamId, team);
-            newTeamsUpdate = newTeams;
-          }
-        }
-        break;
-      }
-      case "agent:status": {
-        const agent = agents.get(event.agentId);
-        if (agent) {
-          const updates: Partial<AgentState> = { status: event.status };
-          // F1: dependency tracking
-          if (event.waitingOn) {
-            updates.waitingOn = event.waitingOn;
-            const blockingEdge: EdgeState = { source: event.waitingOn, target: event.agentId, edgeType: "blocking" };
-            if (!newEdges.some(e => e.source === event.waitingOn && e.target === event.agentId && e.edgeType === "blocking")) {
-              newEdges = [...newEdges, blockingEdge];
-              topologyDirty = true;
-            }
-          } else if (agent.waitingOn && event.status !== "waiting") {
-            // Clear blocking edge when no longer waiting
-            updates.waitingOn = undefined;
-            newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
-            topologyDirty = true;
-          }
-          // F2: error detail extraction
-          //
-          // Semantic of `cascadeIds` for an agent X (verified against
-          // ErrorDrillDown.tsx — "ERROR CASCADE" panel): the descendants of X
-          // that errored after X did. So when X errors NOW we only need to:
-          //   (a) record X's own ErrorDetail (with an empty cascade — no
-          //       descendants have errored AFTER X yet at this moment), and
-          //   (b) walk every already-errored agent A and append X to A's
-          //       cascadeIds iff X is a descendant of A. We approximate
-          //       descendant-of by walking parent links upward from X (cheap
-          //       and transitively correct without a precomputed child index).
-          //
-          // The previous implementation:
-          //   - added X's already-errored *parent* to X's cascade (wrong:
-          //     parent is an ancestor, not a descendant), and
-          //   - patched the cascade of any child of X that was already in
-          //     errorDetails, even though that child errored BEFORE X
-          //     (`other.parentId === event.agentId` clause — wrong direction:
-          //     a parent erroring AFTER its child cannot have caused the
-          //     child's failure).
-          if (event.status === "error") {
-            const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : undefined;
-
-            // Walk ancestor chain and patch each already-errored ancestor.
-            // Cap at agents.size to defend against accidental cycles in
-            // parentId — registration normally forms a tree, but cheap.
-            const seen = new Set<string>([event.agentId]);
-            let cursorId = agent.parentId;
-            const maxSteps = agents.size;
-            let steps = 0;
-            while (cursorId && !seen.has(cursorId) && steps++ < maxSteps) {
-              seen.add(cursorId);
-              const ancestorDetail = errorDetails.get(cursorId);
-              if (ancestorDetail && !ancestorDetail.cascadeIds?.includes(event.agentId)) {
-                newErrorDetails = newErrorDetails ?? new Map(errorDetails);
-                newErrorDetails.set(cursorId, {
-                  ...ancestorDetail,
-                  cascadeIds: [...(ancestorDetail.cascadeIds ?? []), event.agentId],
-                });
-              }
-              const ancestor = agents.get(cursorId);
-              cursorId = ancestor?.parentId;
-            }
-
-            newErrorDetails = newErrorDetails ?? new Map(errorDetails);
-            newErrorDetails.set(event.agentId, {
-              agentId: event.agentId,
-              message: event.message || "Agent encountered an error",
-              lastToolCall: lastTool,
-              cascadeIds: [],
-              timestamp,
-            });
-          }
-          cloneAgents().set(event.agentId, { ...agent, ...updates });
-        }
-        const updatedAgentStatus = (newAgents ?? agents).get(event.agentId);
-        if (updatedAgentStatus?.teamId) {
-          const { teams } = get();
-          const newTeams = new Map(teams);
-          const team = newTeams.get(updatedAgentStatus.teamId);
-          if (team) {
-            const newStatus = computeTeamStatus(team.memberIds, (newAgents ?? agents), team.status);
-            newTeams.set(team.id, { ...team, status: newStatus });
-            newTeamsUpdate = newTeams;
-          }
-        }
-        break;
-      }
-      case "agent:tool_call": {
-        const agent = agents.get(event.agentId);
-        if (agent) {
-          const entry: ToolCallEntry = {
-            tool: event.tool,
-            args: event.args,
-            result: event.result,
-            timestamp,
-          };
-          const toolCalls = [...agent.toolCalls, entry].slice(-TOOL_CALLS_MAX_PER_AGENT);
-          cloneAgents().set(event.agentId, { ...agent, toolCalls });
-        }
-        break;
-      }
-      case "agent:tokens": {
-        const agent = agents.get(event.agentId);
-        if (agent) {
-          const totalTokens = event.inputTokens + event.outputTokens;
-          // F3: check token budget
-          const budgetLimit = agentTypeBudgets[agent.agentType];
-          const budgetExceeded = budgetLimit != null && totalTokens > budgetLimit;
-          cloneAgents().set(event.agentId, {
-            ...agent,
-            inputTokens: event.inputTokens,
-            outputTokens: event.outputTokens,
-            cacheReadTokens: event.cacheReadTokens,
-            cacheCreateTokens: event.cacheCreateTokens,
-            contextWindow: event.contextWindow,
-            budgetExceeded,
-          });
-        }
-        // Note: tokens for an unknown agent (no `agent` above) is a no-op —
-        // we deliberately do NOT clone the Map in that branch. This is the
-        // hottest path during steady-state, so it must stay free.
-        break;
-      }
-      case "agent:complete": {
-        const agent = agents.get(event.agentId);
-        if (agent) {
-          cloneAgents().set(event.agentId, {
-            ...agent,
-            status: "completed",
-            duration: event.duration,
-            summary: event.summary,
-            waitingOn: undefined,
-          });
-          // Clear any blocking edges
-          const beforeLen = newEdges.length;
-          newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
-          if (newEdges.length !== beforeLen) topologyDirty = true;
-        }
-        const updatedAgentComplete = (newAgents ?? agents).get(event.agentId);
-        if (updatedAgentComplete?.teamId) {
-          const { teams } = get();
-          const newTeams = new Map(teams);
-          const team = newTeams.get(updatedAgentComplete.teamId);
-          if (team) {
-            const newStatus = computeTeamStatus(team.memberIds, (newAgents ?? agents), team.status);
-            newTeams.set(team.id, { ...team, status: newStatus });
-            newTeamsUpdate = newTeams;
-          }
-        }
-        break;
-      }
-      case "agent:message": {
-        // Only mutates `edges`, never `agents` — Map identity stays stable.
-        const messageEdge = { source: event.fromId, target: event.toId, edgeType: "message" as const };
-        if (!newEdges.some(e => e.source === event.fromId && e.target === event.toId && e.edgeType === "message")) {
-          newEdges = [...newEdges, messageEdge];
-          topologyDirty = true;
-        }
-        break;
-      }
+      case "agent:register":  applyRegister(ctx, event, timestamp); break;
+      case "agent:status":    applyStatus(ctx, event, timestamp); break;
+      case "agent:tool_call": applyToolCall(ctx, event, timestamp); break;
+      case "agent:tokens":    applyTokens(ctx, event); break;
+      case "agent:complete":  applyComplete(ctx, event); break;
+      case "agent:message":   applyMessage(ctx, event); break;
+      default: { const _exhaustive: never = event; void _exhaustive; }
     }
 
-    // Suppress duplicate events to reduce noise:
-    // - agent:status: skip if same agent already has the same status in recent entries
-    // - agent:register: skip if this agent was already registered in recent entries
-    const isDuplicateStatus =
-      event.type === "agent:status" &&
-      activity.length > 0 &&
-      (() => {
-        for (let i = activity.length - 1; i >= Math.max(0, activity.length - 5); i--) {
-          const prev = activity[i].event;
-          if (prev.type === "agent:status" && prev.agentId === event.agentId) {
-            return prev.status === event.status;
-          }
-        }
-        return false;
-      })();
-
-    const isDuplicateRegister =
-      event.type === "agent:register" &&
-      activity.some((e) => e.event.type === "agent:register" && e.event.agentId === event.agentId);
-
-    const isDuplicate = isDuplicateStatus || isDuplicateRegister;
+    const { activity, nextActivityId, recording, recordedEvents, topologyVersion, edges } = snapshot;
+    const isDuplicate = isDuplicateActivity(activity, event);
     const newActivityId = isDuplicate ? nextActivityId : nextActivityId + 1;
     const newActivity = isDuplicate
       ? activity
@@ -368,13 +104,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         ].slice(-ACTIVITY_MAX_ENTRIES);
 
     set({
-      ...(newAgents ? { agents: newAgents } : {}),
-      ...(newEdges !== edges ? { edges: newEdges } : {}),
+      ...(ctx.newAgents ? { agents: ctx.newAgents } : {}),
+      ...(ctx.newEdges !== edges ? { edges: ctx.newEdges } : {}),
       activity: newActivity,
       nextActivityId: newActivityId,
-      ...(newTeamsUpdate ? { teams: newTeamsUpdate } : {}),
-      ...(newErrorDetails ? { errorDetails: newErrorDetails } : {}),
-      ...(topologyDirty ? { topologyVersion: topologyVersion + 1 } : {}),
+      ...(ctx.newTeams ? { teams: ctx.newTeams } : {}),
+      ...(ctx.newErrorDetails ? { errorDetails: ctx.newErrorDetails } : {}),
+      ...(ctx.topologyDirty ? { topologyVersion: topologyVersion + 1 } : {}),
       ...(recording ? { recordedEvents: [...recordedEvents, { timestamp, event }] } : {}),
     });
   },
