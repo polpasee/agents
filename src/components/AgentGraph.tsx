@@ -512,7 +512,11 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
 
           const label = g.select<SVGTextElement>("text.cluster-label");
           if (team) {
-            const avgY = Math.min(...points.map((p) => p[1]));
+            // Avoid Math.min(...spread) — fold to stay stack-safe with
+            // arbitrarily many cluster points.
+            let avgY = Infinity;
+            for (const p of points) if (p[1] < avgY) avgY = p[1];
+            if (avgY === Infinity) avgY = 0;
             const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
             label
               .attr("x", avgX)
@@ -807,8 +811,12 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           const targetNode = typeof d.target === "string" ? null : (d.target as SimNode);
           const agent = agents.get(sourceId);
           if (!targetNode?.toolCall || agent?.status !== "running") return;
-          // Animate only the most-recent tool call link
-          const latestTs = Math.max(...agent.toolCalls.map((tc) => tc.timestamp));
+          // Animate only the most-recent tool call link.
+          // Fold instead of Math.max(...spread) — toolCalls is capped to
+          // MAX_TOOL_CALLS_PER_AGENT today, but the spread form is one
+          // refactor away from a stack overflow if the cap ever moves.
+          let latestTs = -Infinity;
+          for (const tc of agent.toolCalls) if (tc.timestamp > latestTs) latestTs = tc.timestamp;
           if (targetNode.toolCall.timestamp !== latestTs) return;
           line.append("animate")
             .attr("attributeName", "stroke-dashoffset")

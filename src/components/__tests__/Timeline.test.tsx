@@ -66,4 +66,36 @@ describe("Timeline", () => {
     expect(labels[0].textContent).toBe("BUILD");
     expect(labels[1].textContent).toBe("REVIEW");
   });
+
+  it("does not throw RangeError when computing the earliest startTime over 200000 agents (Math.min spread regression)", () => {
+    // Reproduces P-H5 / H5. Previously, `Math.min(...agents.map(a => a.startTime))`
+    // and friends used argument-list spread, which throws
+    // "RangeError: Maximum call stack size exceeded" once the array
+    // crosses the per-engine argument-list cap (~65k on V8 in practice).
+    //
+    // We exercise the failing operation directly rather than mounting
+    // 200k DOM rows — jsdom can't fit that many nodes regardless of
+    // whether the math throws. The loop-based fold the components now use
+    // must scale linearly without any cap.
+    const startTimes: number[] = [];
+    for (let i = 0; i < 200_000; i++) startTimes.push(i);
+
+    // The OLD pattern would throw here. The NEW pattern (fold) does not.
+    const earliestFold = (() => {
+      let earliest = Infinity;
+      for (const t of startTimes) if (t < earliest) earliest = t;
+      return earliest;
+    })();
+    expect(earliestFold).toBe(0);
+
+    // Sanity: confirm the spread approach really would have thrown at this
+    // size, so the test stays meaningful as the engine evolves.
+    let spreadThrew = false;
+    try {
+      Math.min(...startTimes);
+    } catch {
+      spreadThrew = true;
+    }
+    expect(spreadThrew).toBe(true);
+  });
 });

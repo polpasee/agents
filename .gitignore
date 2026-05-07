@@ -29,6 +29,9 @@ npm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Code review artifacts
+.full-review/
+
 # superpowers
 .superpowers/
 

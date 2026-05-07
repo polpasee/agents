@@ -27,6 +27,10 @@ open http://localhost:4000
 npm run mock-agents
 ```
 
+## Security & Trust Model
+
+> **Warning:** This dashboard is localhost-only and transmits raw Claude Code transcripts including conversation history, tool inputs/outputs, and file contents **without redaction**. Do not expose ports 4000/4001 to untrusted networks. Transcripts may contain credentials, API keys, or sensitive file contents. See [SECURITY.md](SECURITY.md) for details.
+
 ## Architecture
 
 ```
@@ -194,6 +198,15 @@ Key constants defined in `src/lib/config.ts`:
 | Cost projection window | 60s | Sliding window |
 | Budget warning | 80% | Amber pulse |
 | Budget critical | 95% | Red pulse |
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WS_PORT` | `4001` | WebSocket server port. Changing this requires updating `WS_ALLOWED_ORIGINS` in `scripts/lib/config.ts`. |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:4001` | Client WebSocket connection URL. Must match `WS_PORT`. |
+
+See `.env.example` for a template. Origin allowlist is hardcoded in `scripts/lib/config.ts`.
 
 ## Session Recording & Replay
 
