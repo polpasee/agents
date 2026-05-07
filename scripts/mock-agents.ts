@@ -8,7 +8,7 @@ function createReporter() {
     send: (event: AgentEvent) => void;
     close: () => void;
   }>((resolve, reject) => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(WS_URL, { headers: { origin: "http://localhost:4000" } });
     ws.on("open", () => {
       resolve({
         send: (event: AgentEvent) => {

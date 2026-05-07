@@ -123,11 +123,11 @@ Files to create/modify: [Exact paths]
 Requirements:
 - [Specific requirement with file references]
 Constraints:
-- Mutations use withAction() wrapper (lib/action-helpers.ts)
-- Read-only actions use withReadAction()
-- Queries go in lib/db/queries/
-- Actions colocate at app/(dashboard)/**/actions.ts
-- Components go in components/[feature]/
+- WS protocol event types live in src/lib/types.ts — add new shapes there first
+- Server state mutations go in scripts/lib/agent-state.ts; broadcast state via broadcast()
+- Client state uses Zustand slices in src/lib/store/, composed in src/lib/store/index.ts
+- Components colocate in src/components/; D3 rendering logic is React-free under src/lib/d3/
+- No database, no server actions, no ORM
 Expected output: [What the deliverable looks like]
 Do not: [What to avoid]
 ```
@@ -136,12 +136,13 @@ Do not: [What to avoid]
 
 After every sub-agent returns, verify:
 
-- Follows `withAction()`/`withReadAction()` pattern for server actions (not raw try-catch)
-- Queries placed in `lib/db/queries/`, not inline in actions
+- WS event types defined in `src/lib/types.ts` before use
+- Server mutations go in `scripts/lib/agent-state.ts` and broadcast via `broadcast()`
+- Client Zustand slices in `src/lib/store/`, composed in `src/lib/store/index.ts`
+- Components in `src/components/`; D3 rendering under `src/lib/d3/` (React-free)
 - No `any` types or unnecessary type assertions
 - Imports use `@/` path aliases correctly
-- Error handling uses project error hierarchy (`lib/errors.ts`), not generic throws
-- Cache invalidation included for mutations that affect cached data
+- No hardcoded configuration; use `src/lib/config.ts` or `scripts/lib/config.ts`
 - File placed in correct directory per project structure
 - No hardcoded values or magic strings
 

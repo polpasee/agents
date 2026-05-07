@@ -35,8 +35,9 @@ function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: 
 const wss = new WebSocketServer({
   port: WS_PORT,
   host: "127.0.0.1",
+  maxPayload: 256 * 1024,
   verifyClient: ({ origin }, done) => {
-    if (!origin || WS_ALLOWED_ORIGINS.includes(origin)) return done(true);
+    if (origin && WS_ALLOWED_ORIGINS.includes(origin)) return done(true);
     done(false, 403, "Forbidden origin");
   },
 });

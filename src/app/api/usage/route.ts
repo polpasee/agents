@@ -3,6 +3,7 @@ import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { createRequire } from "node:module";
 
 /** ccstatusline writes fresh data here every ~3 minutes (it calls the Anthropic
  *  /api/oauth/usage endpoint and caches the response). This matches exactly
@@ -29,6 +30,17 @@ const REFRESH_COOLDOWN_MS = 30 * 1000;
 
 let lastRefreshAt = 0;
 
+/** Resolve the path to the locally-installed ccstatusline binary.
+ *  Uses fs.readFileSync rather than require() so Turbopack doesn't try to
+ *  statically resolve the dynamic path at build time. */
+function resolveCcstatuslineBin(): string {
+  const _require = createRequire(import.meta.url);
+  const ccPkgPath = _require.resolve("ccstatusline/package.json");
+  const ccPkg = JSON.parse(fs.readFileSync(ccPkgPath, "utf8")) as { bin: Record<string, string> | string };
+  const binRel = typeof ccPkg.bin === "string" ? ccPkg.bin : Object.values(ccPkg.bin)[0];
+  return path.resolve(path.dirname(ccPkgPath), binRel);
+}
+
 /** Fire-and-forget ccstatusline invocation. Feeds it a minimal stdin payload
  *  so it renders a status line, which as a side effect refreshes usage.json. */
 function triggerBackgroundRefresh() {
@@ -36,10 +48,16 @@ function triggerBackgroundRefresh() {
   if (now - lastRefreshAt < REFRESH_COOLDOWN_MS) return;
   lastRefreshAt = now;
   try {
-    const child = spawn("npx", ["-y", "ccstatusline@latest"], {
+    const ccBin = resolveCcstatuslineBin();
+    // Restrict env to prevent secret exfiltration if ccstatusline is ever compromised
+    const child = spawn(process.execPath, [ccBin], {
       detached: true,
       stdio: ["pipe", "ignore", "ignore"],
-      env: process.env,
+      env: {
+        PATH: process.env.PATH ?? "",
+        HOME: process.env.HOME ?? "",
+        NODE_ENV: process.env.NODE_ENV ?? "production",
+      },
     });
     child.on("error", () => {});
     const payload = JSON.stringify({
@@ -51,7 +69,7 @@ function triggerBackgroundRefresh() {
     child.stdin?.end(payload);
     child.unref();
   } catch {
-    // Spawn can fail if npx is missing — silently skip, caller still gets cache.
+    // Spawn can fail if binary is missing — silently skip, caller still gets cache.
   }
 }
 

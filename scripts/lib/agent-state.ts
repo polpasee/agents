@@ -222,6 +222,18 @@ export function updateAgentStatus(agentId: string, mtimeMs: number) {
 
 // ── Process a JSONL entry ──────────────────────────────
 export function processEntry(entry: Record<string, unknown>, agentId: string, _sessionId: string) {
+  // Defensive wrapper: the polling tick reads many JSONL entries and one bad
+  // entry must not crash the whole loop. Malformed inputs (circular refs in
+  // tool input, unexpected shapes) get logged and skipped.
+  try {
+    return processEntryInner(entry, agentId, _sessionId);
+  } catch (err) {
+    console.warn(`processEntry: failed to process entry for agent ${agentId}:`, err);
+    return;
+  }
+}
+
+function processEntryInner(entry: Record<string, unknown>, agentId: string, _sessionId: string) {
   const timestamp = typeof entry.timestamp === "string"
     ? new Date(entry.timestamp).getTime()
     : Date.now();
@@ -279,7 +291,19 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
             argsStr = keys
               .map((k) => {
                 const v = input[k];
-                const s = typeof v === "string" ? v : JSON.stringify(v);
+                let s: string;
+                if (typeof v === "string") {
+                  s = v;
+                } else {
+                  try {
+                    s = JSON.stringify(v);
+                  } catch {
+                    // Circular references / non-serializable values must
+                    // not crash the whole entry. Show a placeholder so the
+                    // tool call is still recorded.
+                    s = "[unserializable]";
+                  }
+                }
                 return `${k}: ${s?.slice(0, MAX_ARG_PREVIEW_LENGTH)}`;
               })
               .join(", ");

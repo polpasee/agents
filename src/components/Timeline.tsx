@@ -19,7 +19,11 @@ export function Timeline() {
   }
 
   const now = Date.now();
-  const earliest = Math.min(...agents.map((a) => a.startTime));
+  // Avoid `Math.min(...arr)` — argument-list spread blows the stack at
+  // ~80k+ items. Fold instead so this scales linearly without limit.
+  let earliest = Infinity;
+  for (const a of agents) if (a.startTime < earliest) earliest = a.startTime;
+  if (earliest === Infinity) earliest = now;
   const totalRange = now - earliest || 1;
 
   const sorted = [...agents].sort((a, b) => {

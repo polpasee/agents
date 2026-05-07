@@ -30,10 +30,12 @@ export function TimelineBar() {
   ).length;
 
   const agentList = Array.from(agents.values());
-  const earliest = agentList.length > 0
-    ? Math.min(...agentList.map((a) => a.startTime))
-    : Date.now();
+  // Argument-list spread on Math.min explodes with 70k+ agents (RangeError:
+  // Maximum call stack size exceeded). Fold to keep this O(n) and stack-safe.
   const now = Date.now();
+  let earliest = Infinity;
+  for (const a of agentList) if (a.startTime < earliest) earliest = a.startTime;
+  if (earliest === Infinity) earliest = now;
   const elapsed = now - earliest;
 
   const dots = activity

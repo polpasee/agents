@@ -316,6 +316,60 @@ describe("processEntry: lazy model learning", () => {
   });
 });
 
+describe("processEntry: defensive serialization", () => {
+  beforeEach(() => {
+    agents.clear();
+  });
+
+  it("does not throw when tool_use input contains a circular reference", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "t",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    const circular: Record<string, unknown> = { key: "value" };
+    circular.self = circular;
+
+    expect(() =>
+      processEntry(
+        {
+          timestamp: new Date().toISOString(),
+          message: {
+            role: "assistant",
+            content: [{ type: "tool_use", name: "Bash", input: circular }],
+          },
+        },
+        "a1",
+        "a1",
+      ),
+    ).not.toThrow();
+
+    // Tool call should still be recorded — bad arg serialization must not
+    // swallow the event itself, just the arg preview.
+    const tc = agents.get("a1")?.toolCalls[0];
+    expect(tc?.tool).toBe("Bash");
+  });
+
+  it("does not throw when an entry is malformed at the top level", () => {
+    // The polling tick must not crash on one bad entry. We pass an entry
+    // whose `message` shape is unexpected to ensure the function returns
+    // gracefully instead of throwing through to the caller.
+    expect(() =>
+      processEntry(
+        { timestamp: "not-a-real-date", message: null as unknown as Record<string, unknown> },
+        "a1",
+        "a1",
+      ),
+    ).not.toThrow();
+  });
+});
+
 describe("registerAgent: project label", () => {
   beforeEach(() => {
     agents.clear();

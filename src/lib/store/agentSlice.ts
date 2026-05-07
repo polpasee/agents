@@ -169,36 +169,55 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
             newEdges = newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
           }
           // F2: error detail extraction
+          //
+          // Semantic of `cascadeIds` for an agent X (verified against
+          // ErrorDrillDown.tsx — "ERROR CASCADE" panel): the descendants of X
+          // that errored after X did. So when X errors NOW we only need to:
+          //   (a) record X's own ErrorDetail (with an empty cascade — no
+          //       descendants have errored AFTER X yet at this moment), and
+          //   (b) walk every already-errored agent A and append X to A's
+          //       cascadeIds iff X is a descendant of A. We approximate
+          //       descendant-of by walking parent links upward from X (cheap
+          //       and transitively correct without a precomputed child index).
+          //
+          // The previous implementation:
+          //   - added X's already-errored *parent* to X's cascade (wrong:
+          //     parent is an ancestor, not a descendant), and
+          //   - patched the cascade of any child of X that was already in
+          //     errorDetails, even though that child errored BEFORE X
+          //     (`other.parentId === event.agentId` clause — wrong direction:
+          //     a parent erroring AFTER its child cannot have caused the
+          //     child's failure).
           if (event.status === "error") {
             const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : undefined;
-            const cascadeIds: string[] = [];
-            // Check parent: cheap direct lookup
-            if (agent.parentId) {
-              const parent = newAgents.get(agent.parentId);
-              if (parent && parent.status === "error") cascadeIds.push(agent.parentId);
-            }
-            // Check children via errorDetails (only known-error agents), not all agents
-            for (const [id, detail] of errorDetails) {
-              if (id === event.agentId) continue;
-              const other = newAgents.get(id);
-              if (other && other.parentId === event.agentId) cascadeIds.push(id);
-              // also patch the existing error detail to mention this new sibling/parent
-              if (other && (other.parentId === event.agentId || agent.parentId === id)) {
-                if (!detail.cascadeIds?.includes(event.agentId)) {
-                  newErrorDetails = newErrorDetails ?? new Map(errorDetails);
-                  newErrorDetails.set(id, {
-                    ...detail,
-                    cascadeIds: [...(detail.cascadeIds ?? []), event.agentId],
-                  });
-                }
+
+            // Walk ancestor chain and patch each already-errored ancestor.
+            // Cap at agents.size to defend against accidental cycles in
+            // parentId — registration normally forms a tree, but cheap.
+            const seen = new Set<string>([event.agentId]);
+            let cursorId = agent.parentId;
+            const maxSteps = newAgents.size;
+            let steps = 0;
+            while (cursorId && !seen.has(cursorId) && steps++ < maxSteps) {
+              seen.add(cursorId);
+              const ancestorDetail = errorDetails.get(cursorId);
+              if (ancestorDetail && !ancestorDetail.cascadeIds?.includes(event.agentId)) {
+                newErrorDetails = newErrorDetails ?? new Map(errorDetails);
+                newErrorDetails.set(cursorId, {
+                  ...ancestorDetail,
+                  cascadeIds: [...(ancestorDetail.cascadeIds ?? []), event.agentId],
+                });
               }
+              const ancestor = newAgents.get(cursorId);
+              cursorId = ancestor?.parentId;
             }
+
             newErrorDetails = newErrorDetails ?? new Map(errorDetails);
             newErrorDetails.set(event.agentId, {
               agentId: event.agentId,
               message: event.message || "Agent encountered an error",
               lastToolCall: lastTool,
-              cascadeIds,
+              cascadeIds: [],
               timestamp,
             });
           }
