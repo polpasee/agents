@@ -25,6 +25,7 @@ import { ExportModal } from "./ExportModal";
 import { DiffViewer } from "./DiffViewer";
 import { SessionComparison } from "./SessionComparison";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
+import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -65,6 +66,8 @@ export function Dashboard() {
   const exitComparison = useAgentStore((s) => s.exitComparison);
   const agents = useAgentStore((s) => s.agents);
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
+  const selectAgent = useAgentStore((s) => s.selectAgent);
+  const filteredAgents = useFilteredAgents();
 
   const [mobileAgentList, setMobileAgentList] = useState(false);
   const [mobileAgentDetail, setMobileAgentDetail] = useState(false);
@@ -72,6 +75,16 @@ export function Dashboard() {
     setMobileAgentList(false);
     setMobileAgentDetail(false);
   }, []);
+
+  // Clear stale selection when the selected agent disappears from the visible
+  // graph (removeAgent, syncState replace, session/type filter change). Without
+  // this the detail panel renders empty and only a refresh recovers.
+  useEffect(() => {
+    if (selectedAgentId === null) return;
+    if (!filteredAgents.some((a) => a.id === selectedAgentId)) {
+      selectAgent(null);
+    }
+  }, [selectedAgentId, filteredAgents, selectAgent]);
 
   // On narrow viewports the Agents/Details panels are hidden off-screen until
   // their tab button is tapped. Without this, selecting an agent (in the graph
