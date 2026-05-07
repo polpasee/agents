@@ -105,14 +105,17 @@ const colorByAgentId = new Map<string, string>();
 
 /**
  * Returns the registered color for an agent id, assigning the next palette
- * slot on first lookup. After {@link AGENT_PALETTE}.length distinct ids the
- * counter wraps, so slot N maps to palette[N % palette.length] — duplicates
- * only appear once the palette is fully consumed.
+ * slot on first lookup. Slots are claimed from the end of the palette
+ * backwards (rose → pink → fuchsia → …) so the first agent gets the cool
+ * end of the spectrum first. After {@link AGENT_PALETTE}.length distinct
+ * ids the counter wraps — duplicates only appear once the palette is fully
+ * consumed.
  */
 export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
-  const color = AGENT_PALETTE[colorByAgentId.size % AGENT_PALETTE.length];
+  const slot = AGENT_PALETTE.length - 1 - (colorByAgentId.size % AGENT_PALETTE.length);
+  const color = AGENT_PALETTE[slot];
   colorByAgentId.set(id, color);
   return color;
 }
