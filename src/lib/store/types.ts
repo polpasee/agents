@@ -27,6 +27,16 @@ export interface AgentStore {
   activity: ActivityEntry[];
   /** Monotonic counter for stable activity entry IDs. Reset on replay load. */
   nextActivityId: number;
+  /**
+   * Monotonic counter that ONLY bumps when the rendered topology actually
+   * changes (agent add/remove, parentId/teamId change, edge add/remove,
+   * full state resets). Lets AgentGraph rebuild the force simulation on
+   * a cheap integer compare instead of recomputing a sorted-string key
+   * from filteredAgents+edges on every store change. Also lets the
+   * `agents` Map keep stable identity across no-op events like
+   * `agent:tokens`, so `useFilteredAgents`'s memo doesn't invalidate.
+   */
+  topologyVersion: number;
   selectedAgentId: string | null;
   selectedSessionIds: Set<string>; // F5: multi-session (empty = all)
   /**

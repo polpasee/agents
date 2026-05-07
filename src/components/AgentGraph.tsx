@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import * as d3 from "d3";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, EDGE_COLORS, UI, agentColor } from "@/lib/colors";
@@ -123,29 +123,21 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
   const heatmapMetric = useAgentStore((s) => s.heatmapMetric);
   const graphLayout = useAgentStore((s) => s.graphLayout);
   const filteredAgents = useFilteredAgents();
-
-  // Topology key — only changes when agents join/leave, parent links change, or edges change.
-  // This controls when the force simulation is rebuilt.
-  const topologyKey = useMemo(() => {
-    const agentKeys = filteredAgents
-      .map((a) => `${a.id}:${a.parentId || ""}:${a.teamId || ""}`)
-      .sort()
-      .join("|");
-    const edgeKeys = edges
-      .filter((e) => e.edgeType === "message" || e.edgeType === "blocking")
-      .map((e) => `${e.edgeType === "blocking" ? "b" : "m"}:${e.source}:${e.target}`)
-      .sort()
-      .join("|");
-    return `${agentKeys}||${edgeKeys}`;
-  }, [filteredAgents, edges]);
+  // Cheap integer that bumps only when topology actually changes (agents
+  // join/leave, parent/team links move, message/blocking edges added or
+  // removed). Replaces the old per-render `.map().sort().join("|")` over
+  // filteredAgents+edges, which ran on every store update — including
+  // pure-token events that don't affect graph shape.
+  const topologyVersion = useAgentStore((s) => s.topologyVersion);
 
   // Auto-fit whenever the topology changes. Wait briefly for the force
   // simulation to settle so we fit the final layout, not the spawn positions.
   useEffect(() => {
-    if (!topologyKey) return;
+    if (filteredAgents.length === 0) return;
     const timer = setTimeout(() => fitToView(), 700);
     return () => clearTimeout(timer);
-  }, [topologyKey, fitToView]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topologyVersion, fitToView]);
 
   // ── Effect 1: Rebuild simulation when topology changes ──
   useEffect(() => {
@@ -572,7 +564,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     simulationRef.current = simulation;
     return () => { simulation.stop(); clearTimeout(fitTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topologyKey, selectAgent]);
+  }, [topologyVersion, selectAgent]);
 
   // ── Effect 2a: Dispatch lifecycle effects from new activity entries (cheap) ──
   useEffect(() => {
@@ -953,7 +945,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
           ));
       }
     }
-  }, [graphLayout, topologyKey]);
+  }, [graphLayout, topologyVersion]);
 
   return (
     <div ref={containerRef} className="flex-1 h-full" style={{ background: "var(--color-bg)" }}>

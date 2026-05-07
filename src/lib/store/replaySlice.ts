@@ -28,6 +28,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       edges: [],
       activity: [],
       nextActivityId: 0,
+      topologyVersion: get().topologyVersion + 1,
       teams: new Map(),
       selectedAgentId: null,
       selectedTeamId: null,
@@ -70,6 +71,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       edges: [],
       activity: [],
       nextActivityId: 0,
+      topologyVersion: get().topologyVersion + 1,
       teams: new Map(),
       errorDetails: new Map(),
       replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
@@ -88,6 +90,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       edges: [],
       activity: [],
       nextActivityId: 0,
+      topologyVersion: get().topologyVersion + 1,
       teams: new Map(),
       errorDetails: new Map(),
       replay: {
