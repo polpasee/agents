@@ -32,6 +32,9 @@ next-env.d.ts
 # Code review artifacts
 .full-review/
 
+# Coverage reports
+/coverage
+
 # superpowers
 .superpowers/
 

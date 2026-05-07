@@ -1,6 +1,6 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
 import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
 

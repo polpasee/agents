@@ -1,5 +1,7 @@
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from "node:fs";
+import * as fsp from "node:fs/promises";
+import type { Stats } from "node:fs";
+import * as path from "node:path";
 import {
   agents,
   edges,
@@ -136,20 +138,41 @@ export function isEphemeralProjectDir(projectDir: string): boolean {
   return EPHEMERAL_PROJECT_RE.test(projectDir);
 }
 
-export function discoverActiveSessions(projectsDir: string) {
-  if (!fs.existsSync(projectsDir)) return;
+export async function discoverActiveSessions(projectsDir: string): Promise<void> {
+  try {
+    await fsp.access(projectsDir);
+  } catch {
+    return;
+  }
 
-  const projectDirs = fs.readdirSync(projectsDir).filter((d) => {
-    if (isEphemeralProjectDir(d)) return false;
-    const p = path.join(projectsDir, d);
-    return fs.statSync(p).isDirectory();
-  });
+  let allEntries: string[];
+  try {
+    allEntries = await fsp.readdir(projectsDir);
+  } catch {
+    return;
+  }
+
+  // Filter to non-ephemeral directories using parallel stat calls
+  const dirStats = await Promise.all(
+    allEntries
+      .filter((d) => !isEphemeralProjectDir(d))
+      .map(async (d) => {
+        const p = path.join(projectsDir, d);
+        try {
+          const stat = await fsp.stat(p);
+          return stat.isDirectory() ? d : null;
+        } catch {
+          return null;
+        }
+      })
+  );
+  const projectDirs = dirStats.filter((d): d is string => d !== null);
 
   for (const projectDir of projectDirs) {
     const projectPath = path.join(projectsDir, projectDir);
     let entries: string[];
     try {
-      entries = fs.readdirSync(projectPath);
+      entries = await fsp.readdir(projectPath);
     } catch {
       continue;
     }
@@ -165,9 +188,9 @@ export function discoverActiveSessions(projectsDir: string) {
       const sessionId = mainJsonl.replace(".jsonl", "");
       const filePath = path.join(projectPath, mainJsonl);
 
-      let stat: fs.Stats;
+      let stat: Stats;
       try {
-        stat = fs.statSync(filePath);
+        stat = await fsp.stat(filePath);
       } catch {
         continue;
       }
@@ -207,18 +230,30 @@ export function discoverActiveSessions(projectsDir: string) {
     }
 
     // ── Step 2: Discover sub-agents ──────────────────
-    const sessionDirs = entries.filter((d) => {
-      const p = path.join(projectPath, d);
-      try { return fs.statSync(p).isDirectory(); } catch { return false; }
-    });
+    const sessionDirStats = await Promise.all(
+      entries.map(async (d) => {
+        const p = path.join(projectPath, d);
+        try {
+          const stat = await fsp.stat(p);
+          return stat.isDirectory() ? d : null;
+        } catch {
+          return null;
+        }
+      })
+    );
+    const sessionDirs = sessionDirStats.filter((d): d is string => d !== null);
 
     for (const sessionId of sessionDirs) {
       const subagentsDir = path.join(projectPath, sessionId, "subagents");
-      if (!fs.existsSync(subagentsDir)) continue;
+      try {
+        await fsp.access(subagentsDir);
+      } catch {
+        continue;
+      }
 
       let files: string[];
       try {
-        files = fs.readdirSync(subagentsDir);
+        files = await fsp.readdir(subagentsDir);
       } catch {
         continue;
       }
@@ -229,9 +264,9 @@ export function discoverActiveSessions(projectsDir: string) {
       for (const jsonlFile of jsonlFiles) {
         const filePath = path.join(subagentsDir, jsonlFile);
 
-        let stat: fs.Stats;
+        let stat: Stats;
         try {
-          stat = fs.statSync(filePath);
+          stat = await fsp.stat(filePath);
         } catch {
           continue;
         }
@@ -245,8 +280,8 @@ export function discoverActiveSessions(projectsDir: string) {
         // the sub-agent would render orphaned (no MAIN anchor).
         if (!agents.has(sessionId)) {
           const parentJsonl = path.join(projectPath, `${sessionId}.jsonl`);
-          let parentStat: fs.Stats | undefined;
-          try { parentStat = fs.statSync(parentJsonl); } catch { /* missing */ }
+          let parentStat: Stats | undefined;
+          try { parentStat = await fsp.stat(parentJsonl); } catch { /* missing */ }
           if (parentStat) {
             const removedAt = removedAgentIds.get(sessionId);
             // Don't resurrect a purged main unless its own JSONL (or the

@@ -1,21 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockExistsSync = vi.fn();
-const mockReaddirSync = vi.fn();
-const mockStatSync = vi.fn();
-const mockReadFileSync = vi.fn();
-const mockOpenSync = vi.fn();
-const mockReadSync = vi.fn();
-const mockCloseSync = vi.fn();
+const mockAccess = vi.fn<(..._args: unknown[]) => Promise<void>>();
+const mockReaddir = vi.fn<(..._args: unknown[]) => Promise<string[]>>();
+const mockStat = vi.fn<(..._args: unknown[]) => Promise<{ isDirectory: () => boolean; mtimeMs: number; size: number }>>();
 
-vi.mock("fs", () => ({
-  existsSync: (...args: unknown[]) => mockExistsSync(...args),
-  readdirSync: (...args: unknown[]) => mockReaddirSync(...args),
-  statSync: (...args: unknown[]) => mockStatSync(...args),
-  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
-  openSync: (...args: unknown[]) => mockOpenSync(...args),
-  readSync: (...args: unknown[]) => mockReadSync(...args),
-  closeSync: (...args: unknown[]) => mockCloseSync(...args),
+vi.mock("node:fs/promises", () => ({
+  access: (...args: unknown[]) => mockAccess(...args),
+  readdir: (...args: unknown[]) => mockReaddir(...args),
+  stat: (...args: unknown[]) => mockStat(...args),
+}));
+
+// node:fs is still used for readFileSync on meta files
+vi.mock("node:fs", () => ({
+  readFileSync: vi.fn(),
 }));
 
 vi.mock("../file-reader", () => ({
@@ -27,6 +24,8 @@ vi.mock("../file-reader", () => ({
     startTime: Date.now(),
   }),
   cleanupFileOffsets: vi.fn(),
+  readEffortLevel: vi.fn().mockReturnValue(undefined),
+  readIs1MContext: vi.fn().mockReturnValue(undefined),
 }));
 
 vi.mock("../agent-state", () => ({
@@ -64,34 +63,35 @@ describe("discoverActiveSessions", () => {
     expect(discoverActiveSessions).toBeDefined();
   });
 
-  it("returns early when projects directory does not exist", () => {
-    mockExistsSync.mockReturnValue(false);
-    expect(() => discoverActiveSessions("/nonexistent")).not.toThrow();
-    expect(mockReaddirSync).not.toHaveBeenCalled();
+  it("returns early when projects directory does not exist", async () => {
+    mockAccess.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+    await expect(discoverActiveSessions("/nonexistent")).resolves.toBeUndefined();
+    expect(mockReaddir).not.toHaveBeenCalled();
   });
 
-  it("handles an empty projects directory", () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReaddirSync.mockReturnValue([]);
+  it("handles an empty projects directory", async () => {
+    mockAccess.mockResolvedValue(undefined);
+    mockReaddir.mockResolvedValue([]);
 
-    expect(() => discoverActiveSessions("/projects")).not.toThrow();
+    await expect(discoverActiveSessions("/projects")).resolves.toBeUndefined();
   });
 
-  it("skips ephemeral project dirs (temp / var-folders) so background SDK runs don't pollute the topology", () => {
-    mockExistsSync.mockReturnValue(true);
-    mockReaddirSync.mockReturnValueOnce([
+  it("skips ephemeral project dirs (temp / var-folders) so background SDK runs don't pollute the topology", async () => {
+    mockAccess.mockResolvedValue(undefined);
+    // First readdir: top-level project dirs
+    mockReaddir.mockResolvedValueOnce([
       "-private-tmp",
       "-private-var-folders-nd-vn6fz1m57xvf7c4mn",
       "-Users-erdos-Github-agents",
     ]);
-    // statSync only invoked for non-ephemeral candidates that survive the filter
-    mockStatSync.mockReturnValue({ isDirectory: () => true, mtimeMs: 0, size: 0 });
-    // readdirSync called again for each surviving project dir's contents — return [] to short-circuit
-    mockReaddirSync.mockReturnValue([]);
+    // stat invoked for non-ephemeral candidates only; isDirectory → true
+    mockStat.mockResolvedValue({ isDirectory: () => true, mtimeMs: 0, size: 0 });
+    // readdir for the surviving project dir contents — return [] to short-circuit
+    mockReaddir.mockResolvedValue([]);
 
-    discoverActiveSessions("/projects");
+    await discoverActiveSessions("/projects");
 
-    const statedDirs = mockStatSync.mock.calls.map((c) => String(c[0]));
+    const statedDirs = mockStat.mock.calls.map((c) => String(c[0]));
     expect(statedDirs.some((p) => p.includes("-private-tmp"))).toBe(false);
     expect(statedDirs.some((p) => p.includes("-private-var-folders"))).toBe(false);
     expect(statedDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(true);

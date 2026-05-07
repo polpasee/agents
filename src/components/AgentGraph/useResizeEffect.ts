@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
 import type { AgentGraphRefs } from "./refs";
 
 /**
@@ -17,7 +17,7 @@ export function useResizeEffect(refs: AgentGraphRefs, fitToView: (duration?: num
 
     const observer = new ResizeObserver(() => {
       const { width, height } = container.getBoundingClientRect();
-      d3.select(svg).attr("width", width).attr("height", height);
+      select(svg).attr("width", width).attr("height", height);
       fitToView(250);
     });
     observer.observe(container);

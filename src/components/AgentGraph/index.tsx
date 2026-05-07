@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, forwardRef, useImperativeHandle } from "react";
-import * as d3 from "d3";
+import { useEffect, useImperativeHandle, type Ref } from "react";
+import { zoomTransform } from "d3-zoom";
 import { useAgentStore } from "@/lib/store";
 import { agentColor } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
@@ -22,7 +22,9 @@ export interface AgentGraphHandle {
   } | null;
 }
 
-export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_props, ref) {
+type Props = { ref?: Ref<AgentGraphHandle> };
+
+export function AgentGraph({ ref }: Props) {
   const refs = useAgentGraphRefs();
 
   const agents = useAgentStore((s) => s.agents);
@@ -70,7 +72,7 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
     getNodesAndViewport() {
       const svg = refs.svgRef.current;
       if (!svg || !refs.zoomRef.current) return null;
-      const transform = d3.zoomTransform(svg);
+      const transform = zoomTransform(svg);
       const nodes = refs.nodesRef.current
         .filter((n) => n.x !== undefined && n.y !== undefined)
         .map((n) => ({
@@ -96,4 +98,4 @@ export const AgentGraph = forwardRef<AgentGraphHandle>(function AgentGraph(_prop
       <svg ref={refs.svgRef} style={{ display: "block" }} />
     </div>
   );
-});
+}

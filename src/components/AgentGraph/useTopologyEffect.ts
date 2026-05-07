@@ -1,5 +1,9 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import { zoom } from "d3-zoom";
+import { drag } from "d3-drag";
+import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from "d3-force";
+import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
@@ -38,7 +42,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     const width = container.clientWidth;
     const height = container.clientHeight;
-    const d3svg = d3.select(svg).attr("width", width).attr("height", height);
+    const d3svg = select(svg).attr("width", width).attr("height", height);
     d3svg.selectAll("*").remove();
 
     const agentIds = new Set(filteredAgents.map((a) => a.id));
@@ -113,11 +117,11 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     // Canvas group for zoom/pan
     const canvas = d3svg.append("g").attr("class", "canvas");
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent(GRAPH.zoomExtent)
       .on("zoom", (event) => canvas.attr("transform", event.transform));
-    d3svg.call(zoom);
-    refs.zoomRef.current = zoom;
+    d3svg.call(zoomBehavior);
+    refs.zoomRef.current = zoomBehavior;
 
     // Background hex grid pattern
     const gridSize = 30;
@@ -189,12 +193,12 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     // Render initial node visuals
     nodeSelection.each(function (d) {
-      renderNodeVisuals(d3.select(this), d.agent, selectedAgentId);
+      renderNodeVisuals(select(this), d.agent, selectedAgentId);
     });
 
     // Drag behavior
     nodeSelection.call(
-      d3.drag<SVGGElement, SimNode>()
+      drag<SVGGElement, SimNode>()
         .on("start", (event) => {
           if (!event.active) simulation.alphaTarget(0.3).restart();
           event.subject.fx = event.subject.x;
@@ -225,18 +229,18 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       }
     }
 
-    const simulation = d3.forceSimulation<SimNode, SimLink>(nodes)
-      .force("link", d3.forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
+    const simulation = forceSimulation<SimNode, SimLink>(nodes)
+      .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
         const link = d as SimLink;
         if (link.edgeType === "tool") return GRAPH.toolLinkDistance;
         if (link.edgeType === "parent") return GRAPH.subAgentLinkDistance;
         return GRAPH.linkDistance;
       }))
-      .force("charge", d3.forceManyBody<SimNode>().strength((d) =>
+      .force("charge", forceManyBody<SimNode>().strength((d) =>
         d.toolCall ? -80 : GRAPH.chargeStrength
       ))
-      .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collide", d3.forceCollide<SimNode>().radius((d) => {
+      .force("center", forceCenter(width / 2, height / 2))
+      .force("collide", forceCollide<SimNode>().radius((d) => {
         if (d.toolCall) return GRAPH.toolNodeRadius + 4;
         const isSub = !!(d.agent.parentId && !d.agent.teamId);
         return isSub ? GRAPH.subAgentCollideRadius : GRAPH.collideRadius;
@@ -270,7 +274,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
             const ux = dx / dist;
             const uy = dy / dist;
-            d3.select(this)
+            select(this)
               .attr("x1", s.x!).attr("y1", s.y!)
               .attr("x2", t.x! - ux * GRAPH.toolNodeRadius)
               .attr("y2", t.y! - uy * GRAPH.toolNodeRadius);
@@ -295,7 +299,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         const teamMerged = teamEnter.merge(teamGroups);
 
         teamMerged.each(function ([teamId, teamNodes]) {
-          const g = d3.select(this);
+          const g = select(this);
           const points = teamNodes
             .filter((n) => n.x != null && n.y != null)
             .map((n) => [n.x!, n.y!] as [number, number]);
@@ -313,9 +317,9 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             // Ellipse as SVG path
             d = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
           } else {
-            const hull = d3.polygonHull(points);
+            const hull = polygonHull(points);
             if (hull) {
-              const centroid = d3.polygonCentroid(hull);
+              const centroid = polygonCentroid(hull);
               const expanded = hull.map(([x, y]) => {
                 const dx = x - centroid[0];
                 const dy = y - centroid[1];

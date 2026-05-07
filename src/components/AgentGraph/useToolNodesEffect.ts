@@ -1,5 +1,7 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import { drag } from "d3-drag";
+import type { ForceLink } from "d3-force";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import type { SimNode, SimLink } from "@/lib/d3";
@@ -75,14 +77,14 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
     // lines and detached tool circles). Only restart alpha when the node set
     // actually changed, to avoid constant layout jitter.
     simulation.nodes([...refs.nodesRef.current, ...newToolNodes]);
-    const linkForce = simulation.force<d3.ForceLink<SimNode, SimLink>>("link");
+    const linkForce = simulation.force<ForceLink<SimNode, SimLink>>("link");
     if (linkForce) linkForce.links([...refs.linksRef.current, ...newToolLinks]);
     if (changed) {
       simulation.alpha(Math.max(simulation.alpha(), 0.1)).restart();
     }
 
     // Sync tool link SVG elements
-    const canvas = d3.select(svg).select<SVGGElement>("g.canvas");
+    const canvas = select(svg).select<SVGGElement>("g.canvas");
     const toolLinkGroup = canvas.select<SVGGElement>("g.tool-links");
     if (!toolLinkGroup.empty()) {
       toolLinkGroup
@@ -101,7 +103,7 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
         .attr("stroke-width", 2)
         .attr("stroke-dasharray", "3 2")
         .each(function (d) {
-          const line = d3.select(this);
+          const line = select(this);
           line.selectAll("animate").remove();
           const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
           const targetNode = typeof d.target === "string" ? null : (d.target as SimNode);
@@ -143,12 +145,12 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
               const displayName = d.toolCall!.tool.length > 6
                 ? d.toolCall!.tool.slice(0, 5) + "…"
                 : d.toolCall!.tool;
-              d3.select(this).append("circle")
+              select(this).append("circle")
                 .attr("r", GRAPH.toolNodeRadius)
                 .attr("fill", dim ? `${color}08` : `${color}14`)
                 .attr("stroke", dim ? `${color}33` : `${color}66`)
                 .attr("stroke-width", 1);
-              d3.select(this).append("text")
+              select(this).append("text")
                 .attr("text-anchor", "middle")
                 .attr("dominant-baseline", "central")
                 .attr("fill", dim ? `${color}55` : `${color}aa`)
@@ -160,7 +162,7 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
 
             // Tool nodes are draggable just like agent nodes
             g.call(
-              d3.drag<SVGGElement, SimNode>()
+              drag<SVGGElement, SimNode>()
                 .on("start", (event) => {
                   if (!event.active) simulation.alphaTarget(0.3).restart();
                   event.subject.fx = event.subject.x;

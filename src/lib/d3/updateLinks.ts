@@ -1,15 +1,17 @@
-import * as d3 from "d3";
+import { select } from "d3-selection";
+import type { Selection } from "d3-selection";
+import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
 import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
 import type { AgentState } from "@/lib/types";
 
-export interface SimNode extends d3.SimulationNodeDatum {
+export interface SimNode extends SimulationNodeDatum {
   id: string;
   agent: AgentState;
   /** Present only on tool-call nodes; undefined on agent nodes */
   toolCall?: { tool: string; timestamp: number; parentAgentId: string };
 }
 
-export interface SimLink extends d3.SimulationLinkDatum<SimNode> {
+export interface SimLink extends SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
   edgeType?: "parent" | "message" | "blocking" | "tool";
@@ -26,8 +28,8 @@ export function bezierPath(sx: number, sy: number, tx: number, ty: number): stri
  * dotted pattern; parent edges animate when the child agent is active.
  */
 export function updateLinkVisuals<E extends SVGElement>(
-  linkGlow: d3.Selection<E, SimLink, SVGGElement, unknown>,
-  linkLine: d3.Selection<E, SimLink, SVGGElement, unknown>,
+  linkGlow: Selection<E, SimLink, SVGGElement, unknown>,
+  linkLine: Selection<E, SimLink, SVGGElement, unknown>,
   agents: Map<string, AgentState>,
 ) {
   const getTargetId = (d: SimLink) =>
@@ -56,7 +58,7 @@ export function updateLinkVisuals<E extends SVGElement>(
     })
     .each(function (d) {
       const a = agents.get(getTargetId(d));
-      const line = d3.select(this);
+      const line = select(this);
       // Remove existing animate children before adding new ones
       line.selectAll("animate").remove();
       if (d.edgeType !== "message" && a?.status === "running") {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 
 /** ccstatusline writes fresh data here every ~3 minutes. The ws-server now
  *  owns refresh cadence (see scripts/lib/ccstatusline.ts and the

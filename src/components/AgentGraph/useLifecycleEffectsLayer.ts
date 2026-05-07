@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import * as d3 from "d3";
+import { select } from "d3-selection";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
 import { hexPath } from "@/lib/d3";
@@ -96,7 +96,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
         rafId = null;
         return;
       }
-      const effectsGroup = d3.select(svg).select<SVGGElement>("g.effects");
+      const effectsGroup = select(svg).select<SVGGElement>("g.effects");
       if (effectsGroup.empty()) {
         running = false;
         rafId = null;
@@ -117,7 +117,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
 
       const enter = groups.enter().append("g").attr("class", "effect");
       enter.each(function (e) {
-        const g = d3.select(this);
+        const g = select(this);
         if (e.type === "spawn") {
           g.append("path")
             .attr("class", "ring")
@@ -143,7 +143,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
       merged.each(function (e) {
         const progress = (now - e.startTime) / e.duration;
         const alpha = 1 - progress;
-        const g = d3.select(this);
+        const g = select(this);
 
         if (e.type === "spawn") {
           const er = e.effectRadius + progress * 40;
