@@ -209,26 +209,28 @@ describe("assignAgentColor", () => {
 
   it("gives distinct ids distinct colors until the palette is exhausted", () => {
     const seen = new Set<string>();
-    // 15-slot palette (orange + red excluded). All distinct ids should be unique.
-    for (let i = 0; i < 15; i++) seen.add(assignAgentColor(`agent-${i}`));
-    expect(seen.size).toBe(15);
+    // 12-slot palette (amber [main], red, rose, yellow excluded). All distinct ids should be unique.
+    for (let i = 0; i < 12; i++) seen.add(assignAgentColor(`agent-${i}`));
+    expect(seen.size).toBe(12);
   });
 
   it("cycles after the palette fills (slot N collides with slot N % palette)", () => {
     const first = assignAgentColor("agent-0");
-    for (let i = 1; i < 15; i++) assignAgentColor(`agent-${i}`);
-    expect(assignAgentColor("agent-15")).toBe(first);
+    for (let i = 1; i < 12; i++) assignAgentColor(`agent-${i}`);
+    expect(assignAgentColor("agent-12")).toBe(first);
   });
 
   it("returns a 6-digit hex color (so alpha concatenation stays valid)", () => {
     expect(assignAgentColor("agent-x")).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  it("never returns orange (reserved for main) or red (reserved for errors)", () => {
+  it("never returns amber (main), red, rose, or yellow (reserved signals)", () => {
     for (let i = 0; i < 50; i++) {
       const c = assignAgentColor(`agent-${i}`).toLowerCase();
-      expect(c).not.toBe("#fb923c"); // TW.orange400
+      expect(c).not.toBe("#fbbf24"); // TW.amber400 (main)
       expect(c).not.toBe("#f87171"); // TW.red400
+      expect(c).not.toBe("#fb7185"); // TW.rose400
+      expect(c).not.toBe("#facc15"); // TW.yellow400
     }
   });
 });

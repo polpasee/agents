@@ -53,9 +53,9 @@ export const UI = {
   model: TW.violet400,
 } as const;
 
-/** Orange is reserved for the main agent — never appears in the sub-agent
+/** Amber is reserved for the main agent — never appears in the sub-agent
  *  palette so the lead is always visually identifiable. */
-export const MAIN_AGENT_COLOR = TW.orange400;
+export const MAIN_AGENT_COLOR = TW.amber400;
 
 export const AGENT_COLORS: Record<AgentType, string> = {
   main: MAIN_AGENT_COLOR,
@@ -64,22 +64,21 @@ export const AGENT_COLORS: Record<AgentType, string> = {
   build: TW.amber500,
   review: TW.violet400,
   test: TW.pink400,
-  "team-lead": TW.amber400,
+  "team-lead": TW.sky400,
   generic: TW.slate400,
 };
 
 /**
  * Palette pool for sub-agents. Each agent id claims the next slot in
  * insertion order, so two visible nodes never share a color until the
- * palette is exhausted (slot N wraps to slot 0). Orange is reserved for
- * the main agent (see {@link MAIN_AGENT_COLOR}); red is omitted because
- * it reads as an error/blocking signal elsewhere in the UI.
+ * palette is exhausted (slot N wraps to slot 0). Amber is reserved for
+ * the main agent (see {@link MAIN_AGENT_COLOR}); red, rose, and yellow
+ * are omitted because they read as error/warning/waiting signals
+ * elsewhere in the UI.
  * All entries are Tailwind -400 shade for consistent vibrance on dark canvas.
  */
 const AGENT_PALETTE: readonly string[] = [
   // Listed in the natural Tailwind rainbow order: warm → cool → warm.
-  TW.amber400,
-  TW.yellow400,
   TW.lime400,
   TW.green400,
   TW.emerald400,
@@ -92,7 +91,6 @@ const AGENT_PALETTE: readonly string[] = [
   TW.purple400,
   TW.fuchsia400,
   TW.pink400,
-  TW.rose400,
 ];
 
 /**
@@ -105,17 +103,14 @@ const colorByAgentId = new Map<string, string>();
 
 /**
  * Returns the registered color for an agent id, assigning the next palette
- * slot on first lookup. Slots are claimed from the end of the palette
- * backwards (rose → pink → fuchsia → …) so the first agent gets the cool
- * end of the spectrum first. After {@link AGENT_PALETTE}.length distinct
- * ids the counter wraps — duplicates only appear once the palette is fully
- * consumed.
+ * slot on first lookup. Slots are claimed in palette order (amber → yellow
+ * → lime → …). After {@link AGENT_PALETTE}.length distinct ids the counter
+ * wraps — duplicates only appear once the palette is fully consumed.
  */
 export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
-  const slot = AGENT_PALETTE.length - 1 - (colorByAgentId.size % AGENT_PALETTE.length);
-  const color = AGENT_PALETTE[slot];
+  const color = AGENT_PALETTE[colorByAgentId.size % AGENT_PALETTE.length];
   colorByAgentId.set(id, color);
   return color;
 }
