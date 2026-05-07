@@ -370,6 +370,11 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // fine because Effect 2b refreshes node visuals and the tick re-reads
     // selectedTeamId/teams/agents on every tick. Rebuilding only on
     // topologyVersion is the entire point of PR #6.
+    //
+    // We DO include filteredAgents.length: the session/type filter is a UI
+    // concern that doesn't bump topologyVersion (which only tracks server-side
+    // agent join/leave), so without this dep a filter flip from "no matches"
+    // to "1 match" leaves the graph stuck on the empty-state message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topologyVersion, selectAgent]);
+  }, [topologyVersion, filteredAgents.length, selectAgent]);
 }
