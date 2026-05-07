@@ -27,14 +27,29 @@ export interface CostBreakdown {
   total: number;
 }
 
+/** Token counts extracted from a single Claude API usage record. */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreateTokens: number;
+}
+
+/** Per-token cost breakdown for an arbitrary usage record (no AgentState
+ *  required). Shared by {@link calculateCost} and the JSONL history scanner
+ *  so both paths apply identical model-rate logic. */
+export function costFromUsage(usage: TokenUsage, model?: string): CostBreakdown {
+  const rates = getRates(model);
+  const input = (usage.inputTokens / 1_000_000) * rates.input;
+  const output = (usage.outputTokens / 1_000_000) * rates.output;
+  const cacheRead = (usage.cacheReadTokens / 1_000_000) * rates.cacheRead;
+  const cacheWrite = (usage.cacheCreateTokens / 1_000_000) * rates.cacheWrite;
+  return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
+}
+
 /** Calculate per-agent token cost breakdown based on model pricing. */
 export function calculateCost(agent: AgentState): CostBreakdown {
-  const rates = getRates(agent.model);
-  const input = (agent.inputTokens / 1_000_000) * rates.input;
-  const output = (agent.outputTokens / 1_000_000) * rates.output;
-  const cacheRead = (agent.cacheReadTokens / 1_000_000) * rates.cacheRead;
-  const cacheWrite = (agent.cacheCreateTokens / 1_000_000) * rates.cacheWrite;
-  return { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite };
+  return costFromUsage(agent, agent.model);
 }
 
 /** Format a dollar amount for display (e.g. "$1.23" or "<$0.01"). */
@@ -56,3 +71,4 @@ export function calculateTotalCost(agents: Map<string, AgentState>): CostBreakdo
   }
   return totals;
 }
+

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentState } from "../types";
-import { calculateCost, formatCost, calculateTotalCost } from "../costs";
+import { calculateCost, costFromUsage, formatCost, calculateTotalCost } from "../costs";
 import { mockAgent } from "./test-utils";
 
 describe("calculateCost", () => {
@@ -172,5 +172,25 @@ describe("calculateTotalCost", () => {
     expect(total.input).toBeCloseTo(15.8);
     expect(total.output).toBe(0);
     expect(total.total).toBeCloseTo(15.8);
+  });
+});
+
+describe("costFromUsage", () => {
+  it("matches calculateCost for the same usage + model", () => {
+    const usage = {
+      inputTokens: 1_000_000,
+      outputTokens: 500_000,
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+    };
+    const fromHelper = costFromUsage(usage, "claude-sonnet-4-20260301");
+    const fromAgent = calculateCost(mockAgent({ model: "claude-sonnet-4-20260301", ...usage }));
+    expect(fromHelper.total).toBeCloseTo(fromAgent.total);
+  });
+
+  it("falls back to opus rates when model is unspecified", () => {
+    const c = costFromUsage({ inputTokens: 1_000_000, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 });
+    // opus input = 15
+    expect(c.input).toBeCloseTo(15);
   });
 });
