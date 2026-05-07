@@ -243,6 +243,24 @@ describe("autoSelectInitialSession", () => {
     expect(state.sessionFilterInitialized).toBe(false);
     expect([...state.selectedSessionIds]).toEqual(["stale-id"]);
   });
+
+  it("recovers from stale localStorage filter when first live agent arrives", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
+      if (key === "selectedSessionIds") return JSON.stringify(["stale-id"]);
+      return null;
+    });
+    useAgentStore.getState().hydrateUI();
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(false);
+
+    useAgentStore.setState({
+      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live-session", parentId: undefined })]]),
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+
+    const state = useAgentStore.getState();
+    expect(state.selectedSessionIds).toEqual(new Set(["live-session"]));
+    expect(state.sessionFilterInitialized).toBe(true);
+  });
 });
 
 // ── toggleAgentType ───────────────────────────────────────────────────────────

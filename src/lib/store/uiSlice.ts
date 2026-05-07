@@ -70,8 +70,9 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
 
     // Hydration restored a prior selection — but only honor it if at least
     // one of the stored ids still matches a live session. A stale filter
-    // (e.g. Claude Code rotated the session uuid) would otherwise hide every
-    // agent forever; falling through to the auto-pick below is much better.
+    // (e.g. the upstream session id changed between runs) would otherwise hide
+    // every agent forever; falling through to the auto-pick below is much
+    // better.
     if (selectedSessionIds.size > 0) {
       let anyLive = false;
       for (const id of selectedSessionIds) {
@@ -84,8 +85,12 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
       // No matches — wait for agents to arrive before discarding the stored
       // filter. If the WS sync just hasn't landed yet, the filter may still
       // be valid. Only drop it once we have agents but no overlap.
-      if (liveSessionIds.size === 0) return;
+      if (liveSessionIds.size === 0) {
+        console.warn("[uiSlice] Stored session filter does not match any live session; waiting for a main agent to register.", { stored: [...selectedSessionIds] });
+        return;
+      }
       // Fall through: we have live sessions but none match the stored ids.
+      console.warn("[uiSlice] Stored session filter is stale; auto-selecting most recent session.", { stale: [...selectedSessionIds], live: [...liveSessionIds] });
     }
 
     // Pick the most-recently-started main session (parentless agents define a session).
@@ -192,7 +197,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
       // initialized so the auto-pick won't override it.
       // Non-empty arrays must run through autoSelectInitialSession() so it
       // can verify the stored ids still match a live session and recover
-      // from a stale filter (Claude Code rotates session uuids).
+      // from a stale filter (stored ids may no longer match a live session).
       if (stored.length === 0) updates.sessionFilterInitialized = true;
     }
     set(updates);
