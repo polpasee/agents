@@ -76,9 +76,9 @@ export function Dashboard() {
     setMobileAgentDetail(false);
   }, []);
 
-  // Clear stale selection when the selected agent disappears from the visible
-  // graph (removeAgent, syncState replace, session/type filter change). Without
-  // this the detail panel renders empty and only a refresh recovers.
+  // If the selected agent is no longer visible, clear it so the detail panel
+  // doesn't render against a missing agent. Selection is a view concern bound
+  // to useFilteredAgents — keep this here, not in the store.
   useEffect(() => {
     if (selectedAgentId === null) return;
     if (!filteredAgents.some((a) => a.id === selectedAgentId)) {
