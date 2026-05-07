@@ -1,7 +1,7 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { UI, STATUS_COLORS, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
+import { UI, STATUS_COLORS, AGENT_LABELS, agentColor } from "@/lib/colors";
 import { ModalBackdrop } from "./ModalBackdrop";
 
 export function ErrorDrillDown() {
@@ -19,7 +19,7 @@ export function ErrorDrillDown() {
   if (!agent) return null;
 
   const errorColor = STATUS_COLORS.error;
-  const agentColor = AGENT_COLORS[agent.agentType];
+  const nodeColor = agentColor(agent);
   const recentTools = agent.toolCalls.slice(-5).reverse();
   const errorMessage = detail?.message ?? "Unknown error";
   const errorTimestamp = detail?.timestamp ?? agent.startTime;
@@ -72,9 +72,9 @@ export function ErrorDrillDown() {
             <div className="flex items-center gap-2 mt-1">
               <div
                 className="w-2 h-2 rounded-full"
-                style={{ background: agentColor, boxShadow: `0 0 6px ${agentColor}` }}
+                style={{ background: nodeColor, boxShadow: `0 0 6px ${nodeColor}` }}
               />
-              <span className="text-sm font-bold" style={{ color: agentColor }}>
+              <span className="text-sm font-bold" style={{ color: nodeColor }}>
                 {AGENT_LABELS[agent.agentType]}
               </span>
             </div>
@@ -122,7 +122,7 @@ export function ErrorDrillDown() {
                 {cascadeIds.map((id) => {
                   const cascadeAgent = agents.get(id);
                   if (!cascadeAgent) return null;
-                  const cColor = AGENT_COLORS[cascadeAgent.agentType];
+                  const cColor = agentColor(cascadeAgent);
                   return (
                     <button
                       key={id}

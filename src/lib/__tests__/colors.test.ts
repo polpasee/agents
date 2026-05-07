@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   AGENT_COLORS,
   STATUS_COLORS,
@@ -10,8 +10,9 @@ import {
   ANNOTATION_COLOR,
   METRIC_COLORS,
   COMPARISON_COLORS,
-  colorFromString,
   agentColor,
+  assignAgentColor,
+  resetAgentColorRegistry,
 } from "../colors";
 import type { AgentType, AgentStatus } from "../types";
 
@@ -199,38 +200,59 @@ describe("COMPARISON_COLORS", () => {
   });
 });
 
-describe("colorFromString", () => {
-  it("returns the same color for the same string", () => {
-    expect(colorFromString("api-builder")).toBe(colorFromString("api-builder"));
+describe("assignAgentColor", () => {
+  beforeEach(() => resetAgentColorRegistry());
+
+  it("returns the same color for the same id across calls", () => {
+    expect(assignAgentColor("agent-1")).toBe(assignAgentColor("agent-1"));
   });
 
-  it("returns different colors for different strings", () => {
-    expect(colorFromString("api-builder")).not.toBe(colorFromString("frontend-ui"));
+  it("gives distinct ids distinct colors until the palette is exhausted", () => {
+    const seen = new Set<string>();
+    // 15-slot palette (orange + red excluded). All distinct ids should be unique.
+    for (let i = 0; i < 15; i++) seen.add(assignAgentColor(`agent-${i}`));
+    expect(seen.size).toBe(15);
+  });
+
+  it("cycles after the palette fills (slot N collides with slot N % palette)", () => {
+    const first = assignAgentColor("agent-0");
+    for (let i = 1; i < 15; i++) assignAgentColor(`agent-${i}`);
+    expect(assignAgentColor("agent-15")).toBe(first);
   });
 
   it("returns a 6-digit hex color (so alpha concatenation stays valid)", () => {
-    expect(colorFromString("db-reader")).toMatch(/^#[0-9a-f]{6}$/);
+    expect(assignAgentColor("agent-x")).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  it("produces 8-digit hex when an alpha suffix is concatenated", () => {
-    const c = colorFromString("api-builder");
-    expect(`${c}66`).toMatch(/^#[0-9a-f]{8}$/);
+  it("never returns orange (reserved for main) or red (reserved for errors)", () => {
+    for (let i = 0; i < 50; i++) {
+      const c = assignAgentColor(`agent-${i}`).toLowerCase();
+      expect(c).not.toBe("#fb923c"); // TW.orange400
+      expect(c).not.toBe("#f87171"); // TW.red400
+    }
   });
 });
 
 describe("agentColor", () => {
-  it("hashes displayType when present (sub-agent with specific name)", () => {
-    const a = { agentType: "build" as const, displayType: "api-builder" };
-    const b = { agentType: "build" as const, displayType: "frontend-ui" };
-    // Both are agentType="build" but different displayType → different colors
-    expect(agentColor(a)).not.toBe(agentColor(b));
-    expect(agentColor(a)).toBe(colorFromString("api-builder"));
+  beforeEach(() => resetAgentColorRegistry());
+
+  it("returns the reserved orange for any main agent regardless of id", () => {
+    expect(agentColor({ id: "main-1", agentType: "main" })).toBe(AGENT_COLORS.main);
+    expect(agentColor({ id: "main-2", agentType: "main" })).toBe(AGENT_COLORS.main);
   });
 
-  it("falls back to AGENT_COLORS[agentType] when displayType is absent (main agents)", () => {
-    expect(agentColor({ agentType: "main", displayType: undefined }))
-      .toBe(AGENT_COLORS.main);
-    expect(agentColor({ agentType: "main" }))
-      .toBe(AGENT_COLORS.main);
+  it("gives two sub-agents with the same displayType different colors (per-instance)", () => {
+    const a = { id: "agent-a", agentType: "build" as const };
+    const b = { id: "agent-b", agentType: "build" as const };
+    expect(agentColor(a)).not.toBe(agentColor(b));
+  });
+
+  it("returns a stable color for the same id across calls", () => {
+    const a = { id: "agent-stable", agentType: "build" as const };
+    expect(agentColor(a)).toBe(agentColor(a));
+  });
+
+  it("falls back to AGENT_COLORS[agentType] when no id is present (defensive)", () => {
+    expect(agentColor({ id: "", agentType: "explore" })).toBe(AGENT_COLORS.explore);
   });
 });

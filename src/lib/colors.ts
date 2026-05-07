@@ -53,8 +53,12 @@ export const UI = {
   model: TW.violet400,
 } as const;
 
+/** Orange is reserved for the main agent — never appears in the sub-agent
+ *  palette so the lead is always visually identifiable. */
+export const MAIN_AGENT_COLOR = TW.orange400;
+
 export const AGENT_COLORS: Record<AgentType, string> = {
-  main: TW.amber400,
+  main: MAIN_AGENT_COLOR,
   explore: TW.fuchsia400,
   plan: TW.emerald400,
   build: TW.amber500,
@@ -65,15 +69,15 @@ export const AGENT_COLORS: Record<AgentType, string> = {
 };
 
 /**
- * Hash-driven palette pool used by {@link colorFromString} to give each
- * distinct sub-agent displayType (api-builder, frontend-ui, db-reader, …)
- * its own color. All entries are Tailwind -400 shade so they sit at a
- * consistent vibrance on the dark canvas.
+ * Palette pool for sub-agents. Each agent id claims the next slot in
+ * insertion order, so two visible nodes never share a color until the
+ * palette is exhausted (slot N wraps to slot 0). Orange is reserved for
+ * the main agent (see {@link MAIN_AGENT_COLOR}); red is omitted because
+ * it reads as an error/blocking signal elsewhere in the UI.
+ * All entries are Tailwind -400 shade for consistent vibrance on dark canvas.
  */
-const HASH_PALETTE: readonly string[] = [
+const AGENT_PALETTE: readonly string[] = [
   // Listed in the natural Tailwind rainbow order: warm → cool → warm.
-  TW.red400,
-  TW.orange400,
   TW.amber400,
   TW.yellow400,
   TW.lime400,
@@ -92,29 +96,39 @@ const HASH_PALETTE: readonly string[] = [
 ];
 
 /**
- * Deterministic Tailwind-palette color from a string — used to give each
- * distinct sub-agent displayType its own color even when they share the
- * same coarse agentType category.
- *
- * Hash values are multiplied by the golden-ratio conjugate (φ⁻¹ ≈ 0.618)
- * to get a low-discrepancy distribution, so neighboring names ("api-builder"
- * vs "frontend-ui") land in visually distinct slots of the palette instead
- * of clustering together.
- *
- * Returns 6-digit hex so downstream code that appends hex-alpha digits
- * (e.g. `${color}66` for 40% opacity) produces valid 8-digit hex.
+ * Per-instance color registry: agentId → palette slot. Lives at module scope
+ * so colors are stable across re-renders without flowing through Zustand
+ * (avoids selector cascades on every new agent). Reset between tests via
+ * {@link resetAgentColorRegistry}.
  */
-export function colorFromString(s: string): string {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  const fraction = (Math.abs(h) * 0.6180339887498949) % 1;
-  return HASH_PALETTE[Math.floor(fraction * HASH_PALETTE.length)];
+const colorByAgentId = new Map<string, string>();
+
+/**
+ * Returns the registered color for an agent id, assigning the next palette
+ * slot on first lookup. After {@link AGENT_PALETTE}.length distinct ids the
+ * counter wraps, so slot N maps to palette[N % palette.length] — duplicates
+ * only appear once the palette is fully consumed.
+ */
+export function assignAgentColor(id: string): string {
+  const existing = colorByAgentId.get(id);
+  if (existing) return existing;
+  const color = AGENT_PALETTE[colorByAgentId.size % AGENT_PALETTE.length];
+  colorByAgentId.set(id, color);
+  return color;
 }
 
-/** Resolve the display color for an agent — prefer the per-displayType
- *  hash color for sub-agents, fall back to the coarse-category palette. */
-export function agentColor(agent: Pick<AgentState, "agentType" | "displayType">): string {
-  if (agent.displayType) return colorFromString(agent.displayType);
+/** Test-only: clear the registry so each test starts with a fresh slot 0. */
+export function resetAgentColorRegistry(): void {
+  colorByAgentId.clear();
+}
+
+/** Resolve the display color for an agent — main agents always render in
+ *  the reserved orange; every other distinct id claims its own palette slot.
+ *  Falls back to the coarse-category palette only when no id is available
+ *  (shouldn't occur with normal AgentState input). */
+export function agentColor(agent: Pick<AgentState, "id" | "agentType">): string {
+  if (agent.agentType === "main") return MAIN_AGENT_COLOR;
+  if (agent.id) return assignAgentColor(agent.id);
   return AGENT_COLORS[agent.agentType] || UI.text.secondary;
 }
 
