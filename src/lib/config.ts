@@ -12,8 +12,8 @@ export const DEFAULT_CONTEXT_WINDOW = 1_000_000; // Fallback context-window size
 
 /** D3 force-directed graph layout parameters */
 export const GRAPH = {
-  nodeRadius: 38, // Radius (px) of each agent node circle
-  glowRingRadius: 46, // Radius (px) of the animated glow ring around active nodes
+  nodeRadius: 42, // Radius (px) of each agent node circle
+  glowRingRadius: 50, // Radius (px) of the animated glow ring around active nodes
   activityCircleRadius: 72, // Radius (px) of the large activity circle when a tool is active
   activityMaxLines: 5, // Max text lines displayed inside the activity circle
   smallIconRadius: 28, // Radius (px) of the hex icon at right side of activity circle

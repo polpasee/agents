@@ -19,7 +19,7 @@ interface Options {
   selectedAgentId: string | null;
   selectedTeamId: string | null;
   topologyVersion: number;
-  selectAgent: (id: string) => void;
+  selectAgent: (id: string | null) => void;
 }
 
 /**
@@ -123,6 +123,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     d3svg.call(zoomBehavior);
     refs.zoomRef.current = zoomBehavior;
 
+    // Click on empty graph area deselects the current agent. Node clicks
+    // stopPropagation (below) so they don't accidentally trigger this.
+    d3svg.on("click", () => selectAgent(null));
+
     // Background hex grid pattern
     const gridSize = 30;
     const gridPattern = defs.append("pattern")
@@ -189,7 +193,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       .join("g")
       .attr("class", "node")
       .attr("cursor", "pointer")
-      .on("click", (_event, d) => selectAgent(d.agent.id));
+      .on("click", (event, d) => { event.stopPropagation(); selectAgent(d.agent.id); });
 
     // Render initial node visuals
     nodeSelection.each(function (d) {
