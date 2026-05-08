@@ -367,9 +367,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     refs.simulationRef.current = simulation;
     return () => { simulation.stop(); };
     // Intentional: closure over selectedAgentId/selectedTeamId/teams/agents is
-    // fine because Effect 2b refreshes node visuals and the tick re-reads
-    // selectedTeamId/teams/agents on every tick. Rebuilding only on
-    // topologyVersion is the entire point of PR #6.
+    // fine because Effect 2b handles agents/selectedAgentId; the tick handler
+    // re-reads selectedTeamId/teams from closure on every simulation tick.
+    // Rebuilding only on topologyVersion is the entire point of PR #6.
+    //
+    // We DO include filteredAgents.length: the session/type filter is a UI
+    // concern that doesn't bump topologyVersion (which tracks graph-shape
+    // changes — agent register/remove, parent/team moves, edge add/remove),
+    // so without this dep a filter flip from "no matches" to "1 match" leaves
+    // the graph stuck on the empty-state message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topologyVersion, selectAgent]);
+  }, [topologyVersion, filteredAgents.length, selectAgent]);
 }

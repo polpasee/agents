@@ -59,11 +59,40 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   autoSelectInitialSession: () => {
     const { agents, selectedSessionIds, sessionFilterInitialized } = get();
     if (sessionFilterInitialized) return;
-    if (selectedSessionIds.size > 0) {
-      // Hydration restored a prior selection — just mark initialized.
-      set({ sessionFilterInitialized: true });
-      return;
+
+    // Collect every session id currently represented by a parentless agent —
+    // these are the only ids that can match a stored filter.
+    const liveSessionIds = new Set<string>();
+    for (const a of agents.values()) {
+      if (a.parentId) continue;
+      liveSessionIds.add(a.sessionId || a.id);
     }
+
+    // Hydration restored a prior selection — but only honor it if at least
+    // one of the stored ids still matches a live session. A stale filter
+    // (e.g. the upstream session id changed between runs) would otherwise hide
+    // every agent forever; falling through to the auto-pick below is much
+    // better.
+    if (selectedSessionIds.size > 0) {
+      let anyLive = false;
+      for (const id of selectedSessionIds) {
+        if (liveSessionIds.has(id)) { anyLive = true; break; }
+      }
+      if (anyLive) {
+        set({ sessionFilterInitialized: true });
+        return;
+      }
+      // No matches — wait for agents to arrive before discarding the stored
+      // filter. If the WS sync just hasn't landed yet, the filter may still
+      // be valid. Only drop it once we have agents but no overlap.
+      if (liveSessionIds.size === 0) {
+        console.warn("[uiSlice] Stored session filter does not match any live session; waiting for a main agent to register.", { stored: [...selectedSessionIds] });
+        return;
+      }
+      // Fall through: we have live sessions but none match the stored ids.
+      console.warn("[uiSlice] Stored session filter is stale; auto-selecting most recent session.", { stale: [...selectedSessionIds], live: [...liveSessionIds] });
+    }
+
     // Pick the most-recently-started main session (parentless agents define a session).
     let bestId: string | null = null;
     let bestStart = -Infinity;
@@ -163,10 +192,13 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
       agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
     };
     if (Array.isArray(stored)) {
-      // Storage present (incl. empty array = explicit "All") — respect it and
-      // do NOT auto-pick later. Empty array means user already chose "show all".
       updates.selectedSessionIds = new Set(stored);
-      updates.sessionFilterInitialized = true;
+      // Empty array = explicit "All sessions" — no validation needed, mark
+      // initialized so the auto-pick won't override it.
+      // Non-empty arrays must run through autoSelectInitialSession() so it
+      // can verify the stored ids still match a live session and recover
+      // from a stale filter (stored ids may no longer match a live session).
+      if (stored.length === 0) updates.sessionFilterInitialized = true;
     }
     set(updates);
   },

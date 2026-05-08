@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { useAgentStore } from "../../store";
+import { mockAgent } from "../../__tests__/test-utils";
 
 function resetUI() {
   useAgentStore.setState({
@@ -165,6 +166,18 @@ describe("hydrateUI", () => {
     const ids = useAgentStore.getState().selectedSessionIds;
     expect(ids.has("sess-1")).toBe(true);
     expect(ids.has("sess-2")).toBe(true);
+    // Non-empty stored arrays must NOT mark initialized — autoSelectInitialSession
+    // needs to run to validate the ids against the live agents map.
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(false);
+  });
+
+  it("marks initialized when stored array is empty (explicit 'All sessions' choice)", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
+      if (key === "selectedSessionIds") return JSON.stringify([]);
+      return null;
+    });
+    useAgentStore.getState().hydrateUI();
+    expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
     expect(useAgentStore.getState().sessionFilterInitialized).toBe(true);
   });
 
@@ -188,6 +201,65 @@ describe("setViewMode", () => {
     useAgentStore.getState().setViewMode("timeline");
     useAgentStore.getState().setViewMode("graph");
     expect(useAgentStore.getState().viewMode).toBe("graph");
+  });
+});
+
+// ── autoSelectInitialSession ──────────────────────────────────────────────────
+
+describe("autoSelectInitialSession", () => {
+  it("keeps a stored filter when at least one id matches a live session", () => {
+    useAgentStore.setState({
+      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined })]]),
+      selectedSessionIds: new Set(["live"]),
+      sessionFilterInitialized: false,
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+    const state = useAgentStore.getState();
+    expect(state.sessionFilterInitialized).toBe(true);
+    expect([...state.selectedSessionIds]).toEqual(["live"]);
+  });
+
+  it("falls through to auto-pick when stored ids are stale and live sessions exist", () => {
+    useAgentStore.setState({
+      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined, startTime: 100 })]]),
+      selectedSessionIds: new Set(["stale-id-no-longer-exists"]),
+      sessionFilterInitialized: false,
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+    const state = useAgentStore.getState();
+    expect(state.sessionFilterInitialized).toBe(true);
+    expect([...state.selectedSessionIds]).toEqual(["live"]);
+  });
+
+  it("waits (does not initialize) when stored ids are stale but no agents have arrived yet", () => {
+    useAgentStore.setState({
+      agents: new Map(),
+      selectedSessionIds: new Set(["stale-id"]),
+      sessionFilterInitialized: false,
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+    const state = useAgentStore.getState();
+    // Filter stays as-is; init flag stays false so the next agent arrival re-triggers.
+    expect(state.sessionFilterInitialized).toBe(false);
+    expect([...state.selectedSessionIds]).toEqual(["stale-id"]);
+  });
+
+  it("recovers from stale localStorage filter when first live agent arrives", () => {
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
+      if (key === "selectedSessionIds") return JSON.stringify(["stale-id"]);
+      return null;
+    });
+    useAgentStore.getState().hydrateUI();
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(false);
+
+    useAgentStore.setState({
+      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live-session", parentId: undefined })]]),
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+
+    const state = useAgentStore.getState();
+    expect(state.selectedSessionIds).toEqual(new Set(["live-session"]));
+    expect(state.sessionFilterInitialized).toBe(true);
   });
 });
 
