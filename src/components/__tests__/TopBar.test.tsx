@@ -6,13 +6,7 @@ import { TopBar } from "../TopBar";
 describe("TopBar", () => {
   beforeEach(() => {
     useAgentStore.setState({
-      agents: new Map(),
       connected: false,
-      selectedSessionIds: new Set(),
-      viewMode: "graph",
-      recording: false,
-      showLiveMetrics: false,
-      theme: "dark",
       replay: {
         active: false,
         session: null,

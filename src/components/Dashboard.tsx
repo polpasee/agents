@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useReplay } from "@/hooks/useReplay";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
@@ -95,6 +95,37 @@ export function Dashboard() {
     }
   }, [selectedAgentId]);
 
+  // Mobile main-agent badges: list every visible main agent and tally its
+  // sub-agents. We seed the walk from the FULL agents map (not filteredAgents)
+  // so a main's count reflects all its descendants regardless of session
+  // filtering — otherwise a partially-filtered session would render a
+  // misleading lower count.
+  const { mainAgents, subCounts } = useMemo(() => {
+    const mainAgents = filteredAgents.filter((a) => a.agentType === "main");
+    const mainIds = new Set(mainAgents.map((a) => a.id));
+    const subCounts = new Map<string, number>();
+    for (const agent of agents.values()) {
+      if (agent.agentType === "main") continue;
+      let cursor = agent;
+      const seen = new Set<string>();
+      while (cursor.parentId && !seen.has(cursor.id)) {
+        seen.add(cursor.id);
+        const parent = agents.get(cursor.parentId);
+        if (!parent) break;
+        cursor = parent;
+      }
+      if (cursor.parentId && seen.has(cursor.id)) {
+        // Cycle in parent chain — data-integrity bug upstream in agent-state.
+        console.warn("[Dashboard] cycle detected in agent parent chain", agent.id);
+        continue;
+      }
+      if (cursor.agentType === "main" && mainIds.has(cursor.id)) {
+        subCounts.set(cursor.id, (subCounts.get(cursor.id) ?? 0) + 1);
+      }
+    }
+    return { mainAgents, subCounts };
+  }, [filteredAgents, agents]);
+
   return (
     <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
       <ErrorBoundary>
@@ -111,54 +142,32 @@ export function Dashboard() {
       ) : (
       <>
       {/* Mobile main-agent badges */}
-      {(() => {
-        const mainAgents = filteredAgents.filter((a) => a.agentType === "main");
-        if (mainAgents.length === 0) return null;
-
-        // Count sub-agents per main by walking each agent's parent chain to its root.
-        const subCounts = new Map<string, number>();
-        for (const agent of filteredAgents) {
-          if (agent.agentType === "main") continue;
-          let cursor = agent;
-          const seen = new Set<string>();
-          while (cursor.parentId && !seen.has(cursor.id)) {
-            seen.add(cursor.id);
-            const parent = agents.get(cursor.parentId);
-            if (!parent) break;
-            cursor = parent;
-          }
-          if (cursor.agentType === "main") {
-            subCounts.set(cursor.id, (subCounts.get(cursor.id) ?? 0) + 1);
-          }
-        }
-
-        return (
-          <div className="mobile-toggle-btn items-center gap-2 px-2 py-1 overflow-x-auto" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
-            {mainAgents.map((agent) => {
-              const color = agentColor(agent);
-              const sessionLabel =
-                (agent.metadata?.projectName as string | undefined) || agent.sessionId || agent.id;
-              const subCount = subCounts.get(agent.id) ?? 0;
-              const isSelected = agent.id === selectedAgentId;
-              return (
-                <button
-                  key={agent.id}
-                  onClick={() => selectAgent(agent.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono flex-shrink-0"
-                  style={{
-                    background: isSelected ? `${color}22` : `${color}0d`,
-                    border: `1px solid ${isSelected ? color : `${color}44`}`,
-                    color,
-                  }}
-                >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
-                  <span className="truncate">{sessionLabel}({subCount})</span>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })()}
+      {mainAgents.length > 0 && (
+        <div className="mobile-toggle-btn items-center gap-2 px-2 py-1 overflow-x-auto" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
+          {mainAgents.map((agent) => {
+            const color = agentColor(agent);
+            const projectName = agent.metadata?.projectName as string | undefined;
+            const sessionLabel = projectName || agent.sessionId || "Unnamed";
+            const subCount = subCounts.get(agent.id) ?? 0;
+            const isSelected = agent.id === selectedAgentId;
+            return (
+              <button
+                key={agent.id}
+                onClick={() => selectAgent(agent.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono flex-shrink-0"
+                style={{
+                  background: isSelected ? `${color}22` : `${color}0d`,
+                  border: `1px solid ${isSelected ? color : `${color}44`}`,
+                  color,
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+                <span className="truncate">{sessionLabel}({subCount})</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Mobile backdrop */}
       <div

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { mockAgent } from "@/lib/__tests__/test-utils";
 import type { AgentState } from "@/lib/types";
@@ -20,12 +20,6 @@ vi.mock("../AgentGraph", () => ({
 }));
 vi.mock("../MiniMap", () => ({
   MiniMap: () => <div data-testid="mini-map">MiniMap</div>,
-}));
-vi.mock("../Timeline", () => ({
-  Timeline: () => <div data-testid="timeline">Timeline</div>,
-}));
-vi.mock("../LiveMetrics", () => ({
-  LiveMetrics: () => null,
 }));
 vi.mock("../CostProjection", () => ({
   CostProjection: () => null,
@@ -183,5 +177,95 @@ describe("Dashboard", () => {
       expect(useAgentStore.getState().hiddenAgentTypes.has("main")).toBe(true);
     });
     expect(useAgentStore.getState().selectedAgentId).toBe("parent");
+  });
+
+  describe("mobile main-agent badges", () => {
+    it("renders nothing when no main agents are present", () => {
+      const agents = new Map<string, AgentState>([
+        ["a1", mockAgent({ id: "a1", agentType: "build" })],
+      ]);
+      useAgentStore.setState({ agents });
+      const { container } = render(<Dashboard />);
+      expect(container.querySelectorAll(".mobile-toggle-btn").length).toBe(0);
+    });
+
+    it("renders one badge per main with projectName(subCount) and tallies all descendants recursively", () => {
+      // main → midA → leaf (3-level chain) plus a sibling leaf under main
+      const main = mockAgent({
+        id: "main",
+        agentType: "main",
+        sessionId: "s1",
+        metadata: { projectName: "IPPortal2" },
+      });
+      const midA = mockAgent({ id: "midA", agentType: "build", parentId: "main" });
+      const leaf = mockAgent({ id: "leaf", agentType: "build", parentId: "midA" });
+      const sibling = mockAgent({ id: "sib", agentType: "test", parentId: "main" });
+      const agents = new Map<string, AgentState>([
+        ["main", main],
+        ["midA", midA],
+        ["leaf", leaf],
+        ["sib", sibling],
+      ]);
+      useAgentStore.setState({ agents });
+
+      const { container } = render(<Dashboard />);
+      const buttons = container.querySelectorAll(".mobile-toggle-btn button");
+      expect(buttons.length).toBe(1);
+      expect(buttons[0].textContent).toContain("IPPortal2(3)");
+    });
+
+    it("falls back to sessionId then 'Unnamed' when projectName is absent", () => {
+      const main1 = mockAgent({ id: "m1", agentType: "main", sessionId: "abc-123" });
+      const main2 = mockAgent({ id: "m2", agentType: "main", sessionId: undefined });
+      const agents = new Map<string, AgentState>([["m1", main1], ["m2", main2]]);
+      useAgentStore.setState({ agents });
+
+      const { container } = render(<Dashboard />);
+      const labels = Array.from(container.querySelectorAll(".mobile-toggle-btn button"))
+        .map((b) => b.textContent);
+      expect(labels.some((l) => l?.includes("abc-123(0)"))).toBe(true);
+      expect(labels.some((l) => l?.includes("Unnamed(0)"))).toBe(true);
+    });
+
+    it("invokes selectAgent when a badge is tapped", () => {
+      const main = mockAgent({ id: "main", agentType: "main", sessionId: "s1" });
+      useAgentStore.setState({ agents: new Map([["main", main]]) });
+
+      const { container } = render(<Dashboard />);
+      const button = container.querySelector(".mobile-toggle-btn button");
+      expect(button).not.toBeNull();
+      fireEvent.click(button!);
+      expect(useAgentStore.getState().selectedAgentId).toBe("main");
+    });
+
+    it("does not infinite-loop on a parent-chain cycle", () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      // a → b → a forms a 2-cycle with no main at the root
+      const a = mockAgent({ id: "a", agentType: "build", parentId: "b" });
+      const b = mockAgent({ id: "b", agentType: "build", parentId: "a" });
+      const main = mockAgent({ id: "main", agentType: "main", sessionId: "s1" });
+      useAgentStore.setState({ agents: new Map([["a", a], ["b", b], ["main", main]]) });
+
+      const { container } = render(<Dashboard />);
+      const button = container.querySelector(".mobile-toggle-btn button");
+      // Cycle agents must NOT contribute to the main's count.
+      expect(button?.textContent).toContain("s1(0)");
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("does not count agents whose chain root is not a rendered main", () => {
+      // Orphan tree (no main at root) should be ignored.
+      const orphanRoot = mockAgent({ id: "root", agentType: "build" });
+      const orphanLeaf = mockAgent({ id: "leaf", agentType: "test", parentId: "root" });
+      const main = mockAgent({ id: "main", agentType: "main", sessionId: "s1" });
+      useAgentStore.setState({
+        agents: new Map([["root", orphanRoot], ["leaf", orphanLeaf], ["main", main]]),
+      });
+
+      const { container } = render(<Dashboard />);
+      const button = container.querySelector(".mobile-toggle-btn button");
+      expect(button?.textContent).toContain("s1(0)");
+    });
   });
 });

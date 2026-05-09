@@ -1,15 +1,10 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { useShallow } from "zustand/react/shallow";
 import { UI } from "@/lib/colors";
-import { calculateTotalCost } from "@/lib/costs";
 
 export function TopBar() {
-  const { agents, connected } =
-    useAgentStore(useShallow((s) => ({
-      agents: s.agents, connected: s.connected,
-    })));
+  const connected = useAgentStore((s) => s.connected);
   const replayActive = useAgentStore((s) => s.replay.active);
 
   return (
