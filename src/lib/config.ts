@@ -27,7 +27,9 @@ export const GRAPH = {
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
-  subAgentLinkDistance: 160, // Ideal distance (px) between a main agent and its sub-agent
+  subAgentLinkDistance: 160, // Ideal distance (px) between a main agent and a sub-agent that has live tool nodes
+  subAgentLinkDistanceCompact: 80, // Tighter ideal distance (px) used when the sub-agent has no tool nodes — pulls it closer to the parent
+  subAgentChargeCompactScale: 0.35, // Charge-strength multiplier applied to sub-agents without tool nodes so they cluster near the parent
   chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   subAgentCollideRadius: 70, // Collision radius (px) for sub-agent nodes

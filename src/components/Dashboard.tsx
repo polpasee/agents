@@ -11,7 +11,6 @@ import { AgentGraph } from "./AgentGraph";
 import type { AgentGraphHandle } from "./AgentGraph";
 import { AgentDetail } from "./AgentDetail";
 import { TimelineBar } from "./TimelineBar";
-import { Timeline } from "./Timeline";
 import { TopologyUsageStatus } from "./TopologyUsageStatus";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
@@ -20,14 +19,13 @@ import { ActivityStream } from "./ActivityStream";
 import { ReplayBar } from "./ReplayBar";
 import { LogViewer } from "./LogViewer";
 import { ErrorDrillDown } from "./ErrorDrillDown";
-import { LiveMetrics } from "./LiveMetrics";
 import { ExportModal } from "./ExportModal";
 import { DiffViewer } from "./DiffViewer";
 import { SessionComparison } from "./SessionComparison";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { useAgentStore } from "@/lib/store";
-import { UI } from "@/lib/colors";
+import { UI, agentColor } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
@@ -53,7 +51,6 @@ export function Dashboard() {
 
   const graphRef = useRef<AgentGraphHandle>(null);
   useKeyboardShortcuts(graphRef);
-  const viewMode = useAgentStore((s) => s.viewMode);
   const connected = useAgentStore((s) => s.connected);
   const agentCount = useAgentStore((s) => s.agents.size);
   const transcriptOpen = useAgentStore((s) => s.transcriptOpen);
@@ -103,7 +100,6 @@ export function Dashboard() {
       <ErrorBoundary>
         <TopBar />
       </ErrorBoundary>
-      <LiveMetrics />
 
       {comparison.active && comparison.leftSession && comparison.rightSession ? (
         <SessionComparison
@@ -114,31 +110,55 @@ export function Dashboard() {
         />
       ) : (
       <>
-      {/* Mobile toggle buttons */}
-      <div className="mobile-toggle-btn items-center gap-2 px-2 py-1" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
-        <button
-          onClick={() => { setMobileAgentList((v) => !v); setMobileAgentDetail(false); }}
-          className="px-3 py-1 rounded text-xs font-mono"
-          style={{
-            background: mobileAgentList ? `${UI.primary}22` : "transparent",
-            border: `1px solid ${mobileAgentList ? UI.primary : "var(--color-border)"}`,
-            color: mobileAgentList ? UI.primary : UI.text.muted,
-          }}
-        >
-          Agents
-        </button>
-        <button
-          onClick={() => { setMobileAgentDetail((v) => !v); setMobileAgentList(false); }}
-          className="px-3 py-1 rounded text-xs font-mono"
-          style={{
-            background: mobileAgentDetail ? `${UI.primary}22` : "transparent",
-            border: `1px solid ${mobileAgentDetail ? UI.primary : "var(--color-border)"}`,
-            color: mobileAgentDetail ? UI.primary : UI.text.muted,
-          }}
-        >
-          Details
-        </button>
-      </div>
+      {/* Mobile main-agent badges */}
+      {(() => {
+        const mainAgents = filteredAgents.filter((a) => a.agentType === "main");
+        if (mainAgents.length === 0) return null;
+
+        // Count sub-agents per main by walking each agent's parent chain to its root.
+        const subCounts = new Map<string, number>();
+        for (const agent of filteredAgents) {
+          if (agent.agentType === "main") continue;
+          let cursor = agent;
+          const seen = new Set<string>();
+          while (cursor.parentId && !seen.has(cursor.id)) {
+            seen.add(cursor.id);
+            const parent = agents.get(cursor.parentId);
+            if (!parent) break;
+            cursor = parent;
+          }
+          if (cursor.agentType === "main") {
+            subCounts.set(cursor.id, (subCounts.get(cursor.id) ?? 0) + 1);
+          }
+        }
+
+        return (
+          <div className="mobile-toggle-btn items-center gap-2 px-2 py-1 overflow-x-auto" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
+            {mainAgents.map((agent) => {
+              const color = agentColor(agent);
+              const sessionLabel =
+                (agent.metadata?.projectName as string | undefined) || agent.sessionId || agent.id;
+              const subCount = subCounts.get(agent.id) ?? 0;
+              const isSelected = agent.id === selectedAgentId;
+              return (
+                <button
+                  key={agent.id}
+                  onClick={() => selectAgent(agent.id)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono flex-shrink-0"
+                  style={{
+                    background: isSelected ? `${color}22` : `${color}0d`,
+                    border: `1px solid ${isSelected ? color : `${color}44`}`,
+                    color,
+                  }}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
+                  <span className="truncate">{sessionLabel}({subCount})</span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Mobile backdrop */}
       <div
@@ -165,14 +185,10 @@ export function Dashboard() {
                 </div>
               </div>
             </div>
-          ) : viewMode === "graph" ? (
+          ) : (
             <ErrorBoundary>
               <AgentGraph ref={graphRef} />
               <TopologyUsageStatus />
-            </ErrorBoundary>
-          ) : (
-            <ErrorBoundary>
-              <Timeline />
             </ErrorBoundary>
           )}
           {transcriptOpen && (

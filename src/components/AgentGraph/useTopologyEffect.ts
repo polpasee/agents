@@ -233,16 +233,31 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       }
     }
 
+    // Re-evaluated on every force initialize (i.e. whenever useToolNodesEffect
+    // resets simulation.nodes()/linkForce.links()), so a sub-agent gaining or
+    // losing tool nodes flips its parent-link distance + charge automatically.
+    const hasLiveToolNode = (agentId: string) =>
+      refs.toolNodesRef.current.some((n) => n.toolCall?.parentAgentId === agentId);
+
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
         const link = d as SimLink;
         if (link.edgeType === "tool") return GRAPH.toolLinkDistance;
-        if (link.edgeType === "parent") return GRAPH.subAgentLinkDistance;
+        if (link.edgeType === "parent") {
+          const targetId = typeof link.target === "string" ? link.target : (link.target as SimNode).id;
+          return hasLiveToolNode(targetId) ? GRAPH.subAgentLinkDistance : GRAPH.subAgentLinkDistanceCompact;
+        }
         return GRAPH.linkDistance;
       }))
-      .force("charge", forceManyBody<SimNode>().strength((d) =>
-        d.toolCall ? -80 : GRAPH.chargeStrength
-      ))
+      .force("charge", forceManyBody<SimNode>().strength((d) => {
+        // Tool nodes contribute zero charge so they don't push agent nodes
+        // around. They stay tethered to their parent via the link spring and
+        // separated from each other via forceCollide.
+        if (d.toolCall) return 0;
+        const isSub = !!(d.agent.parentId && !d.agent.teamId);
+        if (isSub && !hasLiveToolNode(d.id)) return GRAPH.chargeStrength * GRAPH.subAgentChargeCompactScale;
+        return GRAPH.chargeStrength;
+      }))
       .force("center", forceCenter(width / 2, height / 2))
       .force("collide", forceCollide<SimNode>().radius((d) => {
         if (d.toolCall) return GRAPH.toolNodeRadius + 4;
