@@ -2,10 +2,10 @@ import { useEffect } from "react";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
 import { drag } from "d3-drag";
-import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from "d3-force";
+import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from "d3-force";
 import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
-import { GRAPH } from "@/lib/config";
+import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState } from "@/lib/types";
@@ -233,41 +233,18 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       }
     }
 
-    // d3-force re-runs accessors during `force.initialize(nodes)` (triggered
-    // by `simulation.nodes(...)` / `linkForce.links(...)`), so a sub-agent
-    // gaining or losing tool nodes automatically flips its parent-link
-    // distance and charge — provided the surrounding effect re-runs to
-    // re-mount the simulation with the new node/link sets.
-    const hasLiveToolNode = (agentId: string) =>
-      refs.toolNodesRef.current.some((n) => n.toolCall?.parentAgentId === agentId);
-    const nodeById = new Map(nodes.map((n) => [n.id, n]));
-    const isCompactSub = (n: SimNode | undefined): boolean =>
-      !!n && !n.toolCall && !!n.agent.parentId && !n.agent.teamId && !hasLiveToolNode(n.id);
-
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
-        const link = d as SimLink;
-        if (link.edgeType === "tool") return GRAPH.toolLinkDistance;
-        if (link.edgeType === "parent") {
-          const targetNode = typeof link.target === "string" ? nodeById.get(link.target) : (link.target as SimNode);
-          return isCompactSub(targetNode) ? GRAPH.subAgentLinkDistanceCompact : GRAPH.subAgentLinkDistance;
-        }
+        if (d.edgeType === "tool") return GRAPH.toolLinkDistance;
+        if (d.edgeType === "parent") return GRAPH.subAgentLinkDistance;
         return GRAPH.linkDistance;
       }))
-      .force("charge", forceManyBody<SimNode>().strength((d) => {
-        // Tool nodes contribute zero charge so they don't push agent nodes
-        // around. They stay tethered to their parent via the link spring and
-        // separated from each other via forceCollide.
-        if (d.toolCall) return 0;
-        if (isCompactSub(d)) return GRAPH.chargeStrength * GRAPH.subAgentChargeCompactScale;
-        return GRAPH.chargeStrength;
-      }))
-      .force("center", forceCenter(width / 2, height / 2))
-      .force("collide", forceCollide<SimNode>().radius((d) => {
-        if (d.toolCall) return GRAPH.toolNodeRadius + 4;
-        const isSub = !!(d.agent.parentId && !d.agent.teamId);
-        return isSub ? GRAPH.subAgentCollideRadius : GRAPH.collideRadius;
-      }))
+      .force("charge", forceManyBody<SimNode>().distanceMax(GRAPH.chargeDistanceMax))
+      .force("x", forceX<SimNode>(width / 2).strength(GRAPH.centerStrength))
+      .force("y", forceY<SimNode>(height / 2).strength(GRAPH.centerStrength))
+      .force("collide", forceCollide<SimNode>().radius((d) =>
+        d.toolCall ? GRAPH.toolNodeRadius + 4 : getNodeRadius(d.agent) + 4,
+      ))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
         linkGlow.attr("d", (d) => bezierPath(
