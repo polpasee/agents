@@ -26,14 +26,13 @@ export const GRAPH = {
   tooltipY: -48, // Vertical offset (px) of the hover tooltip above the node
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
-  linkDistance: 360, // Ideal distance (px) between linked nodes in the force layout
-  subAgentLinkDistance: 160, // Default distance (px) between a parent and a sub-agent — also used when a non-team sub-agent has live tool nodes
-  subAgentLinkDistanceCompact: 80, // Tighter distance (px) for non-team sub-agents with no tool nodes — pulls them close to their parent
-  subAgentChargeCompactScale: 0.35, // Charge-strength multiplier for non-team sub-agents with no tool nodes so they cluster near the parent
-  chargeStrength: -1200, // Repulsive force strength; more negative = nodes push apart harder
+  linkDistance: 300, // Link distance (px) for Main↔Main edges (message/blocking/default)
+  subAgentLinkDistance: 320, // Link distance (px) for Main↔sub-agent parent edges
+  toolLinkDistance: 80, // Link distance (px) for any↔tool edges
+  chargeDistanceMax: 500, // Cap (px) on forceManyBody reach — beyond this, charge contributes zero force (bounds main↔main drift)
+  centerStrength: 0.05, // Per-node strength for forceX/forceY pull toward viewport center
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
-  subAgentCollideRadius: 70, // Collision radius (px) for sub-agent nodes
-  collideRadius: 120, // Collision radius (px) preventing node overlap
+  collideRadius: 120, // Padding (px) used for team-cluster hull/ellipse geometry — no longer fed into d3 forceCollide
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
   particleRadius: 3, // Radius (px) of message-flow particles traveling along links
@@ -44,7 +43,6 @@ export const GRAPH = {
   sparklineBuckets: 10, // Number of time buckets displayed in the sparkline
   sparklineBucketMs: 6000, // Duration (ms) each sparkline bucket covers
   toolNodeRadius: 14, // Radius (px) of tool call nodes in the force graph
-  toolLinkDistance: 80, // Ideal distance (px) between a tool node and its parent agent
   toolWindowMs: 15_000, // Duration (ms) tool call nodes remain visible after being called
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
