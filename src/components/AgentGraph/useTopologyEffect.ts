@@ -246,8 +246,8 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent;
           return GRAPH.chargeStrengthMain;
         }))
-      .force("x", forceX<SimNode>(width / 2).strength(GRAPH.centerStrength))
-      .force("y", forceY<SimNode>(height / 2).strength(GRAPH.centerStrength))
+      .force("x", forceX<SimNode>(width / 2).strength((d) => d.toolCall ? 0 : GRAPH.centerStrength))
+      .force("y", forceY<SimNode>(height / 2).strength((d) => d.toolCall ? 0 : GRAPH.centerStrength))
       .force("collide", forceCollide<SimNode>().radius((d) =>
         d.toolCall ? GRAPH.toolNodeRadius + 4 : getNodeRadius(d.agent) + 4,
       ))
