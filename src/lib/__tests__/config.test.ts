@@ -51,10 +51,9 @@ describe("Client-side config", () => {
       }
     });
 
-    it("all numeric values are positive (except chargeStrength and tooltipY which are negative by design)", () => {
-      // chargeStrength is negative (repulsive force in D3)
+    it("all numeric values are positive (except tooltipY which is negative by design)", () => {
       // tooltipY is negative (positioned above the node)
-      const negativeByDesign = new Set(["chargeStrength", "tooltipY"]);
+      const negativeByDesign = new Set(["tooltipY", "chargeStrengthMain", "chargeStrengthSubAgent", "chargeStrengthTool"]);
 
       for (const [key, value] of Object.entries(GRAPH)) {
         if (key === "zoomExtent") {

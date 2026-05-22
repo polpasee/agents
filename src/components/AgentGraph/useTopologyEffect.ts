@@ -239,7 +239,13 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         if (d.edgeType === "parent") return GRAPH.subAgentLinkDistance;
         return GRAPH.linkDistance;
       }))
-      .force("charge", forceManyBody<SimNode>().distanceMax(GRAPH.chargeDistanceMax))
+      .force("charge", forceManyBody<SimNode>()
+        .distanceMax(GRAPH.chargeDistanceMax)
+        .strength((d) => {
+          if (d.toolCall) return GRAPH.chargeStrengthTool;
+          if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent;
+          return GRAPH.chargeStrengthMain;
+        }))
       .force("x", forceX<SimNode>(width / 2).strength(GRAPH.centerStrength))
       .force("y", forceY<SimNode>(height / 2).strength(GRAPH.centerStrength))
       .force("collide", forceCollide<SimNode>().radius((d) =>

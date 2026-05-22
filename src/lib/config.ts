@@ -27,9 +27,12 @@ export const GRAPH = {
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 300, // Link distance (px) for Main↔Main edges (message/blocking/default)
-  subAgentLinkDistance: 320, // Link distance (px) for Main↔sub-agent parent edges
+  subAgentLinkDistance: 200, // Link distance (px) for Main↔sub-agent parent edges
   toolLinkDistance: 80, // Link distance (px) for any↔tool edges
   chargeDistanceMax: 500, // Cap (px) on forceManyBody reach — beyond this, charge contributes zero force (bounds main↔main drift)
+  chargeStrengthMain: -500, // Repulsion strength applied to main agents (no parentId)
+  chargeStrengthSubAgent: -200, // Repulsion strength applied to sub-agents (has parentId, not a tool)
+  chargeStrengthTool: -80, // Repulsion strength applied to tool nodes
   centerStrength: 0.05, // Per-node strength for forceX/forceY pull toward viewport center
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   collideRadius: 120, // Padding (px) used for team-cluster hull/ellipse geometry — no longer fed into d3 forceCollide
