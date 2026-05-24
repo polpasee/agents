@@ -47,6 +47,7 @@ describe("annotation-store", () => {
     annotations.set("ann-hmr", {
       id: "ann-hmr", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
     });
+    // @ts-expect-error — query-string imports are runtime-only, not resolvable by tsc
     const reimport = await import("../annotation-store?bust=1");
     expect(reimport.annotations.has("ann-hmr")).toBe(true);
   });
