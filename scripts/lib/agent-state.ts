@@ -253,6 +253,65 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
   }
 }
 
+// ── Background tasks ─────────────────────────────────
+// Polling cadence and usage cache refresh were previously owned by the
+// stand-alone ws-server process. After the SSE migration they run inside
+// the Next.js process, started exactly once by src/instrumentation.ts.
+
+import * as path from "node:path";
+import * as os from "node:os";
+
+export async function startBackgroundTasks(): Promise<void> {
+  if (_backgroundStarted()) return;
+  _markBackgroundStarted();
+
+  const { discoverActiveSessions } = await import("./discovery");
+  const { POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS } = await import("./config");
+  const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
+  const { loadWebhookConfig } = await import("./webhooks");
+
+  const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+
+  loadWebhookConfig();
+
+  console.log(`[bg] Agent Monitor background tasks starting`);
+  console.log(`[bg] Watching: ${PROJECTS_DIR}`);
+  console.log(`[bg] Poll interval: ${POLL_INTERVAL_MS}ms`);
+
+  async function pollLoop(): Promise<void> {
+    try {
+      await discoverActiveSessions(PROJECTS_DIR);
+    } catch (err) {
+      console.warn("[bg poll] discovery failed:", err);
+    } finally {
+      setTimeout(pollLoop, POLL_INTERVAL_MS);
+    }
+  }
+
+  async function usagePollLoop(): Promise<void> {
+    try {
+      const mtime = readCacheMtime();
+      if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
+        triggerCcstatuslineRefresh();
+      }
+    } catch (err) {
+      console.warn("[bg usage] refresh failed:", err);
+    } finally {
+      setTimeout(usagePollLoop, USAGE_REFRESH_INTERVAL_MS);
+    }
+  }
+
+  discoverActiveSessions(PROJECTS_DIR).then(() => {
+    console.log(`[bg] Found ${agents.size} active agent(s)`);
+    pollLoop();
+  }).catch((err) => {
+    console.warn("[bg startup] initial discovery failed:", err);
+    pollLoop();
+  });
+
+  usagePollLoop();
+}
+
 function processEntryInner(entry: Record<string, unknown>, agentId: string, _sessionId: string) {
   const timestamp = typeof entry.timestamp === "string"
     ? new Date(entry.timestamp).getTime()
