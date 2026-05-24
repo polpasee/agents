@@ -1,4 +1,4 @@
-import type { AgentEvent, ServerEvent, ClientEvent, AgentStatus, AgentType } from "./types";
+import type { AgentEvent, ServerEvent, AgentStatus, AgentType } from "./types";
 
 const AGENT_STATUSES: readonly AgentStatus[] = ["running", "waiting", "idle", "completed", "error"];
 const AGENT_TYPES: readonly AgentType[] = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"];
@@ -38,26 +38,6 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
       return Array.isArray(obj.annotations);
     case "annotation:update":
       return obj.annotation != null && (obj.action === "add" || obj.action === "remove");
-    case "pong":
-      return true;
-    default:
-      return false;
-  }
-}
-
-/** Validate a client-to-server event */
-export function isValidClientEvent(data: unknown): data is ClientEvent {
-  if (!data || typeof data !== "object") return false;
-  const obj = data as Record<string, unknown>;
-  switch (obj.type) {
-    case "log:request":
-      return typeof obj.agentId === "string";
-    case "annotation:add":
-      return obj.annotation != null && typeof obj.annotation === "object";
-    case "annotation:remove":
-      return typeof obj.annotationId === "string";
-    case "ping":
-      return true;
     default:
       return false;
   }

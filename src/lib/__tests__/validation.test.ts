@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isValidServerEvent, isValidAgentEvent, isValidClientEvent } from "../validation";
+import { isValidServerEvent, isValidAgentEvent } from "../validation";
 
 describe("isValidServerEvent", () => {
   it("accepts valid state:sync event", () => {
@@ -54,15 +54,6 @@ describe("isValidServerEvent", () => {
     ).toBe(false);
   });
 
-  it("accepts pong heartbeat", () => {
-    expect(isValidServerEvent({ type: "pong" })).toBe(true);
-  });
-});
-
-describe("isValidClientEvent", () => {
-  it("accepts ping heartbeat", () => {
-    expect(isValidClientEvent({ type: "ping" })).toBe(true);
-  });
 });
 
 describe("isValidAgentEvent", () => {
