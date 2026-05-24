@@ -1,10 +1,9 @@
 /**
- * WebSocket Protocol Contract
- * ───────────────────────────
- * This file is the single source of truth for the dashboard ↔ ws-server wire
- * protocol. All message shapes (`ServerEvent`, `ClientEvent`, `AgentEvent`)
- * live here and are imported by both the frontend (`src/`) and the backend
- * (`scripts/`).
+ * SSE Protocol Contract
+ * ─────────────────────
+ * This file is the single source of truth for the dashboard ↔ server wire
+ * protocol. All message shapes (`ServerEvent`, `AgentEvent`) live here and
+ * are imported by both the frontend (`src/`) and the backend (`scripts/`).
  *
  * Protocol version: 1. Bump on backwards-incompatible changes (renamed or
  * removed fields, changed field types). Adding new optional fields or new

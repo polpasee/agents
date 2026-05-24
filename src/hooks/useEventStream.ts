@@ -9,9 +9,9 @@ import { isValidServerEvent } from "@/lib/validation";
 /**
  * Subscribe to the server's live state stream via SSE.
  *
- * Replaces the WebSocket transport. EventSource handles reconnect natively;
- * we only own the per-event dispatch into the Zustand store, with a small
- * batch buffer for state:update events to coalesce render churn.
+ * EventSource handles reconnect natively; we only own the per-event dispatch
+ * into the Zustand store, with a small batch buffer for state:update events
+ * to coalesce render churn.
  */
 export function useEventStream() {
   useEffect(() => {
