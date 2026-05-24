@@ -25,6 +25,9 @@ export const WS_RECONNECT_MAX_DELAY_MS = 30000; // Upper bound for exponential b
 export const WS_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events every ~1 frame (16ms)
 export const WS_BATCH_MAX_SIZE = 50; // Force-flush the buffer if it reaches this many events
 
+export const STREAM_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events ~1 frame
+export const STREAM_BATCH_MAX_SIZE = 50;    // Force-flush at this many buffered events
+
 export const ACTIVITY_MAX_ENTRIES = 100; // Max activity-log items kept in the UI before oldest are evicted
 export const TOOL_CALLS_MAX_PER_AGENT = 20; // Max tool-call entries shown per agent in the detail panel
 export const DEFAULT_CONTEXT_WINDOW = 1_000_000; // Fallback context-window size (tokens) when the model doesn't report one
