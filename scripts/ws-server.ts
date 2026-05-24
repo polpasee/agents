@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from "ws";
 import * as path from "node:path";
 import * as os from "node:os";
-import type { ServerEvent, ClientEvent, Annotation } from "../src/lib/types";
+import type { ServerEvent, ClientEvent } from "../src/lib/types";
 import { PROTOCOL_VERSION } from "../src/lib/types";
 import { agents, edges, teams, viewers, getAgentFilePath } from "./lib/agent-state";
 import { isValidClientEvent } from "../src/lib/validation";
@@ -12,18 +12,14 @@ import {
   POLL_INTERVAL_MS,
   isAllowedOrigin,
   ANNOTATION_MAX_ENTRIES,
-  ANNOTATION_MAX_TEXT_LENGTH,
-  ANNOTATION_ID_PATTERN,
   USAGE_REFRESH_INTERVAL_MS,
   USAGE_REFRESH_THRESHOLD_MS,
 } from "./lib/config";
+import { annotations, sanitizeAnnotation } from "./lib/annotation-store";
 import { loadWebhookConfig } from "./lib/webhooks";
 import { readCacheMtime, triggerCcstatuslineRefresh } from "./lib/ccstatusline";
 
 const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
-
-// ── Annotation storage ───────────────────────────────
-const annotationStore = new Map<string, Annotation>();
 
 function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: unknown }) {
   const data = JSON.stringify(event);
@@ -43,20 +39,6 @@ const wss = new WebSocketServer({
     done(false, 403, "Forbidden origin");
   },
 });
-
-function sanitizeAnnotation(raw: unknown): Annotation | null {
-  if (!raw || typeof raw !== "object") return null;
-  const o = raw as Record<string, unknown>;
-  if (typeof o.id !== "string" || !ANNOTATION_ID_PATTERN.test(o.id)) return null;
-  if (typeof o.targetId !== "string" || o.targetId.length === 0 || o.targetId.length > 128) return null;
-  if (o.targetType !== "agent" && o.targetType !== "edge") return null;
-  if (typeof o.text !== "string" || o.text.length === 0 || o.text.length > ANNOTATION_MAX_TEXT_LENGTH) return null;
-  if (typeof o.timestamp !== "number" || !Number.isFinite(o.timestamp)) return null;
-  const author = typeof o.author === "string" && o.author.length <= 64 ? o.author : undefined;
-  const x = typeof o.x === "number" && Number.isFinite(o.x) ? o.x : undefined;
-  const y = typeof o.y === "number" && Number.isFinite(o.y) ? o.y : undefined;
-  return { id: o.id, targetId: o.targetId, targetType: o.targetType, text: o.text, timestamp: o.timestamp, author, x, y };
-}
 
 wss.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {
@@ -85,10 +67,10 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify(syncEvent));
 
   // Send annotation sync on connect
-  if (annotationStore.size > 0) {
+  if (annotations.size > 0) {
     const annSync: ServerEvent = {
       type: "annotation:sync",
-      annotations: Array.from(annotationStore.values()),
+      annotations: Array.from(annotations.values()),
     };
     ws.send(JSON.stringify(annSync));
   }
@@ -110,23 +92,23 @@ wss.on("connection", (ws) => {
         const ann = sanitizeAnnotation(raw);
         if (!ann) return;
         // Reject overwrite of an existing id — ids must be unique per session
-        if (annotationStore.has(ann.id)) return;
+        if (annotations.has(ann.id)) return;
         // Evict oldest entries if over cap
-        while (annotationStore.size >= ANNOTATION_MAX_ENTRIES) {
-          const oldest = annotationStore.keys().next().value;
+        while (annotations.size >= ANNOTATION_MAX_ENTRIES) {
+          const oldest = annotations.keys().next().value;
           if (oldest === undefined) break;
-          annotationStore.delete(oldest);
+          annotations.delete(oldest);
         }
-        annotationStore.set(ann.id, ann);
+        annotations.set(ann.id, ann);
         broadcastToViewers({ type: "annotation:update", action: "add", annotation: ann });
         return;
       }
 
       if (data.type === "annotation:remove") {
         const annId = (data as Extract<ClientEvent, { type: "annotation:remove" }>).annotationId;
-        const ann = annotationStore.get(annId);
+        const ann = annotations.get(annId);
         if (ann) {
-          annotationStore.delete(annId);
+          annotations.delete(annId);
           broadcastToViewers({ type: "annotation:update", action: "remove", annotation: ann });
         }
         return;
