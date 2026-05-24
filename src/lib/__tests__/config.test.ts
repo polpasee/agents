@@ -1,6 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-  WS_URL,
+  getWsUrl,
   WS_RECONNECT_DELAY_MS,
   ACTIVITY_MAX_ENTRIES,
   TOOL_CALLS_MAX_PER_AGENT,
@@ -9,9 +9,22 @@ import {
 } from "../config";
 
 describe("Client-side config", () => {
-  it("WS_URL is a valid ws:// URL string", () => {
-    expect(typeof WS_URL).toBe("string");
-    expect(WS_URL).toMatch(/^ws:\/\/.+/);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("getWsUrl returns ws:// pointed at the page hostname in the browser", () => {
+    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "192.168.1.42" } });
+    expect(getWsUrl()).toBe("ws://192.168.1.42:4001");
+  });
+
+  it("getWsUrl returns wss:// when the page is served over https", () => {
+    vi.stubGlobal("window", { location: { protocol: "https:", hostname: "monitor.example" } });
+    expect(getWsUrl()).toBe("wss://monitor.example:4001");
+  });
+
+  it("getWsUrl falls back to ws://localhost:4001 during SSR", () => {
+    expect(getWsUrl()).toBe("ws://localhost:4001");
   });
 
   it("WS_RECONNECT_DELAY_MS is a positive number", () => {

@@ -10,7 +10,7 @@ import { discoverActiveSessions } from "./lib/discovery";
 import {
   WS_PORT,
   POLL_INTERVAL_MS,
-  WS_ALLOWED_ORIGINS,
+  isAllowedOrigin,
   ANNOTATION_MAX_ENTRIES,
   ANNOTATION_MAX_TEXT_LENGTH,
   ANNOTATION_ID_PATTERN,
@@ -38,10 +38,10 @@ function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: 
 // Origin allowlist guards against Cross-Site WebSocket Hijacking from random pages.
 const wss = new WebSocketServer({
   port: WS_PORT,
-  host: "127.0.0.1",
+  host: process.env.WS_HOST ?? "0.0.0.0",
   maxPayload: 256 * 1024,
   verifyClient: ({ origin }, done) => {
-    if (origin && WS_ALLOWED_ORIGINS.includes(origin)) return done(true);
+    if (isAllowedOrigin(origin)) return done(true);
     done(false, 403, "Forbidden origin");
   },
 });

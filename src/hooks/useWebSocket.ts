@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
-import { WS_URL, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS, WS_BATCH_INTERVAL_MS, WS_BATCH_MAX_SIZE } from "@/lib/config";
+import { getWsUrl, WS_RECONNECT_DELAY_MS, WS_RECONNECT_MAX_DELAY_MS, WS_BATCH_INTERVAL_MS, WS_BATCH_MAX_SIZE } from "@/lib/config";
 import type { ClientEvent } from "@/lib/types";
 import { PROTOCOL_VERSION } from "@/lib/types";
 import { isValidServerEvent } from "@/lib/validation";
@@ -60,7 +60,7 @@ export function useWebSocket() {
 
     function connect() {
       if (destroyed) return;
-      const ws = new WebSocket(`${WS_URL}?role=viewer`);
+      const ws = new WebSocket(`${getWsUrl()}?role=viewer`);
       wsRef.current = ws;
       activeWs = ws;
 
