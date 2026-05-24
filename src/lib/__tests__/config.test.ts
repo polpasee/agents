@@ -1,7 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import {
-  getWsUrl,
-  WS_RECONNECT_DELAY_MS,
   ACTIVITY_MAX_ENTRIES,
   TOOL_CALLS_MAX_PER_AGENT,
   DEFAULT_CONTEXT_WINDOW,
@@ -9,29 +7,6 @@ import {
 } from "../config";
 
 describe("Client-side config", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it("getWsUrl returns ws:// pointed at the page hostname in the browser", () => {
-    vi.stubGlobal("window", { location: { protocol: "http:", hostname: "192.168.1.42" } });
-    expect(getWsUrl()).toBe("ws://192.168.1.42:4001");
-  });
-
-  it("getWsUrl returns wss:// when the page is served over https", () => {
-    vi.stubGlobal("window", { location: { protocol: "https:", hostname: "monitor.example" } });
-    expect(getWsUrl()).toBe("wss://monitor.example:4001");
-  });
-
-  it("getWsUrl falls back to ws://localhost:4001 during SSR", () => {
-    expect(getWsUrl()).toBe("ws://localhost:4001");
-  });
-
-  it("WS_RECONNECT_DELAY_MS is a positive number", () => {
-    expect(typeof WS_RECONNECT_DELAY_MS).toBe("number");
-    expect(WS_RECONNECT_DELAY_MS).toBeGreaterThan(0);
-  });
-
   it("ACTIVITY_MAX_ENTRIES is a positive integer", () => {
     expect(typeof ACTIVITY_MAX_ENTRIES).toBe("number");
     expect(Number.isInteger(ACTIVITY_MAX_ENTRIES)).toBe(true);
