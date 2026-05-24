@@ -8,7 +8,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "dev": "next dev --port 4000",
+    "dev": "next dev --hostname 0.0.0.0 --port 4000",
     "build": "next build",
     "start": "next start",
     "mock-agents": "tsx scripts/mock-agents.ts",
