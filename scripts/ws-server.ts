@@ -28,9 +28,7 @@ const annotationStore = new Map<string, Annotation>();
 function broadcastToViewers(event: ServerEvent | { type: string; [key: string]: unknown }) {
   const data = JSON.stringify(event);
   for (const viewer of viewers) {
-    if ((viewer as WebSocket).readyState === WebSocket.OPEN) {
-      viewer.send(data);
-    }
+    try { viewer.send(data); } catch { /* viewer abort, will self-remove */ }
   }
 }
 
@@ -72,7 +70,10 @@ wss.on("error", (err: NodeJS.ErrnoException) => {
 });
 
 wss.on("connection", (ws) => {
-  viewers.add(ws);
+  const adapter: import("./lib/sse-broadcast").SSEClient = {
+    send: (data: string) => { if (ws.readyState === WebSocket.OPEN) ws.send(data); },
+  };
+  viewers.add(adapter);
 
   const syncEvent: ServerEvent = {
     type: "state:sync",
@@ -165,11 +166,11 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
-    viewers.delete(ws);
+    viewers.delete(adapter);
   });
 
   ws.on("error", () => {
-    viewers.delete(ws);
+    viewers.delete(adapter);
   });
 });
 
