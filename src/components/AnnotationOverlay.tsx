@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAgentStore } from "@/lib/store";
-import { sendWsMessage } from "@/hooks/useWebSocket";
 import { UI, ANNOTATION_COLOR } from "@/lib/colors";
 import { formatTimestampShort } from "@/lib/utils";
 import type { Annotation } from "@/lib/types";
@@ -30,12 +29,35 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
       timestamp: Date.now(),
     };
 
-    sendWsMessage({ type: "annotation:add", annotation });
+    void (async () => {
+      try {
+        const res = await fetch("/api/annotations", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(annotation),
+        });
+        if (!res.ok) {
+          const { error } = await res.json().catch(() => ({ error: res.statusText }));
+          console.warn("Annotation add failed:", error);
+        }
+      } catch (err) {
+        console.warn("Annotation add threw:", err);
+      }
+    })();
     setNewText("");
   }
 
   function handleRemove(id: string) {
-    sendWsMessage({ type: "annotation:remove", annotationId: id });
+    void (async () => {
+      try {
+        const res = await fetch(`/api/annotations/${encodeURIComponent(id)}`, { method: "DELETE" });
+        if (!res.ok && res.status !== 404) {
+          console.warn("Annotation remove failed:", res.statusText);
+        }
+      } catch (err) {
+        console.warn("Annotation remove threw:", err);
+      }
+    })();
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
