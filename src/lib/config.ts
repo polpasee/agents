@@ -1,6 +1,25 @@
 // ── Client-side configuration ─────────────────────────
 
-export const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:4001";
+/** WebSocket server port (matches WS_PORT in scripts/lib/config.ts). */
+const WS_PORT = 4001;
+
+/** Build-time override. If set, getWsUrl() returns this verbatim (lets ops pin a remote WS). */
+const WS_URL_ENV = process.env.NEXT_PUBLIC_WS_URL;
+
+/** SSR fallback — used when window is unavailable (Next.js render path). */
+const WS_URL_SSR_FALLBACK = `ws://localhost:${WS_PORT}`;
+
+/**
+ * Returns the WebSocket URL to connect to. Called at connect time (not module
+ * load) so a phone hitting http://<mac-lan-ip>:4000 derives ws://<mac-lan-ip>:4001.
+ */
+export function getWsUrl(): string {
+  if (WS_URL_ENV) return WS_URL_ENV;
+  if (typeof window === "undefined") return WS_URL_SSR_FALLBACK;
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${wsProtocol}//${window.location.hostname}:${WS_PORT}`;
+}
+
 export const WS_RECONNECT_DELAY_MS = 2000; // Initial delay before retrying a dropped WebSocket connection
 export const WS_RECONNECT_MAX_DELAY_MS = 30000; // Upper bound for exponential backoff on reconnect attempts
 export const WS_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events every ~1 frame (16ms)
