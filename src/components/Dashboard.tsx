@@ -38,8 +38,9 @@ export function Dashboard() {
   const hydrateUI = useAgentStore((s) => s.hydrateUI);
   useEffect(() => { hydrateUI(); }, [hydrateUI]);
 
-  // Default the topology to a single (most-recent) session on first agent arrival.
-  // Skipped if the user has already made a choice in a prior visit (hydrated from storage).
+  // Default the topology to All Sessions on first agent arrival; user can pick a subset
+  // via the sidebar pills. Skipped if the user has already made a choice in a prior visit
+  // (hydrated from storage), unless the stored filter no longer matches any live session.
   const sessionFilterInitialized = useAgentStore((s) => s.sessionFilterInitialized);
   const autoSelectInitialSession = useAgentStore((s) => s.autoSelectInitialSession);
   const agentsForInit = useAgentStore((s) => s.agents);

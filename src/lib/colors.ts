@@ -103,14 +103,16 @@ const colorByAgentId = new Map<string, string>();
 
 /**
  * Returns the registered color for an agent id, assigning the next palette
- * slot on first lookup. Slots are claimed in palette order (amber → yellow
- * → lime → …). After {@link AGENT_PALETTE}.length distinct ids the counter
- * wraps — duplicates only appear once the palette is fully consumed.
+ * slot on first lookup. Slots are claimed from the end of the palette
+ * backwards (pink → fuchsia → purple → …). After {@link AGENT_PALETTE}.length
+ * distinct ids the counter wraps — duplicates only appear once the palette is
+ * fully consumed.
  */
 export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
-  const color = AGENT_PALETTE[colorByAgentId.size % AGENT_PALETTE.length];
+  const length = AGENT_PALETTE.length;
+  const color = AGENT_PALETTE[length - 1 - (colorByAgentId.size % length)];
   colorByAgentId.set(id, color);
   return color;
 }
@@ -121,13 +123,16 @@ export function resetAgentColorRegistry(): void {
 }
 
 /** Resolve the display color for an agent — main agents always render in
- *  the reserved orange; every other distinct id claims its own palette slot.
- *  Falls back to the coarse-category palette only when no id is available
- *  (shouldn't occur with normal AgentState input). */
-export function agentColor(agent: Pick<AgentState, "id" | "agentType">): string {
+ *  the reserved amber; every other distinct agent claims its own palette slot.
+ *  The registry key is resolved as the first non-empty value of: id → slug →
+ *  displayType. When all three are empty, returns UI.text.secondary. */
+export function agentColor(
+  agent: Pick<AgentState, "id" | "agentType" | "slug" | "displayType">
+): string {
   if (agent.agentType === "main") return MAIN_AGENT_COLOR;
-  if (agent.id) return assignAgentColor(agent.id);
-  return AGENT_COLORS[agent.agentType] || UI.text.secondary;
+  const key = agent.id || agent.slug || agent.displayType;
+  if (key) return assignAgentColor(key);
+  return UI.text.secondary;
 }
 
 export const STATUS_COLORS: Record<AgentStatus, string> = {

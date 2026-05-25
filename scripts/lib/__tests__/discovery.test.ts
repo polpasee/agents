@@ -193,6 +193,10 @@ describe("selectLosingMains", () => {
     parentId,
     startTime,
   });
+  // All existing tests use mtimes well in the past relative to NOW, so the
+  // "loser must be silent" guard is satisfied. Tests that exercise the guard
+  // explicitly use mtimes within RUNNING_THRESHOLD of NOW.
+  const NOW = 10_000_000;
 
   it("returns an empty list when every project has exactly one main", () => {
     const agents = new Map<string, MainShape>([
@@ -203,7 +207,7 @@ describe("selectLosingMains", () => {
       ["main-a", 100],
       ["main-b", 200],
     ]);
-    expect(selectLosingMains(agents, mtimes)).toEqual([]);
+    expect(selectLosingMains(agents, mtimes, NOW)).toEqual([]);
   });
 
   it("evicts the older main when two share a projectDir", () => {
@@ -215,9 +219,35 @@ describe("selectLosingMains", () => {
       ["old", 100],
       ["new", 500],
     ]);
-    const result = selectLosingMains(agents, mtimes);
+    const result = selectLosingMains(agents, mtimes, NOW);
     expect(result).toEqual(["old"]);
     expect(result).not.toContain("new");
+  });
+
+  it("does NOT evict a fresh loser — keeps two concurrent sessions in the same project", () => {
+    // Both mains have been written to in the last few seconds; the slightly
+    // older one is still a real session, not a ghost.
+    const agents = new Map<string, MainShape>([
+      ["older", mkMain("/proj")],
+      ["newer", mkMain("/proj")],
+    ]);
+    const mtimes = new Map<string, number>([
+      ["older", NOW - 5_000], // 5s ago — well within RUNNING_THRESHOLD (45s)
+      ["newer", NOW - 1_000], // 1s ago
+    ]);
+    expect(selectLosingMains(agents, mtimes, NOW)).toEqual([]);
+  });
+
+  it("evicts a stale loser even when the winner is fresh — kills /clear ghosts", () => {
+    const agents = new Map<string, MainShape>([
+      ["ghost", mkMain("/proj")],
+      ["live", mkMain("/proj")],
+    ]);
+    const mtimes = new Map<string, number>([
+      ["ghost", NOW - 120_000], // 2 min silent → genuine ghost
+      ["live", NOW - 1_000],
+    ]);
+    expect(selectLosingMains(agents, mtimes, NOW)).toEqual(["ghost"]);
   });
 
   it("cascades eviction to the losing main's sub-agents", () => {
@@ -235,7 +265,7 @@ describe("selectLosingMains", () => {
       ["old-sub-2", 160],
       ["new-sub-1", 600],
     ]);
-    const result = selectLosingMains(agents, mtimes).sort();
+    const result = selectLosingMains(agents, mtimes, NOW).sort();
     expect(result).toEqual(["old", "old-sub-1", "old-sub-2"]);
     expect(result).not.toContain("new");
     expect(result).not.toContain("new-sub-1");
@@ -250,7 +280,7 @@ describe("selectLosingMains", () => {
       ["main-a", 100],
       ["main-b", 100],
     ]);
-    expect(selectLosingMains(agents, mtimes)).toEqual([]);
+    expect(selectLosingMains(agents, mtimes, NOW)).toEqual([]);
   });
 
   it("falls back to startTime when lastModified ties, then to lexical id order", () => {
@@ -263,7 +293,7 @@ describe("selectLosingMains", () => {
       ["a", 1000],
       ["z", 1000],
     ]);
-    expect(selectLosingMains(agents1, mtimes1)).toEqual(["a"]);
+    expect(selectLosingMains(agents1, mtimes1, NOW)).toEqual(["a"]);
 
     // Everything ties → lexically greater id wins (descending), so "a" loses.
     const agents2 = new Map<string, MainShape>([
@@ -274,7 +304,7 @@ describe("selectLosingMains", () => {
       ["a", 1000],
       ["z", 1000],
     ]);
-    expect(selectLosingMains(agents2, mtimes2)).toEqual(["a"]);
+    expect(selectLosingMains(agents2, mtimes2, NOW)).toEqual(["a"]);
   });
 
   it("keeps only the newest when three mains share a projectDir and cascades losers' descendants", () => {
@@ -294,7 +324,7 @@ describe("selectLosingMains", () => {
       ["m2-sub", 210],
       ["m3-sub", 310],
     ]);
-    const result = selectLosingMains(agents, mtimes).sort();
+    const result = selectLosingMains(agents, mtimes, NOW).sort();
     expect(result).toEqual(["m1", "m1-sub", "m2", "m2-sub"]);
     expect(result).not.toContain("m3");
     expect(result).not.toContain("m3-sub");

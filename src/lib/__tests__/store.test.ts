@@ -588,8 +588,7 @@ describe("autoSelectInitialSession", () => {
     useAgentStore.setState({ sessionFilterInitialized: false, selectedSessionIds: new Set() });
   });
 
-  it("picks the most-recently-started main session", () => {
-    // handleEvent sets startTime=timestamp arg, so register with explicit timestamps via the slice directly.
+  it("defaults to All Sessions when multiple live mains exist", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
       { type: "agent:register", agentId: "old-main", agentType: "main", task: "t", sessionId: "old-main" },
@@ -603,24 +602,27 @@ describe("autoSelectInitialSession", () => {
     useAgentStore.getState().autoSelectInitialSession();
 
     const { selectedSessionIds, sessionFilterInitialized } = useAgentStore.getState();
-    expect([...selectedSessionIds]).toEqual(["new-main"]);
+    expect(selectedSessionIds.size).toBe(0); // empty = all sessions
     expect(sessionFilterInitialized).toBe(true);
   });
 
-  it("ignores sub-agents (parentId set) when picking the session", () => {
+  it("initializes to All Sessions when a main agent exists alongside sub-agents", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
       { type: "agent:register", agentId: "main1", agentType: "main", task: "t", sessionId: "main1" },
       now - 60_000,
     );
-    // A *later* sub-agent must NOT be picked — only main sessions count.
+    // A later sub-agent must not break the boot-time init — only parentless mains count
+    // toward the "do we have a live session yet?" gate.
     useAgentStore.getState().handleEvent(
       { type: "agent:register", agentId: "sub1", agentType: "build", task: "t", parentId: "main1" },
       now,
     );
 
     useAgentStore.getState().autoSelectInitialSession();
-    expect([...useAgentStore.getState().selectedSessionIds]).toEqual(["main1"]);
+    const state = useAgentStore.getState();
+    expect(state.selectedSessionIds.size).toBe(0); // empty = all sessions
+    expect(state.sessionFilterInitialized).toBe(true);
   });
 
   it("is a no-op once initialized — does not clobber a user choice", () => {

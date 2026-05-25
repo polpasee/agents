@@ -214,10 +214,12 @@ describe("assignAgentColor", () => {
     expect(seen.size).toBe(12);
   });
 
-  it("cycles after the palette fills (slot N collides with slot N % palette)", () => {
-    const first = assignAgentColor("agent-0");
+  it("cycles after the palette fills (slot 0 → palette[11], slot 12 → palette[11] again)", () => {
+    const first = assignAgentColor("agent-0"); // slot 0 → palette[11] (end-backwards)
     for (let i = 1; i < 12; i++) assignAgentColor(`agent-${i}`);
-    expect(assignAgentColor("agent-12")).toBe(first);
+    expect(assignAgentColor("agent-12")).toBe(first); // slot 12 wraps back to slot 0
+    // Verify slot 0 is indeed the last palette entry (end-backwards order)
+    expect(first).toBe("#f472b6"); // TW.pink400 — palette[11]
   });
 
   it("returns a 6-digit hex color (so alpha concatenation stays valid)", () => {
@@ -254,7 +256,35 @@ describe("agentColor", () => {
     expect(agentColor(a)).toBe(agentColor(a));
   });
 
-  it("falls back to AGENT_COLORS[agentType] when no id is present (defensive)", () => {
-    expect(agentColor({ id: "", agentType: "explore" })).toBe(AGENT_COLORS.explore);
+  it("uses slug as key when id is empty, giving distinct slugs distinct colors", () => {
+    const a = agentColor({ id: "", agentType: "review" as const, slug: "silent-failure-hunter" });
+    const b = agentColor({ id: "", agentType: "review" as const, slug: "pr-test-analyzer" });
+    expect(a).toMatch(HEX_COLOR_RE);
+    expect(b).toMatch(HEX_COLOR_RE);
+    expect(a).not.toBe(b);
+    // same slug must be stable
+    expect(agentColor({ id: "", agentType: "review" as const, slug: "silent-failure-hunter" })).toBe(a);
+  });
+
+  it("uses displayType as key when id and slug are both empty", () => {
+    const a = agentColor({ id: "", agentType: "review" as const, slug: "", displayType: "dt-alpha" });
+    const b = agentColor({ id: "", agentType: "review" as const, slug: "", displayType: "dt-beta" });
+    expect(a).toMatch(HEX_COLOR_RE);
+    expect(b).toMatch(HEX_COLOR_RE);
+    expect(a).not.toBe(b);
+  });
+
+  it("returns UI.text.secondary when id, slug, and displayType are all empty", () => {
+    expect(agentColor({ id: "", agentType: "explore" as const, slug: "", displayType: "" })).toBe(UI.text.secondary);
+  });
+
+  it("three sibling 'review' agents with distinct ids never share a color", () => {
+    const colors = [
+      agentColor({ id: "silent-failure-hunter", agentType: "review" as const }),
+      agentColor({ id: "pr-test-analyzer", agentType: "review" as const }),
+      agentColor({ id: "code-reviewer", agentType: "review" as const }),
+    ];
+    const unique = new Set(colors);
+    expect(unique.size).toBe(3);
   });
 });

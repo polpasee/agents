@@ -16,7 +16,7 @@ import {
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, readEffortLevel, readIs1MContext, cleanupFileOffsets } from "./file-reader";
-import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS } from "./config";
+import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -30,6 +30,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * (3) lexically greater agent id — the last step is arbitrary but keeps
  * the result deterministic when two sessions register at the same instant.
  *
+ * A loser is only evicted if its JSONL has been silent for at least
+ * STATUS_RUNNING_THRESHOLD_MS — otherwise both mains are treated as
+ * legitimate concurrent sessions and both stay. This preserves the
+ * post-/clear ghost cleanup (where the old JSONL stops being written) while
+ * letting users run two real Claude Code sessions in the same project at
+ * once.
+ *
  * Returns ids only; the caller is responsible for the actual purge so the
  * eviction path matches the existing tier-2 flow (broadcast, maps, edges).
  *
@@ -38,6 +45,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export function selectLosingMains(
   agents: Map<string, { parentId?: string; startTime: number; metadata?: Record<string, unknown> }>,
   agentLastModified: Map<string, number>,
+  now: number,
 ): string[] {
   // Group main agents (no parentId) by projectDir.
   const mainsByProject = new Map<string, string[]>();
@@ -64,8 +72,14 @@ export function selectLosingMains(
       if (bStart !== aStart) return bStart - aStart;
       return b.localeCompare(a);
     });
-    // Keep mainIds[0] (winner), evict the rest.
-    for (let i = 1; i < mainIds.length; i++) losingMainIds.push(mainIds[i]);
+    // Keep mainIds[0] (winner). Evict only losers whose JSONL has gone quiet
+    // — a still-writing loser is a real concurrent session, not a ghost.
+    for (let i = 1; i < mainIds.length; i++) {
+      const id = mainIds[i];
+      const mtime = agentLastModified.get(id) ?? agents.get(id)?.startTime ?? 0;
+      if (now - mtime <= STATUS_RUNNING_THRESHOLD_MS) continue;
+      losingMainIds.push(id);
+    }
   }
 
   if (losingMainIds.length === 0) return [];
@@ -395,7 +409,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
   // most-recently-active one and cascade-purge the losers along with their
   // sub-agent descendants. Fires before stale-selection so the losing mains
   // never reach tier-1 completion — they disappear wholesale instead.
-  const losingIds = selectLosingMains(agents, agentLastModified);
+  const losingIds = selectLosingMains(agents, agentLastModified, Date.now());
   for (const agentId of losingIds) {
     const agent = agents.get(agentId);
     agents.delete(agentId);

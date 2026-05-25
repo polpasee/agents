@@ -71,8 +71,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
     // Hydration restored a prior selection — but only honor it if at least
     // one of the stored ids still matches a live session. A stale filter
     // (e.g. the upstream session id changed between runs) would otherwise hide
-    // every agent forever; falling through to the auto-pick below is much
-    // better.
+    // every agent forever; falling through to "All Sessions" is much better.
     if (selectedSessionIds.size > 0) {
       let anyLive = false;
       for (const id of selectedSessionIds) {
@@ -90,23 +89,16 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
         return;
       }
       // Fall through: we have live sessions but none match the stored ids.
-      console.warn("[uiSlice] Stored session filter is stale; auto-selecting most recent session.", { stale: [...selectedSessionIds], live: [...liveSessionIds] });
+      console.warn("[uiSlice] Stored session filter is stale; defaulting to All Sessions.", { stale: [...selectedSessionIds], live: [...liveSessionIds] });
     }
 
-    // Pick the most-recently-started main session (parentless agents define a session).
-    let bestId: string | null = null;
-    let bestStart = -Infinity;
-    for (const a of agents.values()) {
-      if (a.parentId) continue;
-      if (a.startTime > bestStart) {
-        bestStart = a.startTime;
-        bestId = a.sessionId || a.id;
-      }
-    }
-    if (!bestId) return; // no eligible session yet — try again on the next agent arrival
-    const next = new Set<string>([bestId]);
-    persistSessionFilter(next);
-    set({ selectedSessionIds: next, sessionFilterInitialized: true });
+    // Default: show ALL sessions. Wait until at least one live session exists
+    // before flipping `sessionFilterInitialized`, so this effect re-runs once
+    // agents arrive (otherwise an empty boot would freeze the flag prematurely).
+    if (liveSessionIds.size === 0) return;
+    const empty = new Set<string>();
+    persistSessionFilter(empty);
+    set({ selectedSessionIds: empty, sessionFilterInitialized: true });
   },
 
   selectTeam: (teamId) => set({ selectedTeamId: teamId }),

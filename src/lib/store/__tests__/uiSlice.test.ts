@@ -219,7 +219,7 @@ describe("autoSelectInitialSession", () => {
     expect([...state.selectedSessionIds]).toEqual(["live"]);
   });
 
-  it("falls through to auto-pick when stored ids are stale and live sessions exist", () => {
+  it("falls through to All Sessions when stored ids are stale and live sessions exist", () => {
     useAgentStore.setState({
       agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined, startTime: 100 })]]),
       selectedSessionIds: new Set(["stale-id-no-longer-exists"]),
@@ -228,7 +228,33 @@ describe("autoSelectInitialSession", () => {
     useAgentStore.getState().autoSelectInitialSession();
     const state = useAgentStore.getState();
     expect(state.sessionFilterInitialized).toBe(true);
-    expect([...state.selectedSessionIds]).toEqual(["live"]);
+    expect(state.selectedSessionIds.size).toBe(0); // empty = all sessions
+  });
+
+  it("defaults to All Sessions on first boot with no stored filter and live agents", () => {
+    useAgentStore.setState({
+      agents: new Map([
+        ["a1", mockAgent({ id: "a1", sessionId: "s1", parentId: undefined, startTime: 100 })],
+        ["a2", mockAgent({ id: "a2", sessionId: "s2", parentId: undefined, startTime: 200 })],
+      ]),
+      selectedSessionIds: new Set(),
+      sessionFilterInitialized: false,
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+    const state = useAgentStore.getState();
+    expect(state.sessionFilterInitialized).toBe(true);
+    expect(state.selectedSessionIds.size).toBe(0); // empty = all sessions
+  });
+
+  it("waits (does not initialize) when no live agents have arrived yet on first boot", () => {
+    useAgentStore.setState({
+      agents: new Map(),
+      selectedSessionIds: new Set(),
+      sessionFilterInitialized: false,
+    });
+    useAgentStore.getState().autoSelectInitialSession();
+    const state = useAgentStore.getState();
+    expect(state.sessionFilterInitialized).toBe(false);
   });
 
   it("waits (does not initialize) when stored ids are stale but no agents have arrived yet", () => {
@@ -244,7 +270,7 @@ describe("autoSelectInitialSession", () => {
     expect([...state.selectedSessionIds]).toEqual(["stale-id"]);
   });
 
-  it("recovers from stale localStorage filter when first live agent arrives", () => {
+  it("recovers from stale localStorage filter to All Sessions when first live agent arrives", () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
       if (key === "selectedSessionIds") return JSON.stringify(["stale-id"]);
       return null;
@@ -258,7 +284,7 @@ describe("autoSelectInitialSession", () => {
     useAgentStore.getState().autoSelectInitialSession();
 
     const state = useAgentStore.getState();
-    expect(state.selectedSessionIds).toEqual(new Set(["live-session"]));
+    expect(state.selectedSessionIds.size).toBe(0); // empty = all sessions
     expect(state.sessionFilterInitialized).toBe(true);
   });
 });
