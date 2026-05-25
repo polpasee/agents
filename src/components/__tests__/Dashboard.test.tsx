@@ -5,10 +5,7 @@ import { mockAgent } from "@/lib/__tests__/test-utils";
 import type { AgentState } from "@/lib/types";
 
 // Mock hooks that have side effects (WebSocket, sound, etc.)
-vi.mock("@/hooks/useWebSocket", () => ({
-  useWebSocket: () => {},
-  sendWsMessage: vi.fn(),
-}));
+vi.mock("@/hooks/useEventStream", () => ({ useEventStream: vi.fn() }));
 vi.mock("@/hooks/useReplay", () => ({ useReplay: () => {} }));
 vi.mock("@/hooks/useSoundNotifications", () => ({ useSoundNotifications: () => {} }));
 vi.mock("@/hooks/useKeyboardShortcuts", () => ({ useKeyboardShortcuts: () => {} }));

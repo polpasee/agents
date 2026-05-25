@@ -1,10 +1,9 @@
 /**
- * WebSocket Protocol Contract
- * ───────────────────────────
- * This file is the single source of truth for the dashboard ↔ ws-server wire
- * protocol. All message shapes (`ServerEvent`, `ClientEvent`, `AgentEvent`)
- * live here and are imported by both the frontend (`src/`) and the backend
- * (`scripts/`).
+ * SSE Protocol Contract
+ * ─────────────────────
+ * This file is the single source of truth for the dashboard ↔ server wire
+ * protocol. All message shapes (`ServerEvent`, `AgentEvent`) live here and
+ * are imported by both the frontend (`src/`) and the backend (`scripts/`).
  *
  * Protocol version: 1. Bump on backwards-incompatible changes (renamed or
  * removed fields, changed field types). Adding new optional fields or new
@@ -14,8 +13,8 @@
  * warns once if the version is missing or mismatched and then continues —
  * minor drift is permissive, not fatal.
  *
- * Heartbeat: client sends `{type:"ping"}`, server replies `{type:"pong"}`.
- * Both are typed members of the protocol (added in v1).
+ * Heartbeat: handled at the SSE transport layer via `: keepalive\n\n`
+ * comments every 15s. No protocol-level ping/pong messages.
  */
 
 /** Current protocol version. Bump on any backwards-incompatible change. */
@@ -100,8 +99,7 @@ export type ServerEvent =
   | { type: "log:response"; agentId: string; entries: LogEntry[] }
   | { type: "log:error"; agentId: string; error: string }
   | { type: "annotation:sync"; annotations: Annotation[] }
-  | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" }
-  | { type: "pong" };
+  | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" };
 
 export interface AgentState {
   id: string;
@@ -209,13 +207,6 @@ export interface LogToolCall {
   input: string;
   result?: string;
 }
-
-// ── Client → Server Events ────────────────────────────
-export type ClientEvent =
-  | { type: "log:request"; agentId: string }
-  | { type: "annotation:add"; annotation: Annotation }
-  | { type: "annotation:remove"; annotationId: string }
-  | { type: "ping" };
 
 // ── Cost Projections ──────────────────────────────────
 export interface CostProjectionData {

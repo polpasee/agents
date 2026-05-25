@@ -1,496 +1,108 @@
-import WebSocket from "ws";
-import type { AgentEvent } from "../src/lib/types";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
+import * as os from "node:os";
 
-const WS_URL = process.env.WS_URL || "ws://localhost:4001";
+/** Mock-agents seeds JSONL files into PROJECTS_DIR so the discovery poller
+ *  picks them up via the real code path. */
+const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+const MOCK_PREFIX = "-mock-agents-demo";
+const MOCK_DIR = path.join(PROJECTS_DIR, MOCK_PREFIX);
 
-function createReporter() {
-  return new Promise<{
-    send: (event: AgentEvent) => void;
-    close: () => void;
-  }>((resolve, reject) => {
-    const ws = new WebSocket(WS_URL, { headers: { origin: "http://localhost:4000" } });
-    ws.on("open", () => {
-      resolve({
-        send: (event: AgentEvent) => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify(event));
-          }
-        },
-        close: () => ws.close(),
-      });
-    });
-    ws.on("error", (err) => {
-      reject(new Error(`WebSocket error: ${err.message}`));
-    });
-    ws.on("close", () => {
-      reject(new Error("WebSocket closed before connection established"));
-    });
-  });
+function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
+function randomId() { return Math.random().toString(36).slice(2, 10); }
+
+interface JsonlLine {
+  timestamp: string;
+  message: {
+    role: "user" | "assistant" | "system";
+    model?: string;
+    content?: Array<{ type: string; name?: string; input?: unknown; text?: string }>;
+    usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+  };
+  meta?: { agentType?: string };
 }
 
-function sleep(ms: number) {
-  return new Promise((res) => setTimeout(res, ms));
+async function appendLine(file: string, line: JsonlLine): Promise<void> {
+  await fs.appendFile(file, JSON.stringify(line) + "\n", "utf8");
 }
 
-function randomId() {
-  return Math.random().toString(36).slice(2, 10);
+async function writeFirstLine(file: string, slug: string, agentType: string): Promise<void> {
+  const first: JsonlLine = {
+    timestamp: new Date().toISOString(),
+    message: { role: "user", content: [{ type: "text", text: `Mock session: ${slug}` }] },
+    meta: { agentType },
+  };
+  await fs.writeFile(file, JSON.stringify(first) + "\n", "utf8");
 }
 
-async function runSimulation() {
-  console.log("Connecting to WebSocket server...");
-  const reporter = await createReporter();
-  console.log("Connected! Starting agent simulation...\n");
+async function cleanupMockDir(): Promise<void> {
+  try { await fs.rm(MOCK_DIR, { recursive: true, force: true }); }
+  catch (err) { console.warn("[mock] cleanup failed:", err); }
+}
 
-  const mainId = `main-${randomId()}`;
+async function runSimulation(): Promise<void> {
+  await cleanupMockDir();
+  await fs.mkdir(MOCK_DIR, { recursive: true });
+  console.log(`[mock] Seeding into ${MOCK_DIR}`);
 
-  // Register main agent
-  reporter.send({
-    type: "agent:register",
-    agentId: mainId,
-    agentType: "main",
-    task: "Implement user authentication module",
-  });
-  console.log(`[MAIN] Registered: ${mainId}`);
-  await sleep(1000);
+  const mainSession = randomId();
+  const mainFile = path.join(MOCK_DIR, `${mainSession}.jsonl`);
+  await writeFirstLine(mainFile, mainSession, "main");
+  console.log(`[mock] Main session started: ${mainSession}`);
 
-  // Main agent starts working
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: mainId,
-    tool: "Read",
-    args: "src/auth/index.ts",
-  });
-  await sleep(800);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: mainId,
-    inputTokens: 3200,
-    outputTokens: 450,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-  await sleep(1500);
-
-  // Spawn Explorer sub-agent
-  const exploreId = `explore-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: exploreId,
-    parentId: mainId,
-    agentType: "explore",
-    task: "Search for existing auth patterns",
-  });
-  console.log(`[EXPLORE] Spawned: ${exploreId}`);
-  await sleep(500);
-
-  // Spawn Planner sub-agent
-  const planId = `plan-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: planId,
-    parentId: mainId,
-    agentType: "plan",
-    task: "Design auth architecture",
-  });
-  console.log(`[PLAN] Spawned: ${planId}`);
-  await sleep(1000);
-
-  // Explorer starts searching
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: exploreId,
-    tool: "Grep",
-    args: 'pattern: "authenticate"',
-  });
-  await sleep(600);
-
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: exploreId,
-    tool: "Glob",
-    args: "**/*.auth.ts",
-  });
-  await sleep(800);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: exploreId,
-    inputTokens: 8500,
-    outputTokens: 1200,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-  await sleep(1200);
-
-  // Planner works
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: planId,
-    tool: "Read",
-    args: "docs/api-spec.md",
-  });
-  await sleep(700);
-
-  reporter.send({
-    type: "agent:status",
-    agentId: planId,
-    status: "waiting",
-    message: "Waiting for Explorer results",
-  });
-  await sleep(2000);
-
-  // Explorer completes
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: exploreId,
-    tool: "Read",
-    args: "src/middleware/auth.ts",
-  });
-  await sleep(500);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: exploreId,
-    inputTokens: 15000,
-    outputTokens: 2100,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  reporter.send({
-    type: "agent:complete",
-    agentId: exploreId,
-    summary: "Found 3 auth patterns: JWT, session, OAuth",
-    duration: 8500,
-  });
-  console.log(`[EXPLORE] Completed`);
-  await sleep(1000);
-
-  // Planner resumes
-  reporter.send({
-    type: "agent:status",
-    agentId: planId,
-    status: "running",
-  });
-  await sleep(1500);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: planId,
-    inputTokens: 12000,
-    outputTokens: 3500,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  reporter.send({
-    type: "agent:complete",
-    agentId: planId,
-    summary: "JWT-based auth with refresh tokens recommended",
-    duration: 7200,
-  });
-  console.log(`[PLAN] Completed`);
-  await sleep(1000);
-
-  // Main agent updates tokens
-  reporter.send({
-    type: "agent:tokens",
-    agentId: mainId,
-    inputTokens: 25000,
-    outputTokens: 5000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-  await sleep(500);
-
-  // Spawn Build sub-agent
-  const buildId = `build-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: buildId,
-    parentId: mainId,
-    agentType: "build",
-    task: "Implement JWT auth middleware",
-  });
-  console.log(`[BUILD] Spawned: ${buildId}`);
-  await sleep(800);
-
-  // Build agent works
-  const buildTools = [
-    { tool: "Read", args: "src/middleware/index.ts" },
-    { tool: "Edit", args: "src/middleware/jwt.ts" },
-    { tool: "Write", args: "src/middleware/jwt.ts" },
-    { tool: "Edit", args: "src/routes/auth.ts" },
-    { tool: "Bash", args: "npm test -- --filter auth" },
-  ];
-
-  for (const tc of buildTools) {
-    reporter.send({
-      type: "agent:tool_call",
-      agentId: buildId,
-      tool: tc.tool,
-      args: tc.args,
+  // Simulate tool calls on the main session
+  for (const tool of ["Read", "Grep", "Edit"]) {
+    await sleep(800);
+    await appendLine(mainFile, {
+      timestamp: new Date().toISOString(),
+      message: {
+        role: "assistant",
+        model: "claude-opus-4-7",
+        content: [{ type: "tool_use", name: tool, input: { path: `/fake/${tool.toLowerCase()}.ts` } }],
+        usage: { input_tokens: 100, output_tokens: 50 },
+      },
     });
-    await sleep(1200);
+    console.log(`[mock] tool_call ${tool} on main`);
   }
 
-  reporter.send({
-    type: "agent:tokens",
-    agentId: buildId,
-    inputTokens: 45000,
-    outputTokens: 12000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-  await sleep(500);
+  // Spawn a sub-agent (another JSONL file in the same mock project dir)
+  const subSession = randomId();
+  const subFile = path.join(MOCK_DIR, `${subSession}.jsonl`);
+  await writeFirstLine(subFile, subSession, "explore");
+  console.log(`[mock] Sub-agent started: ${subSession}`);
 
-  // Spawn Review sub-agent
-  const reviewId = `review-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: reviewId,
-    parentId: mainId,
-    agentType: "review",
-    task: "Review auth implementation",
-  });
-  console.log(`[REVIEW] Spawned: ${reviewId}`);
-  await sleep(1500);
+  for (const tool of ["Read", "Bash"]) {
+    await sleep(600);
+    await appendLine(subFile, {
+      timestamp: new Date().toISOString(),
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4-6",
+        content: [{ type: "tool_use", name: tool, input: { command: "ls" } }],
+        usage: { input_tokens: 80, output_tokens: 30 },
+      },
+    });
+    console.log(`[mock] tool_call ${tool} on sub`);
+  }
 
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: reviewId,
-    tool: "Read",
-    args: "src/middleware/jwt.ts",
-  });
-  await sleep(1000);
-
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: reviewId,
-    tool: "Grep",
-    args: 'pattern: "TODO|FIXME|HACK"',
-  });
-  await sleep(800);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: reviewId,
-    inputTokens: 18000,
-    outputTokens: 3000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  // Build completes
-  reporter.send({
-    type: "agent:complete",
-    agentId: buildId,
-    summary: "JWT middleware implemented with refresh token rotation",
-    duration: 15000,
-  });
-  console.log(`[BUILD] Completed`);
-  await sleep(1000);
-
-  // Review completes
-  reporter.send({
-    type: "agent:complete",
-    agentId: reviewId,
-    summary: "Code looks good, no security issues found",
-    duration: 5000,
-  });
-  console.log(`[REVIEW] Completed`);
-  await sleep(1500);
-
-  // Main agent completes
-  reporter.send({
-    type: "agent:tokens",
-    agentId: mainId,
-    inputTokens: 65000,
-    outputTokens: 18000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  reporter.send({
-    type: "agent:complete",
-    agentId: mainId,
-    summary: "Auth module fully implemented and reviewed",
-    duration: 32000,
-  });
-  console.log(`[MAIN] Completed`);
-  console.log("\nSimulation complete! Dashboard should show the full agent tree.");
-
-  await sleep(3000);
-
-  // --- Team simulation ---
-  console.log("\n--- Starting team simulation ---\n");
-
-  const teamLeadId = `lead-${randomId()}`;
-  const teamId = `team-auth-${randomId()}`;
-
-  reporter.send({
-    type: "agent:register",
-    agentId: teamLeadId,
-    parentId: mainId,
-    agentType: "team-lead",
-    task: "Coordinate auth implementation team",
-    teamId,
-  });
-  console.log(`[TEAM-LEAD] Registered: ${teamLeadId} (team: ${teamId})`);
-  await sleep(1000);
-
-  const teamBuildId = `build-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: teamBuildId,
-    parentId: teamLeadId,
-    agentType: "build",
-    task: "Implement JWT middleware",
-    teamId,
-  });
-  console.log(`[TEAM-BUILD] Spawned: ${teamBuildId}`);
-  await sleep(500);
-
-  const teamTestId = `test-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: teamTestId,
-    parentId: teamLeadId,
-    agentType: "test",
-    task: "Write auth integration tests",
-    teamId,
-  });
-  console.log(`[TEAM-TEST] Spawned: ${teamTestId}`);
-  await sleep(500);
-
-  const teamReviewId = `review-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: teamReviewId,
-    parentId: teamLeadId,
-    agentType: "review",
-    task: "Review auth code quality",
-    teamId,
-  });
-  console.log(`[TEAM-REVIEW] Spawned: ${teamReviewId}`);
-  await sleep(1000);
-
-  // Team members work in parallel
-  reporter.send({ type: "agent:tool_call", agentId: teamBuildId, tool: "Edit", args: "src/auth/jwt.ts" });
-  reporter.send({ type: "agent:tool_call", agentId: teamTestId, tool: "Bash", args: "npm test -- auth" });
-  await sleep(1500);
-
-  // Peer-to-peer message between team members
-  reporter.send({ type: "agent:message", fromId: teamBuildId, toId: teamTestId, content: "JWT module ready for testing" });
-  await sleep(1000);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: teamBuildId,
-    inputTokens: 30000,
-    outputTokens: 8000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  reporter.send({ type: "agent:tool_call", agentId: teamTestId, tool: "Bash", args: "npm test -- auth --coverage" });
-  await sleep(1200);
-
-  reporter.send({ type: "agent:message", fromId: teamTestId, toId: teamReviewId, content: "Tests passing, ready for review" });
-  await sleep(800);
-
-  reporter.send({ type: "agent:tool_call", agentId: teamReviewId, tool: "Read", args: "src/auth/jwt.ts" });
-  await sleep(1000);
-
-  reporter.send({ type: "agent:complete", agentId: teamBuildId, summary: "JWT middleware implemented", duration: 12000 });
-  console.log(`[TEAM-BUILD] Completed`);
-  await sleep(500);
-
-  reporter.send({ type: "agent:complete", agentId: teamTestId, summary: "All auth tests passing (100% coverage)", duration: 10000 });
-  console.log(`[TEAM-TEST] Completed`);
-  await sleep(500);
-
-  reporter.send({ type: "agent:complete", agentId: teamReviewId, summary: "Code reviewed, no issues", duration: 8000 });
-  console.log(`[TEAM-REVIEW] Completed`);
-  await sleep(500);
-
-  reporter.send({ type: "agent:complete", agentId: teamLeadId, summary: "Team auth implementation complete", duration: 18000 });
-  console.log(`[TEAM-LEAD] Completed`);
-  console.log("\nTeam simulation complete!");
-
-  await sleep(3000);
-
-  // --- Second wave: demonstrate error handling ---
-  console.log("\n--- Starting second simulation (with error) ---\n");
-
-  const main2Id = `main-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: main2Id,
-    agentType: "main",
-    task: "Add rate limiting to API",
-  });
-  console.log(`[MAIN2] Registered: ${main2Id}`);
-  await sleep(1000);
-
-  const testId = `test-${randomId()}`;
-  reporter.send({
-    type: "agent:register",
-    agentId: testId,
-    parentId: main2Id,
-    agentType: "test",
-    task: "Run integration tests",
-  });
-  console.log(`[TEST] Spawned: ${testId}`);
-  await sleep(2000);
-
-  reporter.send({
-    type: "agent:tool_call",
-    agentId: testId,
-    tool: "Bash",
-    args: "npm run test:integration",
-  });
-  await sleep(1500);
-
-  // Test agent hits an error
-  reporter.send({
-    type: "agent:status",
-    agentId: testId,
-    status: "error",
-    message: "Integration tests failed: 3 tests failing",
-  });
-  console.log(`[TEST] Error!`);
-  await sleep(3000);
-
-  reporter.send({
-    type: "agent:tokens",
-    agentId: main2Id,
-    inputTokens: 12000,
-    outputTokens: 3000,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 200000,
-  });
-
-  reporter.send({
-    type: "agent:complete",
-    agentId: main2Id,
-    summary: "Rate limiting added, some tests need fixing",
-    duration: 10000,
-  });
-  console.log(`[MAIN2] Completed`);
-
-  console.log("\nAll simulations complete. Press Ctrl+C to exit.");
+  // Hold the mock open so the topology has time to render
+  console.log("[mock] Simulation complete. Press Ctrl+C to clean up and exit.");
+  await new Promise(() => { /* hang forever */ });
 }
 
-runSimulation().catch(console.error);
+let shuttingDown = false;
+async function shutdown(): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log("[mock] Cleaning up mock dir…");
+  await cleanupMockDir();
+  process.exit(0);
+}
+
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+runSimulation().catch((err) => {
+  console.error("[mock] Failed:", err);
+  process.exit(1);
+});

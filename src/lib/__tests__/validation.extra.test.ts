@@ -2,67 +2,14 @@
  * T-H3 + T-M5 — Extended validation tests
  *
  * Covers gaps identified in the audit (lines 316-337, 222-256, 295-313):
- * - isValidClientEvent baseline (log:request, annotation:add/remove, ping, unknown)
  * - Adversarial payloads (__proto__, non-numeric tokens, Infinity/NaN)
  * - Oversized state:sync array (10,000 agents)
  * - Server event variants: log:response, log:error, annotation:sync, annotation:update
  */
 import { describe, it, expect, beforeEach } from "vitest";
-import { isValidServerEvent, isValidClientEvent, isValidAgentEvent } from "../validation";
+import { isValidServerEvent, isValidAgentEvent } from "../validation";
 import { useAgentStore } from "@/lib/store";
 import type { AgentState } from "@/lib/types";
-
-// ── isValidClientEvent baseline coverage ──────────────────────────────────────
-
-describe("isValidClientEvent — baseline coverage", () => {
-  it("accepts valid log:request", () => {
-    expect(isValidClientEvent({ type: "log:request", agentId: "a1" })).toBe(true);
-  });
-
-  it("rejects log:request without agentId", () => {
-    expect(isValidClientEvent({ type: "log:request" })).toBe(false);
-  });
-
-  it("rejects log:request with non-string agentId", () => {
-    expect(isValidClientEvent({ type: "log:request", agentId: 42 })).toBe(false);
-  });
-
-  it("accepts valid annotation:add with annotation object", () => {
-    expect(isValidClientEvent({ type: "annotation:add", annotation: { id: "x", text: "note" } })).toBe(true);
-  });
-
-  it("rejects annotation:add without annotation field", () => {
-    expect(isValidClientEvent({ type: "annotation:add" })).toBe(false);
-  });
-
-  it("rejects annotation:add with null annotation", () => {
-    expect(isValidClientEvent({ type: "annotation:add", annotation: null })).toBe(false);
-  });
-
-  it("accepts valid annotation:remove with annotationId string", () => {
-    expect(isValidClientEvent({ type: "annotation:remove", annotationId: "ann-1" })).toBe(true);
-  });
-
-  it("rejects annotation:remove without annotationId", () => {
-    expect(isValidClientEvent({ type: "annotation:remove" })).toBe(false);
-  });
-
-  it("accepts ping (no extra fields required)", () => {
-    expect(isValidClientEvent({ type: "ping" })).toBe(true);
-  });
-
-  it("rejects unknown type", () => {
-    expect(isValidClientEvent({ type: "evil:inject" })).toBe(false);
-  });
-
-  it("rejects null", () => {
-    expect(isValidClientEvent(null)).toBe(false);
-  });
-
-  it("rejects non-object", () => {
-    expect(isValidClientEvent("string")).toBe(false);
-  });
-});
 
 // ── Server event variants — log:response, log:error, annotation:sync, annotation:update ──
 

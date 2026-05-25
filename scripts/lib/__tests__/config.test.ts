@@ -32,11 +32,6 @@ describe("config", () => {
     );
   });
 
-  it("WS_PORT is a valid port number (1-65535)", () => {
-    expect(config.WS_PORT).toBeGreaterThanOrEqual(1);
-    expect(config.WS_PORT).toBeLessThanOrEqual(65535);
-  });
-
   it("POLL_INTERVAL_MS > 0", () => {
     expect(config.POLL_INTERVAL_MS).toBeGreaterThan(0);
   });

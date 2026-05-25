@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import { useEventStream } from "@/hooks/useEventStream";
 import { useReplay } from "@/hooks/useReplay";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -29,7 +29,7 @@ import { UI, agentColor } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
-  useWebSocket();
+  useEventStream();
   useReplay();
   useMetricSampler();
   useSoundNotifications();

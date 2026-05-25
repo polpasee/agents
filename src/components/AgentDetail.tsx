@@ -8,7 +8,6 @@ import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { calculateEfficiency } from "@/lib/efficiency";
 import type { AgentState } from "@/lib/types";
-import { sendWsMessage } from "@/hooks/useWebSocket";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 
 export function AgentDetail() {
@@ -28,7 +27,22 @@ export function AgentDetail() {
     openLogViewer(agent.id);
     if (!logEntries.has(agent.id)) {
       setLogLoading(agent.id, true);
-      sendWsMessage({ type: "log:request", agentId: agent.id });
+      void (async () => {
+        try {
+          const res = await fetch(`/api/logs/${encodeURIComponent(agent.id)}`);
+          if (!res.ok) {
+            const { error } = await res.json().catch(() => ({ error: res.statusText }));
+            useAgentStore.getState().setLogLoading(agent.id, false);
+            console.warn("Log fetch failed:", error);
+            return;
+          }
+          const body = await res.json();
+          useAgentStore.getState().setLogEntries(agent.id, body.entries);
+        } catch (err) {
+          useAgentStore.getState().setLogLoading(agent.id, false);
+          console.warn("Log fetch threw:", err);
+        }
+      })();
     }
   };
 

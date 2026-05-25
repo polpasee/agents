@@ -1,31 +1,6 @@
 // ── Server-side configuration ─────────────────────────
 
-export const WS_PORT = Number(process.env.WS_PORT) || 4001;
 export const POLL_INTERVAL_MS = 1500;
-
-/** Allowed Origin header values for WS connections (Cross-Site WS Hijacking guard).
- *  In development, also accepts any http/https origin on port 4000 so a phone
- *  on the LAN (e.g. http://192.168.x.y:4000) can connect. Production restricts
- *  to the hardcoded entries only. */
-const WS_ALLOWED_ORIGINS: readonly string[] = [
-  "http://localhost:4000",
-  "http://127.0.0.1:4000",
-];
-
-export function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return false;
-  if (WS_ALLOWED_ORIGINS.includes(origin)) return true;
-  if (process.env.NODE_ENV === "production") return false;
-  try {
-    const url = new URL(origin);
-    if ((url.protocol === "http:" || url.protocol === "https:") && url.port === "4000") {
-      return true;
-    }
-  } catch {
-    return false;
-  }
-  return false;
-}
 
 /** Hard cap on stored annotations — evict oldest beyond this */
 export const ANNOTATION_MAX_ENTRIES = 500;

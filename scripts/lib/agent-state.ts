@@ -1,4 +1,3 @@
-import { WebSocket } from "ws";
 import type {
   AgentEvent,
   AgentState,
@@ -15,32 +14,53 @@ import {
   INLINE_ARGS_MAX_KEYS,
   MAX_ARG_PREVIEW_LENGTH,
 } from "./config";
+import { viewers, broadcast, type SSEClient } from "./sse-broadcast";
 
-// ── State ──────────────────────────────────────────────
-export const agents = new Map<string, AgentState>();
-export const edges: EdgeState[] = [];
-export const teams = new Map<string, TeamState>();
-export const viewers = new Set<WebSocket>();
-export const agentLastModified = new Map<string, number>();
-/** Tracks when each agent was removed so we can purge old entries */
-export const removedAgentIds = new Map<string, number>();
-/** Maps agentId to the JSONL file path on disk */
-export const agentFilePaths = new Map<string, string>();
+// Re-exports so call sites that already import from agent-state keep working.
+export { viewers, broadcast };
+export type { SSEClient };
+
+// ── HMR-safe singleton state ─────────────────────────
+// Stashed on globalThis so Next.js dev hot-reloads do not wipe accumulated
+// agent state, the polling loops' "started" flag, or in-flight viewer set.
+declare global {
+  // eslint-disable-next-line no-var
+  var __agentMonitorState: {
+    agents: Map<string, AgentState>;
+    edges: EdgeState[];
+    teams: Map<string, TeamState>;
+    agentLastModified: Map<string, number>;
+    removedAgentIds: Map<string, number>;
+    agentFilePaths: Map<string, string>;
+    started: boolean;
+  } | undefined;
+}
+
+const store = (globalThis.__agentMonitorState ??= {
+  agents: new Map<string, AgentState>(),
+  edges: [] as EdgeState[],
+  teams: new Map<string, TeamState>(),
+  agentLastModified: new Map<string, number>(),
+  removedAgentIds: new Map<string, number>(),
+  agentFilePaths: new Map<string, string>(),
+  started: false,
+});
+
+export const agents = store.agents;
+export const edges = store.edges;
+export const teams = store.teams;
+export const agentLastModified = store.agentLastModified;
+export const removedAgentIds = store.removedAgentIds;
+export const agentFilePaths = store.agentFilePaths;
 
 /** Get the JSONL file path for an agent */
 export function getAgentFilePath(agentId: string): string | undefined {
   return agentFilePaths.get(agentId);
 }
 
-// ── Broadcast ──────────────────────────────────────────
-export function broadcast(event: ServerEvent) {
-  const data = JSON.stringify(event);
-  for (const viewer of viewers) {
-    if (viewer.readyState === WebSocket.OPEN) {
-      viewer.send(data);
-    }
-  }
-}
+/** Internal: exposed for instrumentation.ts to consult/mutate the started flag */
+export function _backgroundStarted(): boolean { return store.started; }
+export function _markBackgroundStarted(): void { store.started = true; }
 
 // ── Parse agent type from meta.json or slug ────────────
 export function parseAgentType(raw?: string): AgentType {
@@ -231,6 +251,65 @@ export function processEntry(entry: Record<string, unknown>, agentId: string, _s
     console.warn(`processEntry: failed to process entry for agent ${agentId}:`, err);
     return;
   }
+}
+
+// ── Background tasks ─────────────────────────────────
+// Polling cadence and usage cache refresh were previously owned by the
+// stand-alone ws-server process. After the SSE migration they run inside
+// the Next.js process, started exactly once by src/instrumentation.ts.
+
+import * as path from "node:path";
+import * as os from "node:os";
+
+export async function startBackgroundTasks(): Promise<void> {
+  if (_backgroundStarted()) return;
+  _markBackgroundStarted();
+
+  const { discoverActiveSessions } = await import("./discovery");
+  const { POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS } = await import("./config");
+  const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
+  const { loadWebhookConfig } = await import("./webhooks");
+
+  const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+
+  loadWebhookConfig();
+
+  console.log(`[bg] Agent Monitor background tasks starting`);
+  console.log(`[bg] Watching: ${PROJECTS_DIR}`);
+  console.log(`[bg] Poll interval: ${POLL_INTERVAL_MS}ms`);
+
+  async function pollLoop(): Promise<void> {
+    try {
+      await discoverActiveSessions(PROJECTS_DIR);
+    } catch (err) {
+      console.warn("[bg poll] discovery failed:", err);
+    } finally {
+      setTimeout(pollLoop, POLL_INTERVAL_MS);
+    }
+  }
+
+  async function usagePollLoop(): Promise<void> {
+    try {
+      const mtime = readCacheMtime();
+      if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
+        triggerCcstatuslineRefresh();
+      }
+    } catch (err) {
+      console.warn("[bg usage] refresh failed:", err);
+    } finally {
+      setTimeout(usagePollLoop, USAGE_REFRESH_INTERVAL_MS);
+    }
+  }
+
+  discoverActiveSessions(PROJECTS_DIR).then(() => {
+    console.log(`[bg] Found ${agents.size} active agent(s)`);
+    pollLoop();
+  }).catch((err) => {
+    console.warn("[bg startup] initial discovery failed:", err);
+    pollLoop();
+  });
+
+  usagePollLoop();
 }
 
 function processEntryInner(entry: Record<string, unknown>, agentId: string, _sessionId: string) {
