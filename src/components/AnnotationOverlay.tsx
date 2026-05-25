@@ -15,8 +15,9 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
   const annotations = useAgentStore((s) => s.annotations);
   const agentAnnotations = Array.from(annotations.values()).filter((a) => a.targetId === agentId);
   const [newText, setNewText] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  function handleAdd() {
+  async function handleAdd() {
     const text = newText.trim();
     if (!text) return;
 
@@ -29,22 +30,22 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
       timestamp: Date.now(),
     };
 
-    void (async () => {
-      try {
-        const res = await fetch("/api/annotations", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(annotation),
-        });
-        if (!res.ok) {
-          const { error } = await res.json().catch(() => ({ error: res.statusText }));
-          console.warn("Annotation add failed:", error);
-        }
-      } catch (err) {
-        console.warn("Annotation add threw:", err);
+    try {
+      const res = await fetch("/api/annotations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(annotation),
+      });
+      if (!res.ok) {
+        const { error: errMsg } = await res.json().catch(() => ({ error: res.statusText }));
+        setError(errMsg ?? "Failed to save annotation");
+        return;
       }
-    })();
-    setNewText("");
+      setNewText("");
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save annotation");
+    }
   }
 
   function handleRemove(id: string) {
@@ -52,10 +53,10 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
       try {
         const res = await fetch(`/api/annotations/${encodeURIComponent(id)}`, { method: "DELETE" });
         if (!res.ok && res.status !== 404) {
-          console.warn("Annotation remove failed:", res.statusText);
+          setError(`Failed to remove annotation: ${res.statusText}`);
         }
       } catch (err) {
-        console.warn("Annotation remove threw:", err);
+        setError(err instanceof Error ? err.message : "Failed to remove annotation");
       }
     })();
   }
@@ -63,7 +64,7 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleAdd();
+      void handleAdd();
     }
   }
 
@@ -122,7 +123,10 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
         <input
           type="text"
           value={newText}
-          onChange={(e) => setNewText(e.target.value)}
+          onChange={(e) => {
+            setNewText(e.target.value);
+            if (error) setError(null);
+          }}
           onKeyDown={handleKeyDown}
           placeholder="Add annotation..."
           className="flex-1 text-xs rounded px-2 py-1 outline-none"
@@ -133,7 +137,7 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
           }}
         />
         <button
-          onClick={handleAdd}
+          onClick={() => { void handleAdd(); }}
           disabled={!newText.trim()}
           className="text-xs px-2 py-1 rounded transition-colors"
           style={{
@@ -145,6 +149,15 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
           Add
         </button>
       </div>
+      {error && (
+        <div
+          role="alert"
+          className="text-xs mt-1"
+          style={{ color: UI.error }}
+        >
+          {error}
+        </div>
+      )}
     </div>
   );
 }

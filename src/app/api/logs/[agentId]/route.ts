@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { readAgentLog } from "../../../../../scripts/lib/log-reader";
 import { getAgentFilePath } from "../../../../../scripts/lib/agent-state";
+import { isAllowedRequestOrigin } from "../../../../../scripts/lib/origin-check";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ agentId: string }> },
 ): Promise<Response> {
+  if (!isAllowedRequestOrigin(request)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const { agentId } = await params;
   const filePath = getAgentFilePath(agentId);
   if (!filePath) {

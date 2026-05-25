@@ -14,48 +14,24 @@ import type { AgentState } from "@/lib/types";
 // ── Server event variants — log:response, log:error, annotation:sync, annotation:update ──
 
 describe("isValidServerEvent — log:response, log:error, annotation:* variants", () => {
-  it("accepts valid log:response", () => {
-    expect(isValidServerEvent({ type: "log:response", agentId: "a1", entries: [] })).toBe(true);
+  // log:response / log:error were removed from the SSE protocol — replaced by
+  // HTTP /api/logs/[agentId]. The validator must now reject them.
+  it("rejects log:response (no longer part of the protocol)", () => {
+    expect(isValidServerEvent({ type: "log:response", agentId: "a1", entries: [] })).toBe(false);
   });
 
-  it("accepts log:response with non-empty entries", () => {
-    expect(isValidServerEvent({ type: "log:response", agentId: "a1", entries: [{ line: "hello" }] })).toBe(true);
-  });
-
-  it("rejects log:response without agentId", () => {
-    expect(isValidServerEvent({ type: "log:response", entries: [] })).toBe(false);
-  });
-
-  it("rejects log:response without entries", () => {
-    expect(isValidServerEvent({ type: "log:response", agentId: "a1" })).toBe(false);
-  });
-
-  it("rejects log:response with non-array entries", () => {
-    expect(isValidServerEvent({ type: "log:response", agentId: "a1", entries: "bad" })).toBe(false);
-  });
-
-  it("accepts valid log:error", () => {
-    expect(isValidServerEvent({ type: "log:error", agentId: "a1", error: "ENOENT" })).toBe(true);
-  });
-
-  it("rejects log:error without agentId", () => {
-    expect(isValidServerEvent({ type: "log:error", error: "ENOENT" })).toBe(false);
-  });
-
-  it("rejects log:error without error field", () => {
-    expect(isValidServerEvent({ type: "log:error", agentId: "a1" })).toBe(false);
-  });
-
-  it("rejects log:error with non-string error field", () => {
-    expect(isValidServerEvent({ type: "log:error", agentId: "a1", error: 42 })).toBe(false);
+  it("rejects log:error (no longer part of the protocol)", () => {
+    expect(isValidServerEvent({ type: "log:error", agentId: "a1", error: "ENOENT" })).toBe(false);
   });
 
   it("accepts valid annotation:sync", () => {
     expect(isValidServerEvent({ type: "annotation:sync", annotations: [] })).toBe(true);
   });
 
-  it("accepts annotation:sync with entries", () => {
-    expect(isValidServerEvent({ type: "annotation:sync", annotations: [{ id: "1", text: "note" }] })).toBe(true);
+  it("accepts annotation:sync with well-shaped entries", () => {
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [{ id: "1", targetId: "a", text: "note" }] }),
+    ).toBe(true);
   });
 
   it("rejects annotation:sync without annotations array", () => {
@@ -66,20 +42,62 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
     expect(isValidServerEvent({ type: "annotation:sync", annotations: "bad" })).toBe(false);
   });
 
+  it("rejects annotation:sync entries missing targetId", () => {
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [{ id: "1" }] }),
+    ).toBe(false);
+  });
+
   it("accepts valid annotation:update with action=add", () => {
-    expect(isValidServerEvent({ type: "annotation:update", annotation: { id: "1" }, action: "add" })).toBe(true);
+    expect(
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: { id: "1", targetId: "a" },
+        action: "add",
+      }),
+    ).toBe(true);
   });
 
   it("accepts valid annotation:update with action=remove", () => {
-    expect(isValidServerEvent({ type: "annotation:update", annotation: { id: "1" }, action: "remove" })).toBe(true);
+    expect(
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: { id: "1", targetId: "a" },
+        action: "remove",
+      }),
+    ).toBe(true);
   });
 
   it("rejects annotation:update with unknown action", () => {
-    expect(isValidServerEvent({ type: "annotation:update", annotation: { id: "1" }, action: "edit" })).toBe(false);
+    expect(
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: { id: "1", targetId: "a" },
+        action: "edit",
+      }),
+    ).toBe(false);
   });
 
   it("rejects annotation:update without annotation field", () => {
     expect(isValidServerEvent({ type: "annotation:update", action: "add" })).toBe(false);
+  });
+
+  it("rejects annotation:update with string annotation payload", () => {
+    expect(
+      isValidServerEvent({ type: "annotation:update", annotation: "not-an-object", action: "add" }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation:update with numeric annotation payload", () => {
+    expect(
+      isValidServerEvent({ type: "annotation:update", annotation: 42, action: "add" }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation:update when annotation is missing targetId", () => {
+    expect(
+      isValidServerEvent({ type: "annotation:update", annotation: { id: "1" }, action: "add" }),
+    ).toBe(false);
   });
 });
 

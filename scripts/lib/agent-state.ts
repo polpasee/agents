@@ -263,8 +263,10 @@ import * as os from "node:os";
 
 export async function startBackgroundTasks(): Promise<void> {
   if (_backgroundStarted()) return;
-  _markBackgroundStarted();
 
+  // Flip the started flag only AFTER all dynamic imports resolve. If any
+  // import rejects, the flag stays false so a later caller can retry —
+  // previously a failed import would permanently wedge polling off.
   const { discoverActiveSessions } = await import("./discovery");
   const { POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS } = await import("./config");
   const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
@@ -278,9 +280,14 @@ export async function startBackgroundTasks(): Promise<void> {
   console.log(`[bg] Watching: ${PROJECTS_DIR}`);
   console.log(`[bg] Poll interval: ${POLL_INTERVAL_MS}ms`);
 
+  let firstRun = true;
   async function pollLoop(): Promise<void> {
     try {
       await discoverActiveSessions(PROJECTS_DIR);
+      if (firstRun) {
+        firstRun = false;
+        console.log(`[bg] Found ${agents.size} active agent(s)`);
+      }
     } catch (err) {
       console.warn("[bg poll] discovery failed:", err);
     } finally {
@@ -301,14 +308,8 @@ export async function startBackgroundTasks(): Promise<void> {
     }
   }
 
-  discoverActiveSessions(PROJECTS_DIR).then(() => {
-    console.log(`[bg] Found ${agents.size} active agent(s)`);
-    pollLoop();
-  }).catch((err) => {
-    console.warn("[bg startup] initial discovery failed:", err);
-    pollLoop();
-  });
-
+  _markBackgroundStarted();
+  pollLoop();
   usagePollLoop();
 }
 

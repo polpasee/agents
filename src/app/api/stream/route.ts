@@ -7,17 +7,32 @@ import {
 import { annotations } from "../../../../scripts/lib/annotation-store";
 import { PROTOCOL_VERSION, type ServerEvent } from "../../../../src/lib/types";
 import type { SSEClient } from "../../../../scripts/lib/sse-broadcast";
+import { isAllowedRequestOrigin } from "../../../../scripts/lib/origin-check";
 
 export const dynamic = "force-dynamic";
 
 const KEEPALIVE_MS = 15_000;
 
-export function GET(_request: Request): Response {
+export function GET(request: Request): Response {
+  if (!isAllowedRequestOrigin(request)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const encoder = new TextEncoder();
 
   // These are captured in closure so both start() and cancel() can reference them.
   let client: SSEClient | null = null;
   let keepalive: ReturnType<typeof setInterval> | null = null;
+
+  function teardown(): void {
+    if (keepalive !== null) {
+      clearInterval(keepalive);
+      keepalive = null;
+    }
+    if (client !== null) {
+      viewers.delete(client);
+      client = null;
+    }
+  }
 
   const stream = new ReadableStream({
     start(controller) {
@@ -28,22 +43,35 @@ export function GET(_request: Request): Response {
       };
       viewers.add(client);
 
-      // Initial snapshot
-      const syncEvent: ServerEvent = {
-        type: "state:sync",
-        agents: Array.from(agents.values()),
-        edges: [...edges],
-        teams: Array.from(teams.values()),
-        protocolVersion: PROTOCOL_VERSION,
-      };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(syncEvent)}\n\n`));
+      // If the client aborts before/during start() or before keepalive is
+      // armed, cancel() may not fire — wire the abort signal directly so the
+      // viewer is always evicted.
+      request.signal.addEventListener("abort", teardown);
 
-      if (annotations.size > 0) {
-        const annSync: ServerEvent = {
-          type: "annotation:sync",
-          annotations: Array.from(annotations.values()),
+      // Wrap initial snapshot enqueues — if the client has already aborted in
+      // the same tick, enqueue throws synchronously here. Without the try/catch
+      // we'd leak the viewer (cancel() does not fire on a start()-thrown error)
+      // and never arm keepalive.
+      try {
+        const syncEvent: ServerEvent = {
+          type: "state:sync",
+          agents: Array.from(agents.values()),
+          edges: [...edges],
+          teams: Array.from(teams.values()),
+          protocolVersion: PROTOCOL_VERSION,
         };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(annSync)}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(syncEvent)}\n\n`));
+
+        if (annotations.size > 0) {
+          const annSync: ServerEvent = {
+            type: "annotation:sync",
+            annotations: Array.from(annotations.values()),
+          };
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(annSync)}\n\n`));
+        }
+      } catch {
+        teardown();
+        return;
       }
 
       keepalive = setInterval(() => {
@@ -52,8 +80,7 @@ export function GET(_request: Request): Response {
       }, KEEPALIVE_MS);
     },
     cancel() {
-      if (keepalive !== null) clearInterval(keepalive);
-      if (client !== null) viewers.delete(client);
+      teardown();
     },
   });
 

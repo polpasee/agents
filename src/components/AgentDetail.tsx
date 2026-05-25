@@ -37,6 +37,11 @@ export function AgentDetail() {
             return;
           }
           const body = await res.json();
+          if (!Array.isArray(body.entries)) {
+            useAgentStore.getState().setLogLoading(agent.id, false);
+            console.warn("Log fetch returned non-array entries");
+            return;
+          }
           useAgentStore.getState().setLogEntries(agent.id, body.entries);
         } catch (err) {
           useAgentStore.getState().setLogLoading(agent.id, false);

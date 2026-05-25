@@ -126,6 +126,7 @@ export interface AgentStore {
   addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (id: string) => void;
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
+  replaceAnnotations: (annotations: Annotation[]) => void;
 
   // F8: Diff View
   agentDiffs: Map<string, FileModification[]>;

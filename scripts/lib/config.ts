@@ -6,6 +6,9 @@ export const POLL_INTERVAL_MS = 1500;
 export const ANNOTATION_MAX_ENTRIES = 500;
 export const ANNOTATION_MAX_TEXT_LENGTH = 1024;
 export const ANNOTATION_ID_PATTERN = /^ann-[A-Za-z0-9_-]{1,48}$/;
+/** Reject POST /api/annotations bodies larger than this (DoS guard). A valid
+ *  payload is ~1KB; 8KB leaves 7× headroom for author/coords/whitespace. */
+export const ANNOTATION_MAX_BODY_BYTES = 8 * 1024;
 
 /** Hard cap on agent log file size — refuse to read larger */
 export const LOG_READ_MAX_BYTES = 10 * 1024 * 1024;

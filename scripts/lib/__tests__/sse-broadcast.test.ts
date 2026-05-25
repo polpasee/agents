@@ -46,4 +46,17 @@ describe("sse-broadcast", () => {
     expect(a.received).toHaveLength(1);
     expect(b.received).toHaveLength(2);
   });
+
+  it("evicts a viewer whose send() throws so orphans don't accumulate", () => {
+    const dead: SSEClient = { send() { throw new Error("disconnected"); } };
+    const alive = makeClient();
+    viewers.add(dead);
+    viewers.add(alive);
+
+    broadcast({ type: "state:remove", agentId: "x" });
+
+    expect(viewers.has(dead)).toBe(false);
+    expect(viewers.has(alive)).toBe(true);
+    expect(alive.received).toHaveLength(1);
+  });
 });

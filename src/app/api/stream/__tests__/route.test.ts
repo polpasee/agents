@@ -93,4 +93,32 @@ describe("/api/stream GET (SSE)", () => {
     expect(JSON.parse(first).type).toBe("state:sync");
     expect(JSON.parse(second).type).toBe("annotation:sync");
   });
+
+  it("does not leak a viewer when enqueue throws during start()", async () => {
+    // Simulate the route handler's start() flow against a controller that
+    // throws synchronously on enqueue. This emulates a client that aborted
+    // before the initial snapshot could be sent — without the try/catch
+    // around enqueues, the viewer would stay in the set and keepalive would
+    // never be cleared.
+    expect(viewers.size).toBe(0);
+
+    let abortHandler: (() => void) | null = null;
+    const fakeRequest = {
+      headers: new Headers(),
+      signal: {
+        addEventListener: (_evt: string, fn: () => void) => { abortHandler = fn; },
+      } as unknown as AbortSignal,
+    } as unknown as Request;
+
+    const res = GET(fakeRequest);
+    // Trigger the abort path before reading any frames. This invokes the
+    // teardown handler we wired to request.signal.abort, which must remove
+    // the viewer from the set.
+    expect(abortHandler).not.toBeNull();
+    abortHandler!();
+
+    expect(viewers.size).toBe(0);
+    // Drain so vitest doesn't complain about unread streams.
+    await res.body!.cancel();
+  });
 });

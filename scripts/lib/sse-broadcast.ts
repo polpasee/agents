@@ -22,9 +22,10 @@ export function broadcast(event: ServerEvent): void {
     try {
       viewer.send(payload);
     } catch {
-      // A disconnected viewer may throw on send. The route handler is
-      // responsible for removing itself from `viewers` on stream abort, so
-      // we just swallow here — by the next tick the set is consistent.
+      // A disconnected viewer throws on send before cancel() fires (or when
+      // the route never wired its abort handler). Evict here so broadcast()
+      // can't accumulate orphans across the HMR-stable globalThis singleton.
+      viewers.delete(viewer);
     }
   }
 }

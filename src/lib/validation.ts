@@ -1,5 +1,11 @@
 import type { AgentEvent, ServerEvent, AgentStatus, AgentType } from "./types";
 
+function isAnnotationShape(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const ann = v as Record<string, unknown>;
+  return typeof ann.id === "string" && typeof ann.targetId === "string";
+}
+
 const AGENT_STATUSES: readonly AgentStatus[] = ["running", "waiting", "idle", "completed", "error"];
 const AGENT_TYPES: readonly AgentType[] = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"];
 
@@ -30,14 +36,11 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
       return typeof obj.timestamp === "number" && isValidAgentEvent(obj.event);
     case "state:remove":
       return typeof obj.agentId === "string";
-    case "log:response":
-      return typeof obj.agentId === "string" && Array.isArray(obj.entries);
-    case "log:error":
-      return typeof obj.agentId === "string" && typeof obj.error === "string";
     case "annotation:sync":
-      return Array.isArray(obj.annotations);
+      return Array.isArray(obj.annotations) && obj.annotations.every(isAnnotationShape);
     case "annotation:update":
-      return obj.annotation != null && (obj.action === "add" || obj.action === "remove");
+      if (obj.action !== "add" && obj.action !== "remove") return false;
+      return isAnnotationShape(obj.annotation);
     default:
       return false;
   }

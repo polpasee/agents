@@ -25,7 +25,11 @@ export function useEventStream() {
       const batch = eventBuffer;
       eventBuffer = [];
       batchTimer = null;
-      const { handleEvent } = useAgentStore.getState();
+      const state = useAgentStore.getState();
+      // Replay may have been toggled on between enqueue and flush; drop the
+      // buffered deltas — the next replay-deactivate triggers a fresh sync.
+      if (state.replay.active) return;
+      const { handleEvent } = state;
       for (const { event, timestamp } of batch) {
         handleEvent(event, timestamp);
       }
@@ -49,6 +53,7 @@ export function useEventStream() {
     };
 
     es.onerror = () => {
+      if (destroyed) return;
       // EventSource auto-reconnects; just reflect the transient disconnect.
       useAgentStore.getState().setConnected(false);
     };
@@ -72,6 +77,10 @@ export function useEventStream() {
             );
             protocolWarned = true;
           }
+          // Drop any buffered deltas from the pre-disconnect connection — they
+          // reference the old snapshot and would corrupt the fresh one.
+          if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }
+          eventBuffer = [];
           if (!replayActive) store.syncState(event.agents, event.edges, event.teams);
           break;
         case "state:update":
@@ -80,15 +89,8 @@ export function useEventStream() {
         case "state:remove":
           if (!replayActive) store.removeAgent(event.agentId);
           break;
-        case "log:response":
-          store.setLogEntries(event.agentId, event.entries);
-          break;
-        case "log:error":
-          store.setLogLoading(event.agentId, false);
-          console.warn("Log fetch error for agent", event.agentId, ":", event.error);
-          break;
         case "annotation:sync":
-          for (const ann of event.annotations) store.addAnnotation(ann);
+          store.replaceAnnotations(event.annotations);
           break;
         case "annotation:update":
           if (event.action === "add") store.addAnnotation(event.annotation);

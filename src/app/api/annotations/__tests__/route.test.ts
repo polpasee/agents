@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { annotations } from "../../../../../scripts/lib/annotation-store";
 import { viewers, type SSEClient } from "../../../../../scripts/lib/sse-broadcast";
-import { ANNOTATION_MAX_ENTRIES } from "../../../../../scripts/lib/config";
+import {
+  ANNOTATION_MAX_ENTRIES,
+  ANNOTATION_MAX_BODY_BYTES,
+} from "../../../../../scripts/lib/config";
 
 import { POST } from "../route";
 
@@ -81,6 +84,76 @@ describe("/api/annotations POST", () => {
     expect(annotations.size).toBe(ANNOTATION_MAX_ENTRIES);
     expect(annotations.has("ann-fill0")).toBe(false);
     expect(annotations.has("ann-newest")).toBe(true);
+  });
+
+  it("broadcasts annotation:update remove for each LRU-evicted entry", async () => {
+    for (let i = 0; i < ANNOTATION_MAX_ENTRIES; i++) {
+      annotations.set(`ann-fill${i}`, {
+        id: `ann-fill${i}`, targetId: "x", targetType: "agent", text: "y", timestamp: i,
+      });
+    }
+    const client = makeClient();
+    viewers.add(client);
+
+    const res = await POST(postBody({
+      id: "ann-newest", targetId: "x", targetType: "agent", text: "z", timestamp: 999999,
+    }));
+    expect(res.status).toBe(201);
+
+    const events = client.received.map((s) => JSON.parse(s));
+    const remove = events.find(
+      (e) => e.type === "annotation:update" && e.action === "remove",
+    );
+    expect(remove).toBeDefined();
+    expect(remove.annotation.id).toBe("ann-fill0");
+
+    const add = events.find(
+      (e) => e.type === "annotation:update" && e.action === "add",
+    );
+    expect(add).toBeDefined();
+    expect(add.annotation.id).toBe("ann-newest");
+  });
+
+  it("returns 413 when Content-Length exceeds the body cap", async () => {
+    const big = "x".repeat(ANNOTATION_MAX_BODY_BYTES + 100);
+    const req = new Request("http://localhost/api/annotations", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(big.length + 32),
+      },
+      body: JSON.stringify({
+        id: "ann-toobig", targetId: "x", targetType: "agent", text: big, timestamp: 1,
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(413);
+  });
+
+  it("returns 413 when body byteLength exceeds cap (no Content-Length header)", async () => {
+    // Simulate a missing/incorrect Content-Length: even then, the route must
+    // cap based on actual buffer size before parsing.
+    const big = "x".repeat(ANNOTATION_MAX_BODY_BYTES + 100);
+    const body = JSON.stringify({
+      id: "ann-toobig", targetId: "x", targetType: "agent", text: big, timestamp: 1,
+    });
+    // Pass a ReadableStream so Content-Length is not auto-set.
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(body));
+        controller.close();
+      },
+    });
+    const req = new Request("http://localhost/api/annotations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // @ts-expect-error duplex is required by undici for streamed bodies but
+      // is not in the RequestInit lib types yet.
+      duplex: "half",
+      body: stream,
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(413);
   });
 
   it("returns 400 when body is not JSON", async () => {

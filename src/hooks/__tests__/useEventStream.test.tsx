@@ -112,4 +112,136 @@ describe("useEventStream", () => {
     });
     expect(useAgentStore.getState().annotations.has("ann-x")).toBe(true);
   });
+
+  // F1 — state:sync must drop any buffered state:update events so the
+  // pre-disconnect deltas don't flush onto the fresh snapshot.
+  it("drops the buffered state:update events when a fresh state:sync arrives", async () => {
+    renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    // Seed an agent so the buffered tool_call would otherwise land on it
+    act(() => {
+      useAgentStore.getState().syncState(
+        [{ id: "main-x", agentType: "main", status: "running", task: "old",
+           toolCalls: [], inputTokens: 0, outputTokens: 0,
+           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        [], [],
+      );
+    });
+
+    // Enqueue a state:update — sits in the batch buffer waiting for flush
+    act(() => {
+      es.emit({
+        type: "state:update",
+        event: { type: "agent:tool_call", agentId: "main-x", tool: "ShouldNotApply" },
+        timestamp: 1700000000000,
+      });
+    });
+
+    // Before the 16ms flush fires, deliver a fresh state:sync that replaces
+    // the topology. The buffered tool_call must be dropped, not flushed onto
+    // the new snapshot.
+    act(() => {
+      es.emit({
+        type: "state:sync",
+        agents: [{ id: "main-y", agentType: "main", status: "running", task: "fresh",
+          toolCalls: [], inputTokens: 0, outputTokens: 0,
+          cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        edges: [],
+        teams: [],
+        protocolVersion: 1,
+      });
+    });
+
+    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+
+    const state = useAgentStore.getState();
+    expect(state.agents.has("main-y")).toBe(true);
+    expect(state.agents.has("main-x")).toBe(false);
+    // Buffered tool_call must NOT have applied to anything
+    expect(state.agents.get("main-y")?.toolCalls).toHaveLength(0);
+  });
+
+  // F2 — annotation:sync replaces the full client annotation map so server
+  // evictions/deletes propagate after reconnect.
+  it("replaces the entire annotations map on annotation:sync", async () => {
+    // Pre-populate annotations
+    useAgentStore.setState({
+      annotations: new Map([
+        ["stale-1", { id: "stale-1", targetId: "a", targetType: "agent", text: "old", timestamp: 1 }],
+        ["keep-1", { id: "keep-1", targetId: "a", targetType: "agent", text: "kept", timestamp: 2 }],
+      ]),
+    });
+
+    renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    act(() => {
+      es.emit({
+        type: "annotation:sync",
+        annotations: [
+          { id: "keep-1", targetId: "a", targetType: "agent", text: "kept", timestamp: 2 },
+          { id: "new-1", targetId: "b", targetType: "agent", text: "new", timestamp: 3 },
+        ],
+      });
+    });
+
+    const annotations = useAgentStore.getState().annotations;
+    expect(annotations.has("stale-1")).toBe(false);
+    expect(annotations.has("keep-1")).toBe(true);
+    expect(annotations.has("new-1")).toBe(true);
+  });
+
+  // F5 — onerror must not race with unmount and overwrite a remount's
+  // connected=true.
+  it("does not call setConnected from onerror after the hook is unmounted", async () => {
+    const { unmount } = renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    // Unmount and then put the store in connected=true (mimicking a remount
+    // that succeeded). The stale onerror must NOT overwrite it.
+    unmount();
+    useAgentStore.setState({ connected: true });
+    act(() => { es.onerror?.(new Event("error")); });
+    expect(useAgentStore.getState().connected).toBe(true);
+  });
+
+  // F6 — buffered state:update events must NOT apply if replay was toggled on
+  // between enqueue and flush.
+  it("drops buffered state:update events when replay activates before flush", async () => {
+    renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    act(() => {
+      useAgentStore.getState().syncState(
+        [{ id: "main-z", agentType: "main", status: "running", task: "t",
+           toolCalls: [], inputTokens: 0, outputTokens: 0,
+           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        [], [],
+      );
+    });
+
+    // Replay is off — emit a state:update so it lands in the buffer
+    act(() => {
+      es.emit({
+        type: "state:update",
+        event: { type: "agent:tool_call", agentId: "main-z", tool: "ReplayDropMe" },
+        timestamp: 1700000000000,
+      });
+    });
+
+    // Flip replay on before the flush timer fires
+    act(() => {
+      useAgentStore.setState((s) => ({ replay: { ...s.replay, active: true } }));
+    });
+
+    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+
+    const agent = useAgentStore.getState().agents.get("main-z");
+    expect(agent?.toolCalls.some((tc) => tc.tool === "ReplayDropMe")).toBe(false);
+  });
 });

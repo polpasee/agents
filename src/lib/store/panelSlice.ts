@@ -13,7 +13,7 @@ export type PanelSlice = Pick<AgentStore,
   | "openErrorDrillDown" | "closeErrorDrillDown"
   | "setBudgetThreshold"
   | "pushMetricSample"
-  | "addAnnotation" | "removeAnnotation" | "updateAnnotation"
+  | "addAnnotation" | "removeAnnotation" | "updateAnnotation" | "replaceAnnotations"
 >;
 
 export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (set, get) => ({
@@ -87,6 +87,12 @@ export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (s
       annotations.set(id, { ...existing, ...updates });
       set({ annotations });
     }
+  },
+
+  replaceAnnotations: (next) => {
+    const annotations = new Map<string, Annotation>();
+    for (const ann of next) annotations.set(ann.id, ann);
+    set({ annotations });
   },
 
   // ── F8: Diff View ─────────────────────────────────────
