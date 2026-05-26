@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { UI, BUDGET_COLORS } from "@/lib/colors";
 import { formatCost } from "@/lib/costs";
+import { useApiUsage } from "@/hooks/useApiUsage";
 
 function getBarColor(percent: number): string {
   if (percent > 85) return BUDGET_COLORS.critical;
@@ -21,13 +22,6 @@ function formatResetTime(ms: number): string {
   }
   if (hours > 0) return `${hours}h${minutes}m`;
   return `${minutes}m`;
-}
-
-interface ApiUsage {
-  blockPercent: number | null;
-  weeklyPercent: number | null;
-  blockResetAt: string | null;
-  weeklyResetAt: string | null;
 }
 
 interface CostBuckets {
@@ -90,15 +84,8 @@ function CostRow({ label, value }: { label: string; value: number }) {
  * the WS server currently holds.
  */
 export function TopologyUsageStatus() {
-  const [apiUsage, setApiUsage] = useState<ApiUsage | null>(null);
+  const { data: apiUsage } = useApiUsage();
   const [cost, setCost] = useState<CostBuckets>({ day: 0, week: 0, month: 0 });
-
-  const fetchUsage = useCallback(() => {
-    fetch("/api/usage")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setApiUsage(data); })
-      .catch(() => { /* network/parse errors fall back to a hidden overlay */ });
-  }, []);
 
   const fetchCosts = useCallback(() => {
     fetch("/api/costs")
@@ -108,15 +95,10 @@ export function TopologyUsageStatus() {
   }, []);
 
   useEffect(() => {
-    fetchUsage();
-    const id = setInterval(fetchUsage, 10_000);
-    return () => clearInterval(id);
-  }, [fetchUsage]);
-
-  useEffect(() => {
     fetchCosts();
-    // Cost data on disk only changes as Claude Code writes new entries; the
-    // server caches scans for 60s so polling more frequently buys nothing.
+    // Server now caches scans for 5 min (CACHE_TTL_MS in cost-history.ts);
+    // a 60s client poll means most calls are cache hits and the cold path
+    // only fires ~12 times an hour.
     const id = setInterval(fetchCosts, 60_000);
     return () => clearInterval(id);
   }, [fetchCosts]);
