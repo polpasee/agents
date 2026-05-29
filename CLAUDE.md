@@ -67,20 +67,15 @@ Opus operates as the **lead orchestrator**, not the implementer. Default posture
 
 ## Delegation-First Rule (non-negotiable)
 
-The main agent MUST delegate implementation work. The main agent implements code directly ONLY when ALL of the following are true:
+The main agent MUST delegate implementation/verification work. The main agent implements/verification code directly ONLY when ALL of the following are true:
 
 - Change is ≤5 lines AND touches 1 file
 - No business logic decisions involved
--
 - It is glue code between subagent outputs, OR a review-feedback fix with an exact line reference
-
-**Everything else → dispatch a subagent.** This includes: exploring the codebase (>3 queries), writing any new component/action/query, refactors, debugging, tests, reviews, schema changes, docs.
-
-If tempted to "just do it quickly" — stop. That instinct is what turns the main agent into the implementer. Dispatch instead.
 
 ## Always Pickup subagent
 
-**Check on all agents in list/Existing or library first** before spawn new agents for Delegation. you cannot find agent to support this delegate please write detiail task for that Before dispatching to not in library agents
+**Check on all agents in list/Existing or library first** before spawn new agents for Delegation. you cannot find agent or use `general-purpose` to support this delegate please write detiail task for that Before dispatching to not in library agents
 
 ```
 No Agent in Library for support this tasks.
@@ -100,18 +95,8 @@ TRIAGE:
 - Assignments:
   - A → [subagent-type] — [one-line brief]
   - B → [subagent-type] — [one-line brief]
-- Main agent retains: [glue / verification / synthesis only]
+- Main agent retains: [glue / synthesis only]
 ```
-
-Then dispatch. Independent workstreams MUST go out in a single message with multiple `Agent` tool calls — never sequential when parallel is possible.
-
-## Core Orchestration Rules
-
-- **Brief thoroughly.** Each sub-agent starts with zero context. Use the Delegation Brief Template below.
-- **Parallel by default.** If workstreams are independent, dispatch in one message with multiple tool calls.
-- **Verify results** against the original assignment and Review Checklist before synthesizing.
-- **Synthesize, don't relay.** Integrate findings, resolve conflicts, present one coherent result.
-- **Retain ownership.** If a sub-agent's work is wrong, re-dispatch with corrections — do not silently fix it yourself unless it's a trivial import/typo.
 
 ## Delegation Brief Template
 
@@ -123,32 +108,27 @@ Files to create/modify: [Exact paths]
 Requirements:
 - [Specific requirement with file references]
 Constraints:
-- WS protocol event types live in src/lib/types.ts — add new shapes there first
-- Server state mutations go in scripts/lib/agent-state.ts; broadcast state via broadcast()
-- Client state uses Zustand slices in src/lib/store/, composed in src/lib/store/index.ts
-- Components colocate in src/components/; D3 rendering logic is React-free under src/lib/d3/
-- No database, no server actions, no ORM
+- Follow Project Patterns section
 Expected output: [What the deliverable looks like]
 Do not: [What to avoid]
 ```
 
-## Review Checklist
-
-After every sub-agent returns, verify:
-
-- WS event types defined in `src/lib/types.ts` before use
-- Server mutations go in `scripts/lib/agent-state.ts` and broadcast via `broadcast()`
-- Client Zustand slices in `src/lib/store/`, composed in `src/lib/store/index.ts`
-- Components in `src/components/`; D3 rendering under `src/lib/d3/` (React-free)
-- No `any` types or unnecessary type assertions
-- Imports use `@/` path aliases correctly
-- No hardcoded configuration; use `src/lib/config.ts` or `scripts/lib/config.ts`
-- File placed in correct directory per project structure
-- No hardcoded values or magic strings
-
-If review fails: re-assign with specific correction instructions. Fix trivial issues (typos, imports) directly.
-
-
 # Project Overview
+Project is for monitor activity of Agent, subagent of claude
 
-This is web portal for Monitor ACtivity for Main-Agent, Sub-Agent and Tools.
+# Tech-Stack
+
+| Layer      | Technology                                                                                         |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+
+
+
+# Workflow Step
+
+**Step 1** Plan minimal change by using skill `/superpowers:brainstorming`
+**Step 2** Implement and test
+**Step 3** Verification by 2 Opinion:
+
+- First-opinion: `/pr-review-toolkit:review-pr all`
+- Second-opinion: `/code-review max`
+
