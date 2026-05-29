@@ -21,8 +21,11 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
     const text = newText.trim();
     if (!text) return;
 
+    const id = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const annotation: Annotation = {
-      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id,
       targetId: agentId,
       targetType: "agent",
       text,

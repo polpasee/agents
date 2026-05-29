@@ -244,4 +244,92 @@ describe("useEventStream", () => {
     const agent = useAgentStore.getState().agents.get("main-z");
     expect(agent?.toolCalls.some((tc) => tc.tool === "ReplayDropMe")).toBe(false);
   });
+
+  // Bug 2 — flushEventBuffer must not dispatch after teardown (destroyed guard).
+  it("does not dispatch buffered events after the hook is unmounted (destroyed guard)", async () => {
+    const { unmount } = renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    // Seed an agent so a buffered event would apply to it
+    act(() => {
+      useAgentStore.getState().syncState(
+        [{ id: "main-d", agentType: "main", status: "running", task: "t",
+           toolCalls: [], inputTokens: 0, outputTokens: 0,
+           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        [], [],
+      );
+    });
+
+    // Buffer a state:update — sits in the batch buffer
+    act(() => {
+      es.emit({
+        type: "state:update",
+        event: { type: "agent:tool_call", agentId: "main-d", tool: "DestroyedFlush" },
+        timestamp: 1700000000001,
+      });
+    });
+
+    // Unmount immediately — cleanup sets destroyed=true then calls flushEventBuffer.
+    unmount();
+
+    // Even after the normal flush delay, the event must not have landed.
+    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+
+    const agent = useAgentStore.getState().agents.get("main-d");
+    expect(agent?.toolCalls.some((tc) => tc.tool === "DestroyedFlush")).toBe(false);
+  });
+
+  // Annotations are independent of the replay timeline (replay only scrubs
+  // agents/edges/teams), so annotation:sync/update must apply LIVE even during
+  // replay — gating them would drop deltas with no resync path on replay exit.
+  it("applies annotation:sync even when replay is active", async () => {
+    useAgentStore.setState({
+      annotations: new Map([
+        ["existing", { id: "existing", targetId: "a", targetType: "agent", text: "keep", timestamp: 1 }],
+      ]),
+    });
+
+    renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    // Activate replay mode
+    act(() => {
+      useAgentStore.setState((s) => ({ replay: { ...s.replay, active: true } }));
+    });
+
+    // Fire annotation:sync while replay is active — must still apply
+    act(() => {
+      es.emit({
+        type: "annotation:sync",
+        annotations: [
+          { id: "new-ann", targetId: "b", targetType: "agent", text: "live", timestamp: 2 },
+        ],
+      });
+    });
+
+    const annotations = useAgentStore.getState().annotations;
+    expect(annotations.has("new-ann")).toBe(true);
+  });
+
+  it("calls replaceAnnotations on annotation:sync when replay is NOT active", async () => {
+    useAgentStore.setState({ annotations: new Map() });
+    useAgentStore.setState((s) => ({ replay: { ...s.replay, active: false } }));
+
+    renderHook(() => useEventStream());
+    const es = MockEventSource.instances[0];
+    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+
+    act(() => {
+      es.emit({
+        type: "annotation:sync",
+        annotations: [
+          { id: "ann-live", targetId: "a", targetType: "agent", text: "live", timestamp: 1 },
+        ],
+      });
+    });
+
+    expect(useAgentStore.getState().annotations.has("ann-live")).toBe(true);
+  });
 });

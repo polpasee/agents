@@ -117,8 +117,9 @@ export function useSoundNotifications() {
     }
     if (lastId === latestId) return;
 
-    const startIdx = lastId === null ? 0 : activity.findIndex((e) => e.id === lastId) + 1;
-    const newEntries = startIdx <= 0 ? activity : activity.slice(startIdx);
+    const idx = activity.findIndex((e) => e.id === lastId);
+    const startIdx = idx === -1 ? activity.length : idx + 1;
+    const newEntries = activity.slice(startIdx);
     lastIdRef.current = latestId;
 
     if (soundMuted) return;

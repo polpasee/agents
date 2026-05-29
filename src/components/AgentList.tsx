@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS, agentColor } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
+import { resolveSessionId } from "@/lib/sessions";
 import type { AgentState, TeamState } from "@/lib/types";
 import { UsagePanel } from "./UsagePanel";
 
@@ -173,17 +174,9 @@ export function AgentList() {
     const allAgents = Array.from(agents.values());
 
     for (const agent of allAgents) {
-      let sessionId: string;
-      let label: string;
-
-      if (agent.parentId) {
-        const parent = agents.get(agent.parentId);
-        sessionId = parent?.sessionId || parent?.id || agent.sessionId || agent.id;
-        label = (parent?.metadata?.projectName as string) || sessionId;
-      } else {
-        sessionId = agent.sessionId || agent.id;
-        label = (agent.metadata?.projectName as string) || sessionId;
-      }
+      const sessionId = resolveSessionId(agent, agents);
+      const root = agents.get(sessionId) ?? agent;
+      const label = (root.metadata?.projectName as string) || sessionId;
 
       const group = groups.get(sessionId);
       if (group) {
@@ -211,17 +204,9 @@ export function AgentList() {
     const groups = new Map<string, SessionGroup>();
 
     for (const agent of agentList) {
-      let sessionId: string;
-      let label: string;
-
-      if (agent.parentId) {
-        const parent = agents.get(agent.parentId);
-        sessionId = parent?.sessionId || parent?.id || agent.sessionId || agent.id;
-        label = (parent?.metadata?.projectName as string) || sessionId;
-      } else {
-        sessionId = agent.sessionId || agent.id;
-        label = (agent.metadata?.projectName as string) || sessionId;
-      }
+      const sessionId = resolveSessionId(agent, agents);
+      const root = agents.get(sessionId) ?? agent;
+      const label = (root.metadata?.projectName as string) || sessionId;
 
       const group = groups.get(sessionId);
       if (group) {

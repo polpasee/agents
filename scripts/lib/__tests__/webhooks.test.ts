@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { formatSlackMessage, formatDiscordMessage } from "../webhooks";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { formatSlackMessage, formatDiscordMessage, dispatchWebhooks, getWebhookConfigs } from "../webhooks";
 
 const mockPayload = {
   eventType: "error" as const,
@@ -41,5 +41,55 @@ describe("formatDiscordMessage", () => {
     const result = formatDiscordMessage({ ...mockPayload, eventType: "budget_exceeded" }, mockTime) as Record<string, unknown>;
     const embeds = result.embeds as Array<Record<string, unknown>>;
     expect(embeds[0].color).toBe(0xeab308);
+  });
+});
+
+describe("dispatchWebhooks — non-ok response", () => {
+  beforeEach(() => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("logs a warning when the webhook endpoint returns 500", async () => {
+    const configs = getWebhookConfigs();
+    configs.push({ url: "http://test.example/hook", events: ["error"], format: "generic" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+
+    await dispatchWebhooks({ ...mockPayload });
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/http:\/\/test\.example\/hook.*500/),
+    );
+    configs.pop();
+    vi.unstubAllGlobals();
+  });
+
+  it("logs a warning when the webhook endpoint returns 403", async () => {
+    const configs = getWebhookConfigs();
+    configs.push({ url: "http://test.example/hook2", events: ["error"], format: "generic" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403 }));
+
+    await dispatchWebhooks({ ...mockPayload });
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("403"),
+    );
+    configs.pop();
+    vi.unstubAllGlobals();
+  });
+
+  it("does NOT warn when the webhook endpoint returns 200", async () => {
+    const configs = getWebhookConfigs();
+    configs.push({ url: "http://test.example/hook3", events: ["error"], format: "generic" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200 }));
+
+    await dispatchWebhooks({ ...mockPayload });
+
+    expect(console.warn).not.toHaveBeenCalled();
+    configs.pop();
+    vi.unstubAllGlobals();
   });
 });

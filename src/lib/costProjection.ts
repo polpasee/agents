@@ -33,7 +33,7 @@ export function calculateBurnRate(
     const first = recentTokenEvents[0].timestamp;
     const last = recentTokenEvents[recentTokenEvents.length - 1].timestamp;
     const actualWindowMs = last - first;
-    if (actualWindowMs > 0) {
+    if (actualWindowMs >= 1000) {
       const share = recentTokenEvents.length / tokenEvents.length;
       const costInWindow = totalCostNow * share;
       return costInWindow / (actualWindowMs / 60_000);

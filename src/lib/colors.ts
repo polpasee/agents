@@ -94,7 +94,7 @@ const AGENT_PALETTE: readonly string[] = [
 ];
 
 /**
- * Per-instance color registry: agentId → palette slot. Lives at module scope
+ * Per-instance color registry: agentId → hex color. Lives at module scope
  * so colors are stable across re-renders without flowing through Zustand
  * (avoids selector cascades on every new agent). Reset between tests via
  * {@link resetAgentColorRegistry}.
@@ -102,22 +102,38 @@ const AGENT_PALETTE: readonly string[] = [
 const colorByAgentId = new Map<string, string>();
 
 /**
- * Returns the registered color for an agent id, assigning the next palette
- * slot on first lookup. Slots are claimed from the end of the palette
- * backwards (pink → fuchsia → purple → …). After {@link AGENT_PALETTE}.length
- * distinct ids the counter wraps — duplicates only appear once the palette is
- * fully consumed.
+ * djb2 hash — small, fast, good distribution for short strings.
+ * Returns a signed 32-bit integer.
+ */
+function djb2(str: string): number {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  return hash;
+}
+
+/**
+ * Returns the registered color for an agent id, assigning a deterministic
+ * palette slot on first lookup. The slot is derived from a stable hash of the
+ * id, so registration order never affects which color an id receives.
+ * The map acts as a per-session cache so repeated lookups are O(1).
  */
 export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
-  const length = AGENT_PALETTE.length;
-  const color = AGENT_PALETTE[length - 1 - (colorByAgentId.size % length)];
+  const slot = Math.abs(djb2(id)) % AGENT_PALETTE.length;
+  const color = AGENT_PALETTE[slot];
   colorByAgentId.set(id, color);
   return color;
 }
 
-/** Test-only: clear the registry so each test starts with a fresh slot 0. */
+/** Remove a single entry from the registry (call from removeAgent to prevent leaks). */
+export function releaseAgentColor(id: string): void {
+  colorByAgentId.delete(id);
+}
+
+/** Test-only: clear the entire registry. */
 export function resetAgentColorRegistry(): void {
   colorByAgentId.clear();
 }

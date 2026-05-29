@@ -180,4 +180,31 @@ describe("useFilteredAgents", () => {
     const ids = result.current.map((a) => a.id).sort();
     expect(ids).toEqual(["main-1", "sub-1"]);
   });
+
+  it("canonical walk: grandchild is resolved to root's sessionId (multi-level hierarchy)", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set(
+      "root",
+      mockAgent({ id: "root", sessionId: "session-root", agentType: "main" }),
+    );
+    agents.set(
+      "mid",
+      mockAgent({ id: "mid", parentId: "root", agentType: "build" }),
+    );
+    agents.set(
+      "leaf",
+      mockAgent({ id: "leaf", parentId: "mid", agentType: "explore" }),
+    );
+    agents.set(
+      "other-root",
+      mockAgent({ id: "other-root", sessionId: "session-other", agentType: "main" }),
+    );
+
+    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-root"]) });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    const ids = result.current.map((a) => a.id).sort();
+    // root, mid, leaf all resolve to session-root; other-root is excluded
+    expect(ids).toEqual(["leaf", "mid", "root"]);
+  });
 });

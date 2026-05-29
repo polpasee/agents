@@ -3,19 +3,20 @@
 import { useAgentStore } from "@/lib/store";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { UI } from "@/lib/colors";
+import { totalTokens } from "@/lib/utils";
 import { ModalBackdrop } from "./ModalBackdrop";
 import type { AgentState } from "@/lib/types";
 
 function buildReportData(agents: Map<string, AgentState>) {
   const agentList = Array.from(agents.values());
   let totalCost = 0;
-  let totalTokens = 0;
+  let totalTok = 0;
   let totalDuration = 0;
 
   for (const agent of agentList) {
     const cost = calculateCost(agent);
     totalCost += cost.total;
-    totalTokens += agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+    totalTok += totalTokens(agent);
     totalDuration += agent.duration ?? 0;
   }
 
@@ -28,7 +29,7 @@ function buildReportData(agents: Map<string, AgentState>) {
     generatedAt: Date.now(),
     agents: agentList,
     totalCost,
-    totalTokens,
+    totalTokens: totalTok,
     duration: totalDuration,
     summary,
   };
@@ -50,14 +51,29 @@ function exportJSON(agents: Map<string, AgentState>) {
   downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.json`, content, "application/json");
 }
 
+export function csvEscape(v: string | number): string {
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
 function exportCSV(agents: Map<string, AgentState>) {
   const agentList = Array.from(agents.values());
   const headers = ["id", "type", "status", "tokens", "cost", "duration", "task"];
   const rows = agentList.map((agent) => {
     const cost = calculateCost(agent);
-    const tokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
-    const escapedTask = `"${(agent.task || "").replace(/"/g, '""')}"`;
-    return [agent.id, agent.agentType, agent.status, tokens, cost.total.toFixed(4), agent.duration ?? 0, escapedTask].join(",");
+    const tokens = totalTokens(agent);
+    return [
+      csvEscape(agent.id),
+      csvEscape(agent.agentType),
+      csvEscape(agent.status),
+      csvEscape(tokens),
+      csvEscape(cost.total.toFixed(4)),
+      csvEscape(agent.duration ?? 0),
+      csvEscape(agent.task || ""),
+    ].join(",");
   });
   const content = [headers.join(","), ...rows].join("\n");
   downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.csv`, content, "text/csv");
@@ -82,7 +98,7 @@ function exportMarkdown(agents: Map<string, AgentState>) {
 
   for (const agent of agentList) {
     const cost = calculateCost(agent);
-    const tokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+    const tokens = totalTokens(agent);
     const dur = agent.duration ? `${(agent.duration / 1000).toFixed(1)}s` : "-";
     const task = (agent.task || "").slice(0, 60).replace(/\|/g, "\\|");
     md += `| ${agent.id.slice(0, 12)} | ${agent.agentType} | ${agent.status} | ${tokens.toLocaleString()} | ${formatCost(cost.total)} | ${dur} | ${task} |\n`;

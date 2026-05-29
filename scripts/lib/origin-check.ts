@@ -41,8 +41,8 @@ export function isAllowedRequestOrigin(request: Request): boolean {
 
   if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 
-  const host = url.hostname;
-  if (host === "localhost" || host === "127.0.0.1") return true;
+  const host = url.hostname; // IPv6 literals retain brackets: "[::1]"
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true;
   if (isPrivateLanHost(host)) return true;
   return false;
 }

@@ -251,6 +251,24 @@ describe("Dashboard", () => {
       warn.mockRestore();
     });
 
+    it("counts sub-agents whose parent was purged without logging a cycle warning", () => {
+      // child references parentId "purged" which is NOT in the agents map.
+      // The walk should stop silently (no warn) and child should NOT be counted
+      // under any main (since root is unknown). No cycle warning must fire.
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const main = mockAgent({ id: "main", agentType: "main", sessionId: "s1" });
+      const child = mockAgent({ id: "child", agentType: "build", parentId: "purged" });
+      useAgentStore.setState({ agents: new Map([["main", main], ["child", child]]) });
+
+      const { container } = render(<Dashboard />);
+      const button = container.querySelector(".mobile-toggle-btn button");
+      // child's chain ends at a missing node, not a main — should not be counted
+      expect(button?.textContent).toContain("s1(0)");
+      // Must NOT have logged a cycle warning for a merely-missing parent
+      expect(warn).not.toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
     it("does not count agents whose chain root is not a rendered main", () => {
       // Orphan tree (no main at root) should be ignored.
       const orphanRoot = mockAgent({ id: "root", agentType: "build" });

@@ -109,17 +109,20 @@ export function Dashboard() {
       if (agent.agentType === "main") continue;
       let cursor = agent;
       const seen = new Set<string>();
-      while (cursor.parentId && !seen.has(cursor.id)) {
+      let isCycle = false;
+      while (cursor.parentId) {
+        if (seen.has(cursor.id)) {
+          // True cycle — same node visited twice.
+          console.warn("[Dashboard] cycle detected in agent parent chain", agent.id);
+          isCycle = true;
+          break;
+        }
         seen.add(cursor.id);
         const parent = agents.get(cursor.parentId);
-        if (!parent) break;
+        if (!parent) break; // parent purged — stop walk, not a cycle
         cursor = parent;
       }
-      if (cursor.parentId && seen.has(cursor.id)) {
-        // Cycle in parent chain — data-integrity bug upstream in agent-state.
-        console.warn("[Dashboard] cycle detected in agent parent chain", agent.id);
-        continue;
-      }
+      if (isCycle) continue;
       if (cursor.agentType === "main" && mainIds.has(cursor.id)) {
         subCounts.set(cursor.id, (subCounts.get(cursor.id) ?? 0) + 1);
       }

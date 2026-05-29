@@ -49,6 +49,9 @@ interface ParsedEntry {
   total: number;
 }
 
+/** Dedupes concurrent cache-miss scans of the same dir onto one promise. */
+const inFlight = new Map<string, Promise<CostBuckets>>();
+
 interface FileCacheEntry {
   mtimeMs: number;
   entries: ParsedEntry[];
@@ -65,6 +68,7 @@ const fileCache = new Map<string, FileCacheEntry>();
 export function resetCostHistoryCache(): void {
   resultCache.clear();
   fileCache.clear();
+  inFlight.clear();
 }
 
 function addToBuckets(buckets: CostBuckets, age: number, total: number): void {
@@ -176,43 +180,55 @@ export async function scanCostHistory(
   const cached = resultCache.get(projectsDir);
   if (cached && cached.expires > now) return cached.result;
 
-  const buckets: CostBuckets = { day: 0, week: 0, month: 0 };
-  const files = await collectJsonlFiles(projectsDir);
-  const horizon = now - SCAN_HORIZON_MS;
-  const seen = new Set<string>();
+  const existing = inFlight.get(projectsDir);
+  if (existing) return existing;
 
-  await runWithConcurrency(files, SCAN_CONCURRENCY, async (file) => {
-    seen.add(file);
-    let stat;
-    try {
-      stat = await fs.stat(file);
-    } catch {
-      return;
-    }
-    if (stat.mtimeMs < horizon) {
-      // Beyond the 30-day window — drop any stale cache so the map can't
-      // grow unbounded across long-running dev sessions.
-      fileCache.delete(file);
-      return;
+  const promise = (async (): Promise<CostBuckets> => {
+    const buckets: CostBuckets = { day: 0, week: 0, month: 0 };
+    const files = await collectJsonlFiles(projectsDir);
+    const horizon = now - SCAN_HORIZON_MS;
+    const seen = new Set<string>();
+
+    await runWithConcurrency(files, SCAN_CONCURRENCY, async (file) => {
+      seen.add(file);
+      let stat;
+      try {
+        stat = await fs.stat(file);
+      } catch {
+        return;
+      }
+      if (stat.mtimeMs < horizon) {
+        // Beyond the 30-day window — drop any stale cache so the map can't
+        // grow unbounded across long-running dev sessions.
+        fileCache.delete(file);
+        return;
+      }
+
+      let entry = fileCache.get(file);
+      if (!entry || entry.mtimeMs !== stat.mtimeMs) {
+        const entries = await parseFileEntries(file);
+        entry = { mtimeMs: stat.mtimeMs, entries };
+        fileCache.set(file, entry);
+      }
+      for (const parsed of entry.entries) {
+        addToBuckets(buckets, now - parsed.timestamp, parsed.total);
+      }
+    });
+
+    // Evict cache entries for files that disappeared (deleted projects,
+    // /clear, manual cleanup) so the map mirrors disk over long uptimes.
+    for (const key of fileCache.keys()) {
+      if (!seen.has(key)) fileCache.delete(key);
     }
 
-    let entry = fileCache.get(file);
-    if (!entry || entry.mtimeMs !== stat.mtimeMs) {
-      const entries = await parseFileEntries(file);
-      entry = { mtimeMs: stat.mtimeMs, entries };
-      fileCache.set(file, entry);
-    }
-    for (const parsed of entry.entries) {
-      addToBuckets(buckets, now - parsed.timestamp, parsed.total);
-    }
-  });
+    resultCache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
+    return buckets;
+  })();
 
-  // Evict cache entries for files that disappeared (deleted projects,
-  // /clear, manual cleanup) so the map mirrors disk over long uptimes.
-  for (const key of fileCache.keys()) {
-    if (!seen.has(key)) fileCache.delete(key);
+  inFlight.set(projectsDir, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlight.delete(projectsDir);
   }
-
-  resultCache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
-  return buckets;
 }

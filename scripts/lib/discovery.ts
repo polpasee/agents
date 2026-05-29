@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
+import * as os from "node:os";
 import type { Stats } from "node:fs";
 import * as path from "node:path";
 import {
@@ -15,8 +16,60 @@ import {
   parseAgentType,
   broadcast,
 } from "./agent-state";
-import { readNewLines, extractTaskFromJSONL, readEffortLevel, readIs1MContext, cleanupFileOffsets } from "./file-reader";
+import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
+import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
+
+// ---------------------------------------------------------------------------
+// Per-pass settings.json cache — avoids re-reading the same file for every
+// agent registered during a single discovery run.
+// ---------------------------------------------------------------------------
+
+type ParsedSettings = Record<string, unknown> | null;
+type SettingsCache = Map<string, ParsedSettings>;
+
+function readSettingsCached(filePath: string, cache: SettingsCache): ParsedSettings {
+  if (cache.has(filePath)) return cache.get(filePath)!;
+  let result: ParsedSettings = null;
+  try {
+    const raw = fs.readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(raw);
+    result = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to read settings ${filePath}:`, err);
+    }
+  }
+  cache.set(filePath, result);
+  return result;
+}
+
+function settingsCandidatePaths(projectDir: string): string[] {
+  return [
+    path.join(projectDir, ".claude", "settings.json"),
+    path.join(os.homedir(), ".claude", "settings.json"),
+  ];
+}
+
+function readEffortLevelCached(projectDir: string, cache: SettingsCache): ThinkingEffort | undefined {
+  for (const filePath of settingsCandidatePaths(projectDir)) {
+    const parsed = readSettingsCached(filePath, cache);
+    const value = parsed?.effortLevel;
+    if (typeof value === "string" && (THINKING_EFFORTS as readonly string[]).includes(value)) {
+      return value as ThinkingEffort;
+    }
+  }
+  return undefined;
+}
+
+function readIs1MContextCached(projectDir: string, cache: SettingsCache): boolean | undefined {
+  for (const filePath of settingsCandidatePaths(projectDir)) {
+    const parsed = readSettingsCached(filePath, cache);
+    const model = parsed?.model;
+    if (typeof model === "string") return /\[1m\]/i.test(model);
+  }
+  return undefined;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -123,8 +176,8 @@ export function selectStaleAgentIds(
     if (now - childLastMod <= STALE_THRESHOLD_MS) {
       freshParentIds.add(child.parentId);
     }
-    // Protect main as long as any child is not idle (running/waiting/completed/error).
-    if (child.status !== "idle") {
+    // Protect main only while a child is actively running or waiting.
+    if (child.status === "running" || child.status === "waiting") {
       freshParentIds.add(child.parentId);
     }
   }
@@ -153,6 +206,8 @@ export function isEphemeralProjectDir(projectDir: string): boolean {
 }
 
 export async function discoverActiveSessions(projectsDir: string): Promise<void> {
+  const settingsCache: SettingsCache = new Map();
+
   try {
     await fsp.access(projectsDir);
   } catch {
@@ -227,8 +282,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           slug: info.slug,
           model: info.model,
           startTime: info.startTime || stat.mtimeMs,
-          effort: readEffortLevel(projectDir),
-          is1MContext: readIs1MContext(projectDir),
+          effort: readEffortLevelCached(projectDir, settingsCache),
+          is1MContext: readIs1MContextCached(projectDir, settingsCache),
         });
       }
 
@@ -317,8 +372,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
               slug: info.slug,
               model: info.model,
               startTime: info.startTime || parentStat.mtimeMs,
-              effort: readEffortLevel(projectDir),
-              is1MContext: readIs1MContext(projectDir),
+              effort: readEffortLevelCached(projectDir, settingsCache),
+              is1MContext: readIs1MContextCached(projectDir, settingsCache),
             });
             // Seed lastModified from the fresher of parent mtime or child mtime
             // so the main stays marked alive while the sub is active.
@@ -387,8 +442,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             startTime: info.startTime || stat.mtimeMs,
             teamId,
             teamName,
-            effort: readEffortLevel(projectDir),
-            is1MContext: readIs1MContext(projectDir),
+            effort: readEffortLevelCached(projectDir, settingsCache),
+            is1MContext: readIs1MContextCached(projectDir, settingsCache),
           });
         }
 

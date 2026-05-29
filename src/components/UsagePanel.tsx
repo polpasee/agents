@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, BUDGET_COLORS } from "@/lib/colors";
-import { formatNumber, formatDuration } from "@/lib/utils";
+import { formatNumber, formatDuration, totalTokens } from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 import { useApiUsage } from "@/hooks/useApiUsage";
 
@@ -78,7 +78,7 @@ export function UsagePanel() {
     for (const a of list) {
       totalUsed += a.inputTokens + a.outputTokens;
       totalWindow += a.contextWindow;
-      totalAllTokens += a.inputTokens + a.outputTokens + a.cacheReadTokens + a.cacheCreateTokens;
+      totalAllTokens += totalTokens(a);
       if (a.startTime < earliest) earliest = a.startTime;
       if (a.status === "running" || a.status === "idle" || a.status === "waiting") hasActive = true;
     }
@@ -92,10 +92,10 @@ export function UsagePanel() {
   // Live timer — re-render every second
   const [, tick] = useState(0);
   useEffect(() => {
-    if (!stats.hasActive && agents.size === 0) return;
+    if (!stats.hasActive) return;
     const id = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(id);
-  }, [stats.hasActive, agents.size]);
+  }, [stats.hasActive]);
 
   if (agents.size === 0 && !apiUsage) return null;
 

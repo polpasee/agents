@@ -24,7 +24,10 @@ export function precomputeHeatmapNorms(allAgents: AgentState[]): HeatmapNorms {
   let maxTtft = 1;
   for (const a of allAgents) {
     if (a.toolCalls.length > 0) {
-      maxTtft = Math.max(maxTtft, a.toolCalls[0].timestamp - a.startTime);
+      // Use the earliest timestamp across all stored tool calls. After eviction
+      // the first stored entry is no longer the chronologically earliest.
+      const earliest = Math.min(...a.toolCalls.map((t) => t.timestamp));
+      maxTtft = Math.max(maxTtft, earliest - a.startTime);
     }
   }
   return { maxTtft };
@@ -57,7 +60,10 @@ export function computeMetricValue(
     }
     case "timeToFirstTool": {
       if (agent.toolCalls.length === 0) return 1;
-      const ttft = agent.toolCalls[0].timestamp - agent.startTime;
+      // Use the earliest timestamp across all stored tool calls (matches the
+      // normalizer in precomputeHeatmapNorms) to avoid skew after eviction.
+      const earliest = Math.min(...agent.toolCalls.map((t) => t.timestamp));
+      const ttft = earliest - agent.startTime;
       return ttft / norms.maxTtft;
     }
     case "avgToolLatency": {

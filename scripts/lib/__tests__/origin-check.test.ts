@@ -47,4 +47,16 @@ describe("isAllowedRequestOrigin", () => {
   it("rejects non-http(s) schemes", () => {
     expect(isAllowedRequestOrigin(req("file://localhost"))).toBe(false);
   });
+
+  it("allows IPv6 loopback ::1 (bracket notation)", () => {
+    expect(isAllowedRequestOrigin(req("http://[::1]:4000"))).toBe(true);
+  });
+
+  it("allows IPv6 loopback ::1 without port", () => {
+    expect(isAllowedRequestOrigin(req("http://[::1]"))).toBe(true);
+  });
+
+  it("still rejects a public IPv6 host", () => {
+    expect(isAllowedRequestOrigin(req("http://[2001:db8::1]:3000"))).toBe(false);
+  });
 });

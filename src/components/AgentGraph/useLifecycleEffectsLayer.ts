@@ -37,8 +37,22 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
   // ── Push: turn activity tail into effect entries ──
   useEffect(() => {
     if (activity.length === 0) return;
-    const newEntries = activity.slice(refs.prevActivityLenRef.current);
-    refs.prevActivityLenRef.current = activity.length;
+    // Track by the monotonic numeric id embedded in each entry's string id
+    // ("act-N") rather than by array length. The activity array is capped at
+    // ACTIVITY_MAX_ENTRIES; once saturated, length stays constant and
+    // slice(cap) always returns [] — animations would stop permanently.
+    // prevActivityLenRef is reused here to store the last-seen numeric id
+    // (initialized to -1 via useAgentGraphRefs which sets it to 0; the first
+    // real entry has id >= 1, so id > 0 is always safe as the initial guard).
+    const lastSeenId = refs.prevActivityLenRef.current;
+    const activityNumId = (e: ActivityEntry) => parseInt(e.id.replace("act-", ""), 10);
+    const newEntries = activity.filter((e) => activityNumId(e) > lastSeenId);
+    if (activity.length > 0) {
+      refs.prevActivityLenRef.current = activityNumId(activity[activity.length - 1]);
+    }
+
+    // Build O(1) lookup once for all new entries rather than Array.find per entry.
+    const nodeById = new Map<string, SimNode>(refs.nodesRef.current.map((n) => [n.id, n]));
 
     for (const entry of newEntries) {
       let effectNode: SimNode | undefined;
@@ -47,16 +61,16 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
 
       switch (evt.type) {
         case "agent:register":
-          effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+          effectNode = nodeById.get(evt.agentId);
           effectType = "spawn";
           break;
         case "agent:complete":
-          effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+          effectNode = nodeById.get(evt.agentId);
           effectType = "complete";
           break;
         case "agent:status":
           if (evt.status === "error") {
-            effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+            effectNode = nodeById.get(evt.agentId);
             effectType = "error";
           }
           break;

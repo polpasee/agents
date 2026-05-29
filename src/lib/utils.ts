@@ -1,10 +1,15 @@
 import type { AgentState } from "./types";
 
+/** Sum all four token fields for an agent. */
+export function totalTokens(agent: AgentState): number {
+  return agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+}
+
 /** Calculate context window usage as a percentage (0–100). */
 export function getTokenPercent(agent: AgentState): number {
-  const totalTokens = agent.inputTokens + agent.outputTokens;
+  const used = agent.inputTokens + agent.outputTokens;
   return agent.contextWindow > 0
-    ? Math.min((totalTokens / agent.contextWindow) * 100, 100)
+    ? Math.min((used / agent.contextWindow) * 100, 100)
     : 0;
 }
 
