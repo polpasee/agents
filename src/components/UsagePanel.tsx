@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, BUDGET_COLORS } from "@/lib/colors";
 import { formatNumber, formatDuration, totalTokens } from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
+import { useApiUsage } from "@/hooks/useApiUsage";
 
 function getBarColor(percent: number): string {
   if (percent > 85) return BUDGET_COLORS.critical;
@@ -24,16 +25,6 @@ function formatResetTime(ms: number): string {
   }
   if (hours > 0) return `${hours}hr ${minutes}m`;
   return `${minutes}m`;
-}
-
-interface ApiUsage {
-  blockPercent: number | null;
-  weeklyPercent: number | null;
-  blockResetAt: string | null;
-  weeklyResetAt: string | null;
-  plan: string | null;
-  ageMs?: number | null;
-  stale?: boolean;
 }
 
 function formatAge(ms: number): string {
@@ -74,25 +65,7 @@ function UsageBar({ label, percent, resetMs }: { label: string; percent: number;
 
 export function UsagePanel() {
   const agents = useAgentStore((s) => s.agents);
-  const [apiUsage, setApiUsage] = useState<ApiUsage | null>(null);
-
-  const [usageError, setUsageError] = useState(false);
-  const fetchUsage = useCallback(() => {
-    fetch("/api/usage")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => { if (data) { setApiUsage(data); setUsageError(false); } })
-      .catch(() => { setUsageError(true); });
-  }, []);
-
-  // Poll API usage every 10 seconds
-  useEffect(() => {
-    fetchUsage();
-    const id = setInterval(fetchUsage, 10_000);
-    return () => clearInterval(id);
-  }, [fetchUsage]);
+  const { data: apiUsage, error: usageError } = useApiUsage();
 
   const stats = useMemo(() => {
     const list = Array.from(agents.values());
