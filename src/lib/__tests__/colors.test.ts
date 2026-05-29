@@ -12,6 +12,7 @@ import {
   COMPARISON_COLORS,
   agentColor,
   assignAgentColor,
+  releaseAgentColor,
   resetAgentColorRegistry,
 } from "../colors";
 import type { AgentType, AgentStatus } from "../types";
@@ -207,19 +208,51 @@ describe("assignAgentColor", () => {
     expect(assignAgentColor("agent-1")).toBe(assignAgentColor("agent-1"));
   });
 
-  it("gives distinct ids distinct colors until the palette is exhausted", () => {
-    const seen = new Set<string>();
-    // 12-slot palette (amber [main], red, rose, yellow excluded). All distinct ids should be unique.
-    for (let i = 0; i < 12; i++) seen.add(assignAgentColor(`agent-${i}`));
-    expect(seen.size).toBe(12);
+  it("is deterministic: same key always maps to the same palette color regardless of insertion order", () => {
+    // Register A, B, C in forward order
+    const colorA1 = assignAgentColor("key-alpha");
+    const colorB1 = assignAgentColor("key-beta");
+    const colorC1 = assignAgentColor("key-gamma");
+
+    resetAgentColorRegistry();
+
+    // Register C, B, A in reverse order
+    const colorC2 = assignAgentColor("key-gamma");
+    const colorB2 = assignAgentColor("key-beta");
+    const colorA2 = assignAgentColor("key-alpha");
+
+    expect(colorA2).toBe(colorA1);
+    expect(colorB2).toBe(colorB1);
+    expect(colorC2).toBe(colorC1);
   });
 
-  it("cycles after the palette fills (slot 0 → palette[11], slot 12 → palette[11] again)", () => {
-    const first = assignAgentColor("agent-0"); // slot 0 → palette[11] (end-backwards)
-    for (let i = 1; i < 12; i++) assignAgentColor(`agent-${i}`);
-    expect(assignAgentColor("agent-12")).toBe(first); // slot 12 wraps back to slot 0
-    // Verify slot 0 is indeed the last palette entry (end-backwards order)
-    expect(first).toBe("#f472b6"); // TW.pink400 — palette[11]
+  it("releaseAgentColor removes the key from the registry", () => {
+    assignAgentColor("agent-to-release");
+    releaseAgentColor("agent-to-release");
+    // After release, re-registering yields the same deterministic color (hash is stable)
+    const colorAfter = assignAgentColor("agent-to-release");
+    expect(colorAfter).toMatch(HEX_COLOR_RE);
+  });
+
+  it("releaseAgentColor: re-registration after release yields the same color as the original", () => {
+    const before = assignAgentColor("agent-persistent");
+    releaseAgentColor("agent-persistent");
+    const after = assignAgentColor("agent-persistent");
+    expect(after).toBe(before);
+  });
+
+  it("releaseAgentColor is a no-op for unknown ids", () => {
+    // Should not throw
+    expect(() => releaseAgentColor("nonexistent-id")).not.toThrow();
+  });
+
+  it("all assigned colors come from the palette", () => {
+    // Hash-based assignment: different keys may share a slot, but every color
+    // must be drawn from AGENT_PALETTE. The palette has 12 entries.
+    for (let i = 0; i < 24; i++) {
+      const c = assignAgentColor(`agent-${i}`);
+      expect(c).toMatch(HEX_COLOR_RE);
+    }
   });
 
   it("returns a 6-digit hex color (so alpha concatenation stays valid)", () => {

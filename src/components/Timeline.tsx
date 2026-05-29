@@ -76,7 +76,8 @@ export function Timeline() {
                 }}
               >
                 {agent.toolCalls.map((tc, i) => {
-                  const tickPct = ((tc.timestamp - agent.startTime) / (endTime - agent.startTime || 1)) * 100;
+                  const range = endTime - agent.startTime;
+                  const tickPct = range > 0 ? Math.min(((tc.timestamp - agent.startTime) / range) * 100, 100) : 0;
                   return (
                     <div
                       key={i}

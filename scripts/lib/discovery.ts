@@ -123,8 +123,8 @@ export function selectStaleAgentIds(
     if (now - childLastMod <= STALE_THRESHOLD_MS) {
       freshParentIds.add(child.parentId);
     }
-    // Protect main as long as any child is not idle (running/waiting/completed/error).
-    if (child.status !== "idle") {
+    // Protect main only while a child is actively running or waiting.
+    if (child.status === "running" || child.status === "waiting") {
       freshParentIds.add(child.parentId);
     }
   }

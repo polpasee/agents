@@ -183,6 +183,75 @@ describe("selectStaleAgentIds", () => {
   });
 });
 
+describe("selectStaleAgentIds — terminal children must not protect parent forever", () => {
+  it("purges a stale main whose only child has status=completed and old mtime", () => {
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["sub", { parentId: "main", status: "completed", startTime: now + old }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["sub", now + old],
+    ]);
+    // The bug: status "completed" !== "idle" so it was protecting the parent.
+    // After the fix only running/waiting children protect the parent.
+    // The completed sub is a terminal state — not added to stale[] by design,
+    // but the parent (stuck idle) IS now eligible for purge.
+    const result = selectStaleAgentIds(agents, mtimes, now);
+    expect(result).toContain("main");
+    expect(result).not.toContain("sub"); // completed is terminal, not stuck
+  });
+
+  it("purges a stale main whose only child has status=error and old mtime", () => {
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["sub", { parentId: "main", status: "error", startTime: now + old }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["sub", now + old],
+    ]);
+    // Same reasoning: error is terminal, main (idle+stale) is now purgeable.
+    const result = selectStaleAgentIds(agents, mtimes, now);
+    expect(result).toContain("main");
+    expect(result).not.toContain("sub"); // error is terminal, not stuck
+  });
+
+  it("protects a stale main when a child has status=running", () => {
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const fresh = -60_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["sub", { parentId: "main", status: "running", startTime: now + fresh }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["sub", now + fresh],
+    ]);
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
+  });
+
+  it("protects a stale main when a child has status=waiting", () => {
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const fresh = -60_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["sub", { parentId: "main", status: "waiting", startTime: now + fresh }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["sub", now + fresh],
+    ]);
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
+  });
+});
+
 describe("selectLosingMains", () => {
   type MainShape = { parentId?: string; startTime: number; metadata?: Record<string, unknown> };
   const mkMain = (projectDir: string, startTime = 0): MainShape => ({

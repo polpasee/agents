@@ -42,12 +42,13 @@ export async function dispatchWebhooks(payload: WebhookPayload): Promise<void> {
   for (const config of configs) {
     try {
       const body = formatPayload(config.format, payload);
-      await fetch(config.url, {
+      const res = await fetch(config.url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(5000),
       });
+      if (!res.ok) console.warn(`Webhook ${config.url} returned ${res.status}`);
     } catch (err) {
       console.warn(`Webhook dispatch failed for ${config.url}:`, err);
     }

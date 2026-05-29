@@ -51,6 +51,8 @@ describe("/api/logs/[agentId] GET", () => {
     const res = await GET(makeRequest(), { params: Promise.resolve({ agentId: "x" }) });
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.error).toMatch(/disk full/);
+    expect(body.error).toMatch(/failed to read log/i);
+    // The raw error (which can contain absolute filesystem paths) must not leak.
+    expect(body.error).not.toMatch(/disk full/);
   });
 });

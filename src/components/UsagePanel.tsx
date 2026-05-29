@@ -119,10 +119,10 @@ export function UsagePanel() {
   // Live timer — re-render every second
   const [, tick] = useState(0);
   useEffect(() => {
-    if (!stats.hasActive && agents.size === 0) return;
+    if (!stats.hasActive) return;
     const id = setInterval(() => tick((n) => n + 1), 1000);
     return () => clearInterval(id);
-  }, [stats.hasActive, agents.size]);
+  }, [stats.hasActive]);
 
   if (agents.size === 0 && !apiUsage) return null;
 

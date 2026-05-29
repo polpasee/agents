@@ -53,6 +53,50 @@ describe("calculateBurnRate", () => {
     expect(rate).toBe(0);
   });
 
+  it("falls back to lifetime average when two token events are milliseconds apart (near-zero window)", () => {
+    const now = 60_000;
+    vi.setSystemTime(now);
+
+    // Agent started 60 seconds ago, spent $0.001 total — lifetime avg = $0.001/min
+    const agent = mockAgent({ id: "a1", inputTokens: 100, outputTokens: 50, startTime: 0 });
+    const agents = new Map([["a1", agent]]);
+
+    // Two events only 5ms apart — window-based rate would be absurdly high
+    const activity: ActivityEntry[] = [
+      {
+        id: "act-1",
+        timestamp: now - 5,
+        event: {
+          type: "agent:tokens",
+          agentId: "a1",
+          inputTokens: 50,
+          outputTokens: 25,
+          cacheReadTokens: 0,
+          cacheCreateTokens: 0,
+          contextWindow: 200000,
+        },
+      },
+      {
+        id: "act-2",
+        timestamp: now,
+        event: {
+          type: "agent:tokens",
+          agentId: "a1",
+          inputTokens: 100,
+          outputTokens: 50,
+          cacheReadTokens: 0,
+          cacheCreateTokens: 0,
+          contextWindow: 200000,
+        },
+      },
+    ];
+
+    const rate = calculateBurnRate(activity, agents);
+    // Lifetime avg for these tokens over 60s is well under $1/min
+    // Without the fix, window-based rate would be enormous (e.g. $600k/min)
+    expect(rate).toBeLessThan(1);
+  });
+
   it("returns a positive rate with agents that have tokens and multiple events", () => {
     const now = 120_000;
     vi.setSystemTime(now);

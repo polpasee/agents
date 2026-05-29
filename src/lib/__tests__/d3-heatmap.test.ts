@@ -100,6 +100,65 @@ describe("computeMetricValue", () => {
   });
 });
 
+describe("precomputeHeatmapNorms — earliest timestamp", () => {
+  it("uses the earliest tool call timestamp when calls are not in ascending order", () => {
+    // Stored toolCalls are in reverse order (as if early entries were evicted
+    // and later ones remain, but also covers an out-of-order scenario).
+    const agent = createMockAgent({
+      startTime: 0,
+      toolCalls: [
+        { tool: "bash", timestamp: 5000 }, // stored first, but NOT earliest
+        { tool: "read", timestamp: 2000 }, // earliest
+      ],
+    });
+    const norms = precomputeHeatmapNorms([agent]);
+    // Earliest timestamp is 2000, so maxTtft should be 2000 - 0 = 2000.
+    expect(norms.maxTtft).toBe(2000);
+  });
+
+  it("maxTtft is 1 when no agent has tool calls", () => {
+    const agent = createMockAgent({ toolCalls: [] });
+    const norms = precomputeHeatmapNorms([agent]);
+    expect(norms.maxTtft).toBe(1);
+  });
+});
+
+describe("computeMetricValue — timeToFirstTool uses earliest timestamp", () => {
+  it("uses the minimum timestamp across toolCalls when calls are out of order", () => {
+    const startTime = 0;
+    // toolCalls stored with a later timestamp first (post-eviction scenario).
+    const agent = createMockAgent({
+      startTime,
+      toolCalls: [
+        { tool: "bash", timestamp: 9000 }, // later call stored first
+        { tool: "read", timestamp: 3000 }, // earliest call stored second
+      ],
+    });
+    // maxTtft = earliest ttft = 3000
+    const norms = precomputeHeatmapNorms([agent]);
+    expect(norms.maxTtft).toBe(3000);
+
+    const value = computeMetricValue(agent, "timeToFirstTool", norms);
+    // ttft = 3000, maxTtft = 3000 → ratio = 1.0
+    expect(value).toBeCloseTo(1.0);
+  });
+
+  it("normalizer and metric agree when toolCalls are in ascending order", () => {
+    const agent = createMockAgent({
+      startTime: 0,
+      toolCalls: [
+        { tool: "bash", timestamp: 1000 },
+        { tool: "read", timestamp: 4000 },
+      ],
+    });
+    const norms = precomputeHeatmapNorms([agent]);
+    // Both should use timestamp 1000 as the earliest
+    expect(norms.maxTtft).toBe(1000);
+    const value = computeMetricValue(agent, "timeToFirstTool", norms);
+    expect(value).toBeCloseTo(1.0);
+  });
+});
+
 describe("renderHeatmapNode", () => {
   it("is exported as a function", () => {
     expect(typeof renderHeatmapNode).toBe("function");

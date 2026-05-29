@@ -50,14 +50,29 @@ function exportJSON(agents: Map<string, AgentState>) {
   downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.json`, content, "application/json");
 }
 
+export function csvEscape(v: string | number): string {
+  const s = String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
+}
+
 function exportCSV(agents: Map<string, AgentState>) {
   const agentList = Array.from(agents.values());
   const headers = ["id", "type", "status", "tokens", "cost", "duration", "task"];
   const rows = agentList.map((agent) => {
     const cost = calculateCost(agent);
     const tokens = agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
-    const escapedTask = `"${(agent.task || "").replace(/"/g, '""')}"`;
-    return [agent.id, agent.agentType, agent.status, tokens, cost.total.toFixed(4), agent.duration ?? 0, escapedTask].join(",");
+    return [
+      csvEscape(agent.id),
+      csvEscape(agent.agentType),
+      csvEscape(agent.status),
+      csvEscape(tokens),
+      csvEscape(cost.total.toFixed(4)),
+      csvEscape(agent.duration ?? 0),
+      csvEscape(agent.task || ""),
+    ].join(",");
   });
   const content = [headers.join(","), ...rows].join("\n");
   downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.csv`, content, "text/csv");
