@@ -112,7 +112,7 @@ export function DiffViewer() {
           ) : (
             diffs.map((diff, i) => (
               <div
-                key={diff.filePath}
+                key={`${diff.filePath}-${i}`}
                 className="flex items-center gap-2 px-3 py-2 rounded"
                 style={{ background: "var(--color-bg)" }}
               >

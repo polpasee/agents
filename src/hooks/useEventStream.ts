@@ -21,6 +21,7 @@ export function useEventStream() {
     let protocolWarned = false;
 
     function flushEventBuffer() {
+      if (destroyed) return;
       if (eventBuffer.length === 0) return;
       const batch = eventBuffer;
       eventBuffer = [];
@@ -89,6 +90,9 @@ export function useEventStream() {
         case "state:remove":
           if (!replayActive) store.removeAgent(event.agentId);
           break;
+        // Annotations are independent of the replay timeline (replay only
+        // scrubs agents/edges/teams), so they always apply live — gating them
+        // would drop annotation deltas with no resync path on replay exit.
         case "annotation:sync":
           store.replaceAnnotations(event.annotations);
           break;

@@ -22,10 +22,9 @@ beforeEach(() => {
 });
 
 describe("readAgentLog", () => {
-  it("returns empty array when file does not exist", async () => {
+  it("throws when file does not exist (ENOENT propagates to caller)", async () => {
     mockStat.mockRejectedValue(new Error("ENOENT"));
-    const result = await readAgentLog("/nonexistent.jsonl");
-    expect(result).toEqual([]);
+    await expect(readAgentLog("/nonexistent.jsonl")).rejects.toThrow("ENOENT");
   });
 
   it("returns empty array for empty file", async () => {
@@ -152,5 +151,17 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
+  });
+
+  it("rejects (throws) when fs.stat throws ENOENT — IO errors must propagate", async () => {
+    const err = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" });
+    mockStat.mockRejectedValue(err);
+    await expect(readAgentLog("/nonexistent.jsonl")).rejects.toThrow("ENOENT");
+  });
+
+  it("rejects (throws) when fs.readFile throws EACCES — IO errors must propagate", async () => {
+    const err = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    mockReadFile.mockRejectedValue(err);
+    await expect(readAgentLog("/forbidden.jsonl")).rejects.toThrow("EACCES");
   });
 });

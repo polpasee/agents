@@ -49,8 +49,9 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
   replayPlay: () => {
     const { replay } = get();
     if (!replay.active) return;
-    // If we're at (or past) the end, rewind to the start before playing.
-    if (replay.currentTime >= replay.endTime && replay.endTime > replay.startTime) {
+    // If we're at (or past) the end and the session has events, rewind to start.
+    const events = replay.session?.events ?? [];
+    if (replay.currentTime >= replay.endTime && events.length > 0) {
       get().replaySeek(replay.startTime);
     }
     set({ replay: { ...get().replay, playing: true } });

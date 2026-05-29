@@ -24,9 +24,7 @@ export async function GET(
     const entries = await readAgentLog(filePath);
     return NextResponse.json({ entries });
   } catch (err) {
-    return NextResponse.json(
-      { error: `Failed to read log: ${err instanceof Error ? err.message : String(err)}` },
-      { status: 500 },
-    );
+    console.warn(`Failed to read log for ${agentId}:`, err);
+    return NextResponse.json({ error: "Failed to read log" }, { status: 500 });
   }
 }

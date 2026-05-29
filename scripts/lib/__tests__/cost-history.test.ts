@@ -140,4 +140,29 @@ describe("scanCostHistory", () => {
     const second = await scanCostHistory(tmpDir, NOW + 1000);
     expect(second).toEqual(first);
   });
+
+  it("two concurrent cache-miss calls return the same result object (in-flight dedupe)", async () => {
+    // Use a unique `now` far in the future so the cache is guaranteed cold.
+    // Both calls are fired before either resolves; with in-flight dedupe they
+    // share a single promise and therefore resolve to the *same* object reference.
+    const uniqueNow = NOW + 999_999_999;
+    const projDir = path.join(tmpDir, "-project-dedup");
+    await fs.mkdir(projDir, { recursive: true });
+    const file = path.join(projDir, "session.jsonl");
+    await fs.writeFile(file, jsonlLine(uniqueNow - HOUR, "claude-sonnet-4-20260301", {
+      input_tokens: 0, output_tokens: 0,
+      cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
+    }));
+    await fs.utimes(file, uniqueNow / 1000, uniqueNow / 1000);
+
+    // Fire both simultaneously — neither has resolved yet.
+    const [r1, r2] = await Promise.all([
+      scanCostHistory(tmpDir, uniqueNow),
+      scanCostHistory(tmpDir, uniqueNow),
+    ]);
+
+    // With dedupe both calls share a single scan promise → same object reference.
+    // Without dedupe they each create independent CostBuckets objects (toBe fails).
+    expect(r1).toBe(r2);
+  });
 });

@@ -31,9 +31,7 @@ export function useMetricSampler() {
       const prev = metricHistory.length > 0 ? metricHistory[metricHistory.length - 1] : null;
       const intervalSec = METRIC_SAMPLE_INTERVAL_MS / 1000;
       const tokensPerSec = prev ? Math.max(0, (totalTokens - prev.totalTokens) / intervalSec) : 0;
-      const costPerMin = prev && prev.totalCost > 0
-        ? Math.max(0, (totalCost - prev.totalCost) / (METRIC_SAMPLE_INTERVAL_MS / 60000))
-        : 0;
+      const costPerMin = prev ? Math.max(0, (totalCost - prev.totalCost) / (METRIC_SAMPLE_INTERVAL_MS / 60000)) : 0;
 
       pushMetricSample({
         timestamp: Date.now(),

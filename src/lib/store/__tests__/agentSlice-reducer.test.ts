@@ -8,10 +8,11 @@
  * - Duplicate-event suppression (isDuplicateActivity)
  * - errorDetails / setErrorDetail action
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useAgentStore } from "../../store";
 import { isDuplicateActivity } from "../helpers";
 import type { AgentEvent, AgentType } from "../../types";
+import * as colors from "../../colors";
 
 function resetState() {
   useAgentStore.setState({
@@ -313,5 +314,17 @@ describe("errorDetails slice — setErrorDetail action", () => {
     expect(detail?.agentId).toBe("a1");
     expect(detail?.message).toBe("crashed");
     expect(detail?.cascadeIds).toEqual([]);
+  });
+});
+
+// ── removeAgent calls releaseAgentColor ───────────────────────────────────────
+
+describe("removeAgent releases agent color", () => {
+  it("calls releaseAgentColor with the removed agent id", () => {
+    const spy = vi.spyOn(colors, "releaseAgentColor");
+    registerAgent("a1");
+    useAgentStore.getState().removeAgent("a1");
+    expect(spy).toHaveBeenCalledWith("a1");
+    spy.mockRestore();
   });
 });

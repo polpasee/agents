@@ -38,6 +38,7 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<CostBuckets>>();
 
 /** Test-only: drop the in-memory cache so each test scans fresh. */
 export function resetCostHistoryCache(): void {
@@ -116,31 +117,43 @@ export async function scanCostHistory(
   const cached = cache.get(projectsDir);
   if (cached && cached.expires > now) return cached.result;
 
-  const buckets: CostBuckets = { day: 0, week: 0, month: 0 };
-  const files = await collectJsonlFiles(projectsDir);
-  const horizon = now - SCAN_HORIZON_MS;
+  const existing = inFlight.get(projectsDir);
+  if (existing) return existing;
 
-  await Promise.all(files.map(async (file) => {
-    let stat;
-    try {
-      stat = await fs.stat(file);
-    } catch {
-      return;
-    }
-    if (stat.mtimeMs < horizon) return; // file untouched in 30d → no relevant entries
-    let raw;
-    try {
-      raw = await fs.readFile(file, "utf-8");
-    } catch {
-      return;
-    }
-    for (const line of raw.split("\n")) {
-      const entry = costFromLine(line);
-      if (!entry) continue;
-      addToBuckets(buckets, now - entry.timestamp, entry.total);
-    }
-  }));
+  const promise = (async (): Promise<CostBuckets> => {
+    const buckets: CostBuckets = { day: 0, week: 0, month: 0 };
+    const files = await collectJsonlFiles(projectsDir);
+    const horizon = now - SCAN_HORIZON_MS;
 
-  cache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
-  return buckets;
+    await Promise.all(files.map(async (file) => {
+      let stat;
+      try {
+        stat = await fs.stat(file);
+      } catch {
+        return;
+      }
+      if (stat.mtimeMs < horizon) return; // file untouched in 30d → no relevant entries
+      let raw;
+      try {
+        raw = await fs.readFile(file, "utf-8");
+      } catch {
+        return;
+      }
+      for (const line of raw.split("\n")) {
+        const entry = costFromLine(line);
+        if (!entry) continue;
+        addToBuckets(buckets, now - entry.timestamp, entry.total);
+      }
+    }));
+
+    cache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
+    return buckets;
+  })();
+
+  inFlight.set(projectsDir, promise);
+  try {
+    return await promise;
+  } finally {
+    inFlight.delete(projectsDir);
+  }
 }

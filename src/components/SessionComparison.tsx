@@ -47,10 +47,10 @@ function deltaColor(a: number, b: number, lowerIsBetter = true): string {
   return isBetter ? COMPARISON_COLORS.better : COMPARISON_COLORS.worse;
 }
 
-function formatDelta(a: number, b: number, formatter: (n: number) => string): string {
+export function formatDelta(a: number, b: number, formatter: (n: number) => string): string {
   const diff = a - b;
   if (diff === 0) return "=";
-  const sign = diff > 0 ? "+" : "";
+  const sign = diff > 0 ? "+" : "-";
   return `${sign}${formatter(Math.abs(diff))}`;
 }
 

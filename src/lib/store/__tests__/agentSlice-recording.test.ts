@@ -69,13 +69,24 @@ describe("recordedEvents ring buffer", () => {
     expect(recorded[RECORDING_MAX_EVENTS - 1].timestamp).toBe(RECORDING_MAX_EVENTS - 1 + 99);
   });
 
-  it("recordedEvents identity is stable across pushes (push-mutate)", () => {
+  it("recordedEvents is a NEW array after each event (immutable update)", () => {
     useAgentStore.getState().startRecording();
     const before = useAgentStore.getState().recordedEvents;
-    for (let i = 0; i < 10; i++) {
+    emitRegister("agent-0", 0);
+    const after = useAgentStore.getState().recordedEvents;
+    // Must be a new array reference — not the snapshot array mutated in place.
+    expect(after).not.toBe(before);
+    expect(after).toHaveLength(1);
+  });
+
+  it("recordedEvents has length N after N events and is distinct from pre-recording array", () => {
+    useAgentStore.getState().startRecording();
+    const before = useAgentStore.getState().recordedEvents;
+    for (let i = 0; i < 5; i++) {
       emitRegister(`agent-${i}`, i);
     }
-    // Same array reference — push-mutate does not allocate a new array.
-    expect(useAgentStore.getState().recordedEvents).toBe(before);
+    const after = useAgentStore.getState().recordedEvents;
+    expect(after).toHaveLength(5);
+    expect(after).not.toBe(before);
   });
 });

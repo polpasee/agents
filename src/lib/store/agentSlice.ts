@@ -8,6 +8,7 @@ import { calculateCost } from "../costs";
 import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
 import { isDuplicateActivity } from "./helpers";
+import { releaseAgentColor } from "../colors";
 import {
   createMutationContext,
   applyRegister,
@@ -103,10 +104,11 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
           { id: `act-${newActivityId}`, timestamp, event },
         ].slice(-ACTIVITY_MAX_ENTRIES);
 
+    let newRecordedEvents = recordedEvents;
     if (recording) {
-      recordedEvents.push({ timestamp, event });
-      if (recordedEvents.length > RECORDING_MAX_EVENTS) {
-        recordedEvents.splice(0, recordedEvents.length - RECORDING_MAX_EVENTS);
+      newRecordedEvents = [...recordedEvents, { timestamp, event }];
+      if (newRecordedEvents.length > RECORDING_MAX_EVENTS) {
+        newRecordedEvents = newRecordedEvents.slice(newRecordedEvents.length - RECORDING_MAX_EVENTS);
       }
     }
 
@@ -115,6 +117,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       ...(ctx.newEdges !== edges ? { edges: ctx.newEdges } : {}),
       activity: newActivity,
       nextActivityId: newActivityId,
+      ...(recording ? { recordedEvents: newRecordedEvents } : {}),
       ...(ctx.newTeams ? { teams: ctx.newTeams } : {}),
       ...(ctx.newErrorDetails ? { errorDetails: ctx.newErrorDetails } : {}),
       ...(ctx.topologyDirty ? { topologyVersion: topologyVersion + 1 } : {}),
@@ -143,6 +146,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   },
 
   removeAgent: (agentId) => {
+    releaseAgentColor(agentId);
     const { agents, edges, teams, selectedSessionIds } = get();
     const agent = agents.get(agentId);
     const newAgents = new Map(agents);
