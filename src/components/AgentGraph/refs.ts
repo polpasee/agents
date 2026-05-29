@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useMemo } from "react";
 import type { Simulation, ZoomBehavior } from "d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 
@@ -30,16 +30,31 @@ export interface AgentGraphRefs {
 }
 
 export function useAgentGraphRefs(): AgentGraphRefs {
-  return {
-    svgRef: useRef<SVGSVGElement>(null),
-    containerRef: useRef<HTMLDivElement>(null),
-    simulationRef: useRef<Simulation<SimNode, SimLink> | null>(null),
-    nodesRef: useRef<SimNode[]>([]),
-    linksRef: useRef<SimLink[]>([]),
-    toolNodesRef: useRef<SimNode[]>([]),
-    toolLinksRef: useRef<SimLink[]>([]),
-    zoomRef: useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null),
-    effectsRef: useRef<LifecycleEffect[]>([]),
-    prevActivityLenRef: useRef(0),
-  };
+  const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const simulationRef = useRef<Simulation<SimNode, SimLink> | null>(null);
+  const nodesRef = useRef<SimNode[]>([]);
+  const linksRef = useRef<SimLink[]>([]);
+  const toolNodesRef = useRef<SimNode[]>([]);
+  const toolLinksRef = useRef<SimLink[]>([]);
+  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const effectsRef = useRef<LifecycleEffect[]>([]);
+  const prevActivityLenRef = useRef(0);
+
+  return useMemo(
+    () => ({
+      svgRef,
+      containerRef,
+      simulationRef,
+      nodesRef,
+      linksRef,
+      toolNodesRef,
+      toolLinksRef,
+      zoomRef,
+      effectsRef,
+      prevActivityLenRef,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 }

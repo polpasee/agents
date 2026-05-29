@@ -1,6 +1,33 @@
 import { describe, it, expect } from "vitest";
-import { getTokenPercent, formatNumber, formatDuration, truncateId, formatTimestamp, formatTimestampShort } from "../utils";
+import { totalTokens, getTokenPercent, formatNumber, formatDuration, truncateId, formatTimestamp, formatTimestampShort } from "../utils";
 import { mockAgent } from "./test-utils";
+
+describe("totalTokens", () => {
+  it("sums all four token fields", () => {
+    const agent = mockAgent({
+      inputTokens: 100,
+      outputTokens: 200,
+      cacheReadTokens: 50,
+      cacheCreateTokens: 25,
+    });
+    expect(totalTokens(agent)).toBe(375);
+  });
+
+  it("returns 0 when all fields are zero", () => {
+    const agent = mockAgent({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0 });
+    expect(totalTokens(agent)).toBe(0);
+  });
+
+  it("handles agents with only input and output tokens", () => {
+    const agent = mockAgent({ inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheCreateTokens: 0 });
+    expect(totalTokens(agent)).toBe(1500);
+  });
+
+  it("handles agents with only cache tokens", () => {
+    const agent = mockAgent({ inputTokens: 0, outputTokens: 0, cacheReadTokens: 300, cacheCreateTokens: 700 });
+    expect(totalTokens(agent)).toBe(1000);
+  });
+});
 
 describe("getTokenPercent", () => {
   it("returns 0 when both token counts are zero", () => {

@@ -233,6 +233,16 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       }
     }
 
+    // Precompute the team entries array once per topology rebuild.
+    // The tick handler runs at ~60 Hz; filtering teamNodeMap.entries() every tick
+    // is wasteful because teamNodeMap doesn't change between topology rebuilds.
+    // Node positions (x/y) are checked inside teamMerged.each(), so we only
+    // need to filter here for teams that have at least 2 *members* (position
+    // readiness is checked per-frame inside the hull calculation).
+    const teamEntries = Array.from(teamNodeMap.entries()).filter(
+      ([, ns]) => ns.length >= 2,
+    );
+
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
         if (d.edgeType === "tool") return GRAPH.toolLinkDistance;
@@ -288,9 +298,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
         // Update team cluster hulls — join by team id and update in place
         // to avoid a full remove/re-append on every simulation tick.
-        const teamEntries = Array.from(teamNodeMap.entries()).filter(([, ns]) =>
-          ns.filter((n) => n.x != null && n.y != null).length >= 2,
-        );
+        // teamEntries is precomputed above (stable per topology rebuild).
         const teamGroups = teamClusterGroup
           .selectAll<SVGGElement, [string, SimNode[]]>("g.team")
           .data(teamEntries, (d) => d[0]);

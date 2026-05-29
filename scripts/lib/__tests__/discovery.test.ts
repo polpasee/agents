@@ -24,8 +24,6 @@ vi.mock("../file-reader", () => ({
     startTime: Date.now(),
   }),
   cleanupFileOffsets: vi.fn(),
-  readEffortLevel: vi.fn().mockReturnValue(undefined),
-  readIs1MContext: vi.fn().mockReturnValue(undefined),
 }));
 
 vi.mock("../agent-state", () => ({
@@ -42,6 +40,7 @@ vi.mock("../agent-state", () => ({
   broadcast: vi.fn(),
 }));
 
+import * as fs from "node:fs";
 import {
   discoverActiveSessions,
   selectStaleAgentIds,
@@ -397,5 +396,61 @@ describe("selectLosingMains", () => {
     expect(result).toEqual(["m1", "m1-sub", "m2", "m2-sub"]);
     expect(result).not.toContain("m3");
     expect(result).not.toContain("m3-sub");
+  });
+});
+
+describe("settings.json cache — reads each path at most once per discovery pass", () => {
+  it("reads each settings.json path once even when multiple agents are discovered in one pass", async () => {
+    // Make readFileSync return empty-but-valid JSON so the cache stores a
+    // non-null result and later agents retrieve it without a second read.
+    const readFileSyncMock = vi.mocked(fs.readFileSync);
+    readFileSyncMock.mockReturnValue("{}");
+
+    const projectDirName = "-Users-erdos-Github-agents";
+    const now = Date.now();
+    const recentMtime = now - 1000; // 1 s ago — well within DISCOVERY_THRESHOLD
+
+    // fsp.access: always succeeds
+    mockAccess.mockResolvedValue(undefined);
+
+    // fsp.readdir calls:
+    //   1st call → top-level entries (one project dir)
+    //   2nd call → project dir entries (two main JSONL files, no session subdirs)
+    mockReaddir
+      .mockResolvedValueOnce([projectDirName])
+      .mockResolvedValueOnce(["session-aaaa.jsonl", "session-bbbb.jsonl"]);
+
+    // fsp.stat calls:
+    //   - stat for projectDirName (isDirectory check) → directory
+    //   - stat for session-aaaa.jsonl → recent file
+    //   - stat for session-bbbb.jsonl → recent file
+    //   - any session subdir stat → not a directory (so no subagent dirs)
+    mockStat.mockImplementation(async (p: unknown) => {
+      const filePath = String(p);
+      if (filePath.endsWith(projectDirName)) {
+        return { isDirectory: () => true, mtimeMs: recentMtime, size: 0 };
+      }
+      if (filePath.endsWith(".jsonl")) {
+        return { isDirectory: () => false, mtimeMs: recentMtime, size: 100 };
+      }
+      // Session subdir stat (entries of project dir that are directories)
+      return { isDirectory: () => false, mtimeMs: recentMtime, size: 0 };
+    });
+
+    await discoverActiveSessions("/projects");
+
+    // Collect all paths passed to readFileSync that are settings.json files.
+    const settingsPaths = readFileSyncMock.mock.calls
+      .map((c) => String(c[0]))
+      .filter((p) => p.endsWith("settings.json"));
+
+    // Each unique settings path must appear at most once.
+    const uniquePaths = new Set(settingsPaths);
+    expect(settingsPaths.length).toBe(uniquePaths.size);
+
+    // Both agents are in the same project dir so we expect exactly:
+    //   1 × project settings.json  +  1 × user settings.json = 2 reads total.
+    // Without the cache it would be 4 (2 agents × 2 candidates each).
+    expect(settingsPaths.length).toBeLessThanOrEqual(2);
   });
 });

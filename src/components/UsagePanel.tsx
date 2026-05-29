@@ -3,7 +3,7 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, BUDGET_COLORS } from "@/lib/colors";
-import { formatNumber, formatDuration } from "@/lib/utils";
+import { formatNumber, formatDuration, totalTokens } from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 
 function getBarColor(percent: number): string {
@@ -105,7 +105,7 @@ export function UsagePanel() {
     for (const a of list) {
       totalUsed += a.inputTokens + a.outputTokens;
       totalWindow += a.contextWindow;
-      totalAllTokens += a.inputTokens + a.outputTokens + a.cacheReadTokens + a.cacheCreateTokens;
+      totalAllTokens += totalTokens(a);
       if (a.startTime < earliest) earliest = a.startTime;
       if (a.status === "running" || a.status === "idle" || a.status === "waiting") hasActive = true;
     }

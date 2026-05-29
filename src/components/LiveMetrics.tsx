@@ -3,6 +3,7 @@
 import { useRef, useEffect, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, METRIC_COLORS } from "@/lib/colors";
+import { formatCost } from "@/lib/costs";
 import type { MetricSample } from "@/lib/types";
 import { max } from "d3-array";
 import { scaleLinear } from "d3-scale";
@@ -41,7 +42,7 @@ const METRICS: MetricConfig[] = [
     key: "totalCost",
     label: "COST",
     color: METRIC_COLORS.cost,
-    format: (v) => (v < 0.01 ? "<$0.01" : `$${v.toFixed(2)}`),
+    format: formatCost,
   },
   {
     key: "costPerMin",

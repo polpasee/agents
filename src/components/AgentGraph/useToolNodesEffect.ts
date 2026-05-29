@@ -5,6 +5,7 @@ import type { ForceLink } from "d3-force";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import type { SimNode, SimLink } from "@/lib/d3";
+import { endpointId } from "@/lib/d3/endpointId";
 import type { AgentState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 
@@ -37,6 +38,10 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
     // references an agent that was filtered out of nodesRef.
     const visibleAgentIds = new Set(refs.nodesRef.current.map((n) => n.id));
 
+    // Build O(1) lookup maps once instead of Array.find inside the loop.
+    const toolNodeById = new Map<string, SimNode>(refs.toolNodesRef.current.map((n) => [n.id, n]));
+    const agentNodeById = new Map<string, SimNode>(refs.nodesRef.current.map((n) => [n.id, n]));
+
     for (const [agentId, agent] of agents) {
       if (!visibleAgentIds.has(agentId)) continue;
       if (agent.status !== "running" && agent.status !== "idle") continue;
@@ -46,8 +51,8 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
 
       for (const tc of recentCalls) {
         const toolNodeId = `tool:${agentId}:${tc.timestamp}`;
-        const existing = refs.toolNodesRef.current.find((n) => n.id === toolNodeId);
-        const parentNode = refs.nodesRef.current.find((n) => n.id === agentId);
+        const existing = toolNodeById.get(toolNodeId);
+        const parentNode = agentNodeById.get(agentId);
         const toolNode: SimNode = existing ?? {
           id: toolNodeId,
           agent,
@@ -89,14 +94,10 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
     if (!toolLinkGroup.empty()) {
       toolLinkGroup
         .selectAll<SVGLineElement, SimLink>("line")
-        .data(newToolLinks, (d) => {
-          const t = typeof d.target === "string" ? d.target : (d.target as SimNode).id;
-          return t;
-        })
+        .data(newToolLinks, (d) => endpointId(d.target))
         .join("line")
         .attr("stroke", (d) => {
-          const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
-          const agent = agents.get(sourceId);
+          const agent = agents.get(endpointId(d.source));
           const color = agent ? agentColor(agent) : UI.text.secondary;
           return `${color}66`;
         })
@@ -105,7 +106,7 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
         .each(function (d) {
           const line = select(this);
           line.selectAll("animate").remove();
-          const sourceId = typeof d.source === "string" ? d.source : (d.source as SimNode).id;
+          const sourceId = endpointId(d.source);
           const targetNode = typeof d.target === "string" ? null : (d.target as SimNode);
           const agent = agents.get(sourceId);
           if (!targetNode?.toolCall || agent?.status !== "running") return;

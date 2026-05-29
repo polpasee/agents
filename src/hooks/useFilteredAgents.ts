@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
+import { resolveSessionId } from "@/lib/sessions";
 
 export function useFilteredAgents() {
   const agents = useAgentStore((s) => s.agents);
@@ -19,9 +20,8 @@ export function useFilteredAgents() {
     // F5: multi-session filter (empty set = show all)
     if (selectedSessionIds.size > 0) {
       list = list.filter((a) => {
-        const mainAgent = a.parentId ? agents.get(a.parentId) : a;
-        const sid = mainAgent?.sessionId || mainAgent?.id;
-        return sid != null && selectedSessionIds.has(sid);
+        const sid = resolveSessionId(a, agents);
+        return selectedSessionIds.has(sid);
       });
     }
     if (hiddenAgentTypes.size > 0) {

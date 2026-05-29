@@ -14,6 +14,7 @@ import {
   createHeatmapScale,
 } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
+import { endpointId } from "@/lib/d3/endpointId";
 import type { AgentState, HeatmapMetric } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 
@@ -90,10 +91,10 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
       const activeLinkIds: string[] = [];
       const linkGroup2 = d3svg.select<SVGGElement>("g.links");
       linkGroup2.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
-        const targetId = typeof d.target === "string" ? d.target : d.target.id;
+        const targetId = endpointId(d.target);
         const a = agents.get(targetId);
         if (a && (a.status === "running" || a.status === "idle")) {
-          const sourceId = typeof d.source === "string" ? d.source : d.source.id;
+          const sourceId = endpointId(d.source);
           activeLinkIds.push(`${sourceId}→${targetId}`);
         }
       });
@@ -103,7 +104,7 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
         particleGroup.attr("data-hash", particleHash);
         particleGroup.selectAll("*").remove();
         linkGroup2.selectAll<SVGPathElement, SimLink>("path.main").each(function (d) {
-          const targetId = typeof d.target === "string" ? d.target : d.target.id;
+          const targetId = endpointId(d.target);
           const a = agents.get(targetId);
           if (!a || (a.status !== "running" && a.status !== "idle")) return;
 
