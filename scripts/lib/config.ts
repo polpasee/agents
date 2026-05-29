@@ -2,6 +2,13 @@
 
 export const POLL_INTERVAL_MS = 1500;
 
+/** Full filesystem rediscovery (scan every project dir for *new* sessions)
+ *  runs once every Nth poll; the other ticks only refresh agents we already
+ *  track. This keeps live token/tool/status updates at POLL_INTERVAL_MS while
+ *  avoiding a stat() over every historical JSONL file on every tick — the
+ *  dominant poll-loop cost. 4 → a full scan roughly every 6s at 1500ms. */
+export const FULL_SCAN_EVERY_N_POLLS = 4;
+
 /** Hard cap on stored annotations — evict oldest beyond this */
 export const ANNOTATION_MAX_ENTRIES = 500;
 export const ANNOTATION_MAX_TEXT_LENGTH = 1024;

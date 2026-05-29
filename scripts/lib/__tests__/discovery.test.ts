@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockAccess = vi.fn<(..._args: unknown[]) => Promise<void>>();
-const mockReaddir = vi.fn<(..._args: unknown[]) => Promise<string[]>>();
+// readdir is now called with { withFileTypes: true } for the projects dir and
+// each project dir (returns Dirent-likes), and plain (returns string[]) for the
+// per-session `subagents` dir — so the resolved type is a union of both.
+const mockReaddir = vi.fn<(..._args: unknown[]) => Promise<unknown[]>>();
 const mockStat = vi.fn<(..._args: unknown[]) => Promise<{ isDirectory: () => boolean; mtimeMs: number; size: number }>>();
+
+/** Minimal fs.Dirent stand-in for readdir(..., { withFileTypes: true }). */
+function dirent(name: string, isDir: boolean) {
+  return { name, isDirectory: () => isDir, isFile: () => !isDir };
+}
 
 vi.mock("node:fs/promises", () => ({
   access: (...args: unknown[]) => mockAccess(...args),
@@ -41,12 +49,15 @@ vi.mock("../agent-state", () => ({
 }));
 
 import * as fs from "node:fs";
+import { extractTaskFromJSONL, readNewLines } from "../file-reader";
 import {
   discoverActiveSessions,
+  refreshTrackedAgents,
   selectStaleAgentIds,
   selectLosingMains,
   isEphemeralProjectDir,
 } from "../discovery";
+import { agentFilePaths, updateAgentStatus } from "../agent-state";
 import { STALE_THRESHOLD_MS } from "../config";
 
 beforeEach(() => {
@@ -77,23 +88,55 @@ describe("discoverActiveSessions", () => {
 
   it("skips ephemeral project dirs (temp / var-folders) so background SDK runs don't pollute the topology", async () => {
     mockAccess.mockResolvedValue(undefined);
-    // First readdir: top-level project dirs
+    // First readdir (withFileTypes): top-level project dirs as Dirents.
     mockReaddir.mockResolvedValueOnce([
-      "-private-tmp",
-      "-private-var-folders-nd-vn6fz1m57xvf7c4mn",
-      "-Users-erdos-Github-agents",
+      dirent("-private-tmp", true),
+      dirent("-private-var-folders-nd-vn6fz1m57xvf7c4mn", true),
+      dirent("-Users-erdos-Github-agents", true),
     ]);
-    // stat invoked for non-ephemeral candidates only; isDirectory → true
-    mockStat.mockResolvedValue({ isDirectory: () => true, mtimeMs: 0, size: 0 });
     // readdir for the surviving project dir contents — return [] to short-circuit
     mockReaddir.mockResolvedValue([]);
 
     await discoverActiveSessions("/projects");
 
-    const statedDirs = mockStat.mock.calls.map((c) => String(c[0]));
-    expect(statedDirs.some((p) => p.includes("-private-tmp"))).toBe(false);
-    expect(statedDirs.some((p) => p.includes("-private-var-folders"))).toBe(false);
-    expect(statedDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(true);
+    // Ephemeral dirs are filtered by name from the Dirents and never descended
+    // into; only the real workspace gets a follow-up readdir. (No per-entry
+    // stat() happens at this level anymore.)
+    const readDirs = mockReaddir.mock.calls.map((c) => String(c[0]));
+    expect(readDirs.some((p) => p.includes("-private-tmp"))).toBe(false);
+    expect(readDirs.some((p) => p.includes("-private-var-folders"))).toBe(false);
+    expect(readDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(true);
+  });
+});
+
+describe("refreshTrackedAgents", () => {
+  it("stats only already-tracked files and never walks the project tree", async () => {
+    agentFilePaths.clear();
+    agentFilePaths.set("agent-1", "/projects/p/agent-1.jsonl");
+    agentFilePaths.set("agent-2", "/projects/p/agent-2.jsonl");
+    vi.mocked(readNewLines).mockReturnValue([]);
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: Date.now(), size: 10 });
+
+    await refreshTrackedAgents();
+
+    const statted = mockStat.mock.calls.map((c) => String(c[0]));
+    expect(statted).toContain("/projects/p/agent-1.jsonl");
+    expect(statted).toContain("/projects/p/agent-2.jsonl");
+    expect(statted).toHaveLength(2);
+    // The fast tick must not read any directory — that's the whole point.
+    expect(mockReaddir).not.toHaveBeenCalled();
+    // Each tracked agent's status is refreshed from its file mtime.
+    expect(vi.mocked(updateAgentStatus)).toHaveBeenCalledTimes(2);
+  });
+
+  it("skips files that have vanished without throwing", async () => {
+    agentFilePaths.clear();
+    agentFilePaths.set("gone", "/projects/p/gone.jsonl");
+    vi.mocked(readNewLines).mockReturnValue([]);
+    mockStat.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+
+    await expect(refreshTrackedAgents()).resolves.toBeUndefined();
+    expect(vi.mocked(updateAgentStatus)).not.toHaveBeenCalled();
   });
 });
 
@@ -406,36 +449,40 @@ describe("settings.json cache — reads each path at most once per discovery pas
     const readFileSyncMock = vi.mocked(fs.readFileSync);
     readFileSyncMock.mockReturnValue("{}");
 
+    // beforeEach's resetAllMocks() wipes the factory return values, so the two
+    // file-reader helpers reached during registration must be re-stubbed here.
+    vi.mocked(extractTaskFromJSONL).mockReturnValue({
+      task: "test task",
+      slug: "test-slug",
+      model: "claude-sonnet-4-20250514",
+      startTime: Date.now(),
+    });
+    vi.mocked(readNewLines).mockReturnValue([]);
+
     const projectDirName = "-Users-erdos-Github-agents";
+    // Real UUID filenames so both main sessions actually register (the UUID
+    // gate in discovery rejects non-UUID stems), exercising the cache for real.
+    const sessionA = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+    const sessionB = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
     const now = Date.now();
     const recentMtime = now - 1000; // 1 s ago — well within DISCOVERY_THRESHOLD
 
     // fsp.access: always succeeds
     mockAccess.mockResolvedValue(undefined);
 
-    // fsp.readdir calls:
+    // fsp.readdir calls (both withFileTypes → Dirents):
     //   1st call → top-level entries (one project dir)
     //   2nd call → project dir entries (two main JSONL files, no session subdirs)
     mockReaddir
-      .mockResolvedValueOnce([projectDirName])
-      .mockResolvedValueOnce(["session-aaaa.jsonl", "session-bbbb.jsonl"]);
+      .mockResolvedValueOnce([dirent(projectDirName, true)])
+      .mockResolvedValueOnce([
+        dirent(`${sessionA}.jsonl`, false),
+        dirent(`${sessionB}.jsonl`, false),
+      ]);
 
-    // fsp.stat calls:
-    //   - stat for projectDirName (isDirectory check) → directory
-    //   - stat for session-aaaa.jsonl → recent file
-    //   - stat for session-bbbb.jsonl → recent file
-    //   - any session subdir stat → not a directory (so no subagent dirs)
-    mockStat.mockImplementation(async (p: unknown) => {
-      const filePath = String(p);
-      if (filePath.endsWith(projectDirName)) {
-        return { isDirectory: () => true, mtimeMs: recentMtime, size: 0 };
-      }
-      if (filePath.endsWith(".jsonl")) {
-        return { isDirectory: () => false, mtimeMs: recentMtime, size: 100 };
-      }
-      // Session subdir stat (entries of project dir that are directories)
-      return { isDirectory: () => false, mtimeMs: recentMtime, size: 0 };
-    });
+    // fsp.stat is now only hit for the per-file mtime/age check on the two main
+    // JSONL files — directory classification comes from the Dirents above.
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: recentMtime, size: 100 });
 
     await discoverActiveSessions("/projects");
 
@@ -451,6 +498,6 @@ describe("settings.json cache — reads each path at most once per discovery pas
     // Both agents are in the same project dir so we expect exactly:
     //   1 × project settings.json  +  1 × user settings.json = 2 reads total.
     // Without the cache it would be 4 (2 agents × 2 candidates each).
-    expect(settingsPaths.length).toBeLessThanOrEqual(2);
+    expect(settingsPaths.length).toBe(2);
   });
 });

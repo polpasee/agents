@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as os from "node:os";
-import type { Stats } from "node:fs";
+import type { Stats, Dirent } from "node:fs";
 import * as path from "node:path";
 import {
   agents,
@@ -214,44 +214,39 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
     return;
   }
 
-  let allEntries: string[];
+  let topLevel: Dirent[];
   try {
-    allEntries = await fsp.readdir(projectsDir);
+    topLevel = await fsp.readdir(projectsDir, { withFileTypes: true });
   } catch {
     return;
   }
 
-  // Filter to non-ephemeral directories using parallel stat calls
-  const dirStats = await Promise.all(
-    allEntries
-      .filter((d) => !isEphemeralProjectDir(d))
-      .map(async (d) => {
-        const p = path.join(projectsDir, d);
-        try {
-          const stat = await fsp.stat(p);
-          return stat.isDirectory() ? d : null;
-        } catch {
-          return null;
-        }
-      })
-  );
-  const projectDirs = dirStats.filter((d): d is string => d !== null);
+  // Classify directories straight from the readdir result. `Dirent.isDirectory()`
+  // answers the directory question without a per-entry `fs.stat()` — the old
+  // stat-per-entry pass dominated poll-loop CPU once the user had hundreds of
+  // project dirs. (Session/project dirs are never symlinks, so not following
+  // links here matches the previous behavior.)
+  const projectDirs = topLevel
+    .filter((d) => d.isDirectory() && !isEphemeralProjectDir(d.name))
+    .map((d) => d.name);
 
   for (const projectDir of projectDirs) {
     const projectPath = path.join(projectsDir, projectDir);
-    let entries: string[];
+    let entries: Dirent[];
     try {
-      entries = await fsp.readdir(projectPath);
+      entries = await fsp.readdir(projectPath, { withFileTypes: true });
     } catch {
       continue;
     }
 
     // ── Step 1: Discover main session agents ──────────
-    const mainJsonlFiles = entries.filter((f) => {
-      if (!f.endsWith(".jsonl")) return false;
-      const sessionId = f.replace(".jsonl", "");
-      return UUID_RE.test(sessionId);
-    });
+    const mainJsonlFiles = entries
+      .filter((d) => {
+        if (!d.name.endsWith(".jsonl")) return false;
+        const sessionId = d.name.replace(".jsonl", "");
+        return UUID_RE.test(sessionId);
+      })
+      .map((d) => d.name);
 
     for (const mainJsonl of mainJsonlFiles) {
       const sessionId = mainJsonl.replace(".jsonl", "");
@@ -299,18 +294,11 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
     }
 
     // ── Step 2: Discover sub-agents ──────────────────
-    const sessionDirStats = await Promise.all(
-      entries.map(async (d) => {
-        const p = path.join(projectPath, d);
-        try {
-          const stat = await fsp.stat(p);
-          return stat.isDirectory() ? d : null;
-        } catch {
-          return null;
-        }
-      })
-    );
-    const sessionDirs = sessionDirStats.filter((d): d is string => d !== null);
+    // Directory membership comes straight from the readdir Dirents. The old
+    // stat-per-entry pass here was the single largest source of poll-loop
+    // syscalls — it stat'd every historical JSONL file in the project just to
+    // learn it wasn't a directory.
+    const sessionDirs = entries.filter((d) => d.isDirectory()).map((d) => d.name);
 
     for (const sessionId of sessionDirs) {
       const subagentsDir = path.join(projectPath, sessionId, "subagents");
@@ -460,6 +448,18 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
     }
   }
 
+  // Shared maintenance: dedup competing mains, purge stale agents, expire the
+  // removed-id tombstones, and drop offsets for deleted files.
+  pruneState();
+}
+
+/**
+ * In-memory + bookkeeping maintenance shared by the full scan and the cheap
+ * per-tick refresh: dedup competing mains, purge stale agents, expire the
+ * removed-id tombstones, and clean up file offsets. Does no directory walking,
+ * so it is safe (and cheap) to run on every poll.
+ */
+function pruneState(): void {
   // Dedup: when two or more main sessions share a projectDir, keep only the
   // most-recently-active one and cascade-purge the losers along with their
   // sub-agent descendants. Fires before stale-selection so the losing mains
@@ -531,4 +531,39 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 
   // Clean up file offsets for deleted files
   cleanupFileOffsets();
+}
+
+/**
+ * Cheap per-tick refresh that re-reads only the JSONL files of agents we are
+ * already tracking — driving live token / tool-call / status updates without
+ * the directory walk that stat()s every historical session file. New-session
+ * discovery is handled separately on the slower full-scan cadence
+ * (discoverActiveSessions). Runs the same maintenance pass at the end so
+ * time-based idle/stale transitions still fire between full scans.
+ */
+export async function refreshTrackedAgents(): Promise<void> {
+  // Snapshot first — pruneState() (and any mid-loop purge) mutates the map.
+  const tracked = Array.from(agentFilePaths.entries());
+  for (const [agentId, filePath] of tracked) {
+    let stat: Stats;
+    try {
+      stat = await fsp.stat(filePath);
+    } catch {
+      // File vanished (session dir cleaned up). Leave eviction to the stale
+      // purge / offset cleanup in pruneState().
+      continue;
+    }
+
+    const newLines = readNewLines(filePath);
+    for (const line of newLines) {
+      try {
+        // processEntry ignores its sessionId arg; pass agentId for both.
+        processEntry(JSON.parse(line), agentId, agentId);
+      } catch { /* skip malformed lines */ }
+    }
+
+    updateAgentStatus(agentId, stat.mtimeMs);
+  }
+
+  pruneState();
 }

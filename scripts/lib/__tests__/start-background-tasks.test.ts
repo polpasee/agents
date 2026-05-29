@@ -14,6 +14,7 @@ vi.mock("../discovery", () => ({
     state.discoveryCalls += 1;
     if (state.discoveryShouldReject) throw new Error("discovery import path failure");
   }),
+  refreshTrackedAgents: vi.fn(async () => {}),
   selectStaleAgentIds: vi.fn(() => []),
   selectLosingMains: vi.fn(() => []),
   isEphemeralProjectDir: vi.fn(() => false),
