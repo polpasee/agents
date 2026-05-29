@@ -3,6 +3,7 @@ import type { Selection } from "d3-selection";
 import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
 import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
 import type { AgentState } from "@/lib/types";
+import { endpointId } from "./endpointId";
 
 export interface SimNode extends SimulationNodeDatum {
   id: string;
@@ -32,14 +33,11 @@ export function updateLinkVisuals<E extends SVGElement>(
   linkLine: Selection<E, SimLink, SVGGElement, unknown>,
   agents: Map<string, AgentState>,
 ) {
-  const getTargetId = (d: SimLink) =>
-    typeof d.target === "string" ? d.target : d.target.id;
-
   linkGlow.attr("stroke", (d) => {
     if (d.edgeType === "message") {
       return UI.tool; // amber for message edges
     }
-    const a = agents.get(getTargetId(d));
+    const a = agents.get(endpointId(d.target));
     return a ? agentColor(a) : UI.text.secondary;
   });
   linkLine
@@ -47,17 +45,17 @@ export function updateLinkVisuals<E extends SVGElement>(
       if (d.edgeType === "message") {
         return UI.tool;
       }
-      const a = agents.get(getTargetId(d));
+      const a = agents.get(endpointId(d.target));
       return a ? agentColor(a) : UI.text.secondary;
     })
     .attr("stroke-dasharray", (d) => {
       if (d.edgeType === "message") return "4 3";
-      const a = agents.get(getTargetId(d));
+      const a = agents.get(endpointId(d.target));
       const active = a?.status === "running" || a?.status === "idle";
       return active ? "8 4" : "none";
     })
     .each(function (d) {
-      const a = agents.get(getTargetId(d));
+      const a = agents.get(endpointId(d.target));
       const line = select(this);
       // Remove existing animate children before adding new ones
       line.selectAll("animate").remove();
@@ -72,14 +70,14 @@ export function updateLinkVisuals<E extends SVGElement>(
 
   linkLine.attr("stroke-opacity", (d) => {
     if (d.edgeType === "message") return 0.5;
-    const a = agents.get(getTargetId(d));
+    const a = agents.get(endpointId(d.target));
     const finished = a?.status === "completed" || a?.status === "error";
     return finished ? 0.2 : 0.6;
   });
 
   linkGlow.attr("stroke-opacity", (d) => {
     if (d.edgeType === "message") return 0.05;
-    const a = agents.get(getTargetId(d));
+    const a = agents.get(endpointId(d.target));
     const finished = a?.status === "completed" || a?.status === "error";
     return finished ? 0.03 : 0.1;
   });

@@ -2,8 +2,9 @@
 
 import type { AgentState } from "@/lib/types";
 import { UI, STATUS_COLORS, AGENT_LABELS, COMPARISON_COLORS } from "@/lib/colors";
-import { formatNumber, formatDuration } from "@/lib/utils";
+import { formatNumber, formatDuration, totalTokens } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
+import { resolveSessionId } from "@/lib/sessions";
 
 interface SessionComparisonProps {
   leftSession: string;
@@ -26,19 +27,19 @@ function computeMetrics(
   agents: Map<string, AgentState>
 ): SessionMetrics {
   const sessionAgents = Array.from(agents.values()).filter(
-    (a) => (a.sessionId || a.id) === sessionId
+    (a) => resolveSessionId(a, agents) === sessionId
   );
-  let totalTokens = 0;
+  let totalTok = 0;
   let totalCost = 0;
   let totalDuration = 0;
 
   for (const agent of sessionAgents) {
-    totalTokens += agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+    totalTok += totalTokens(agent);
     totalCost += calculateCost(agent).total;
     totalDuration += agent.duration ?? 0;
   }
 
-  return { sessionId, agentCount: sessionAgents.length, totalTokens, totalCost, totalDuration, agents: sessionAgents };
+  return { sessionId, agentCount: sessionAgents.length, totalTokens: totalTok, totalCost, totalDuration, agents: sessionAgents };
 }
 
 function deltaColor(a: number, b: number, lowerIsBetter = true): string {

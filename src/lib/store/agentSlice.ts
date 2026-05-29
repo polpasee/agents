@@ -9,6 +9,7 @@ import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
 import { isDuplicateActivity } from "./helpers";
 import { releaseAgentColor } from "../colors";
+import { resolveSessionId } from "../sessions";
 import {
   createMutationContext,
   applyRegister,
@@ -172,7 +173,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     // is a saner fallback than a blank canvas.
     let nextSelectedSessionIds = selectedSessionIds;
     if (agent && !agent.parentId) {
-      const sid = agent.sessionId || agent.id;
+      const sid = resolveSessionId(agent, agents);
       if (selectedSessionIds.has(sid)) {
         nextSelectedSessionIds = new Set(selectedSessionIds);
         nextSelectedSessionIds.delete(sid);

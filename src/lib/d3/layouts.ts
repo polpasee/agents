@@ -76,12 +76,27 @@ function buildHierarchy(nodes: LayoutNode[], _edges: LayoutLink[]) {
     .sum(() => 1);
 }
 
-/** Top-down tree layout using d3.tree(). */
-export function applyTreeLayout(
+type HierNodeData = ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never;
+
+/**
+ * Shared tree-based layout engine. The three public layout functions delegate
+ * to this with different size/project callbacks so the hierarchy build and
+ * tree traversal are not duplicated.
+ *
+ * @param nodes  - flat list of layout nodes (mutated: fx/fy are set)
+ * @param edges  - edges (used only by buildHierarchy)
+ * @param width  - canvas width
+ * @param height - canvas height
+ * @param sizer  - returns [treeWidth, treeHeight] passed to d3.tree().size()
+ * @param project - maps (d.x, d.y, width, height) → { fx, fy } on each node
+ */
+function applyTreeBasedLayout(
   nodes: LayoutNode[],
   edges: LayoutLink[],
   width: number,
-  height: number
+  height: number,
+  sizer: (width: number, height: number) => [number, number],
+  project: (dx: number, dy: number, width: number, height: number) => { fx: number; fy: number },
 ): void {
   if (nodes.length === 0) return;
   if (nodes.length === 1) {
@@ -91,20 +106,33 @@ export function applyTreeLayout(
   }
 
   const hier = buildHierarchy(nodes, edges);
-  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
-    .size([width * 0.8, height * 0.7]);
-
+  const treeLayout = tree<HierNodeData>().size(sizer(width, height));
   treeLayout(hier);
-
-  const offsetX = width * 0.1;
-  const offsetY = height * 0.1;
 
   hier.each((d) => {
     if (d.data.realNode) {
-      d.data.realNode.fx = (d.x ?? 0) + offsetX;
-      d.data.realNode.fy = (d.y ?? 0) + offsetY;
+      const pos = project(d.x ?? 0, d.y ?? 0, width, height);
+      d.data.realNode.fx = pos.fx;
+      d.data.realNode.fy = pos.fy;
     }
   });
+}
+
+/** Top-down tree layout using d3.tree(). */
+export function applyTreeLayout(
+  nodes: LayoutNode[],
+  edges: LayoutLink[],
+  width: number,
+  height: number
+): void {
+  applyTreeBasedLayout(
+    nodes,
+    edges,
+    width,
+    height,
+    (w, h) => [w * 0.8, h * 0.7],
+    (dx, dy, w, h) => ({ fx: dx + w * 0.1, fy: dy + h * 0.1 }),
+  );
 }
 
 /** Radial layout: d3.tree() with polar coordinate projection. */
@@ -114,31 +142,22 @@ export function applyRadialLayout(
   width: number,
   height: number
 ): void {
-  if (nodes.length === 0) return;
-  if (nodes.length === 1) {
-    nodes[0].fx = width / 2;
-    nodes[0].fy = height / 2;
-    return;
-  }
-
-  const hier = buildHierarchy(nodes, edges);
   const radius = Math.min(width, height) * 0.35;
-  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
-    .size([2 * Math.PI, radius]);
-
-  treeLayout(hier);
-
-  const cx = width / 2;
-  const cy = height / 2;
-
-  hier.each((d) => {
-    if (d.data.realNode) {
-      const angle = d.x ?? 0;
-      const r = d.y ?? 0;
-      d.data.realNode.fx = cx + r * Math.cos(angle - Math.PI / 2);
-      d.data.realNode.fy = cy + r * Math.sin(angle - Math.PI / 2);
-    }
-  });
+  applyTreeBasedLayout(
+    nodes,
+    edges,
+    width,
+    height,
+    () => [2 * Math.PI, radius],
+    (dx, dy, w, h) => {
+      const angle = dx;
+      const r = dy;
+      return {
+        fx: w / 2 + r * Math.cos(angle - Math.PI / 2),
+        fy: h / 2 + r * Math.sin(angle - Math.PI / 2),
+      };
+    },
+  );
 }
 
 /** Hierarchical layout: left-to-right layered. */
@@ -148,26 +167,12 @@ export function applyHierarchicalLayout(
   width: number,
   height: number
 ): void {
-  if (nodes.length === 0) return;
-  if (nodes.length === 1) {
-    nodes[0].fx = width / 2;
-    nodes[0].fy = height / 2;
-    return;
-  }
-
-  const hier = buildHierarchy(nodes, edges);
-  const treeLayout = tree<ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never>()
-    .size([height * 0.8, width * 0.7]);
-
-  treeLayout(hier);
-
-  const offsetX = width * 0.1;
-  const offsetY = height * 0.1;
-
-  hier.each((d) => {
-    if (d.data.realNode) {
-      d.data.realNode.fx = (d.y ?? 0) + offsetX;
-      d.data.realNode.fy = (d.x ?? 0) + offsetY;
-    }
-  });
+  applyTreeBasedLayout(
+    nodes,
+    edges,
+    width,
+    height,
+    (w, h) => [h * 0.8, w * 0.7],
+    (dx, dy, w, h) => ({ fx: dy + w * 0.1, fy: dx + h * 0.1 }),
+  );
 }

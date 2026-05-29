@@ -49,4 +49,27 @@ describe("SessionComparison", () => {
     expect(screen.getAllByText("Cost").length).toBe(2);
     expect(screen.getAllByText("Duration").length).toBe(2);
   });
+
+  it("canonical grouping: child agents are counted under their root's sessionId", () => {
+    const agents = new Map<string, AgentState>();
+    // root agent with session-a; child has no own sessionId but parentId → root
+    agents.set("root-a", mockAgent({ id: "root-a", sessionId: "session-a", agentType: "main" }));
+    agents.set("child-a", mockAgent({ id: "child-a", parentId: "root-a", sessionId: undefined, agentType: "build" }));
+    agents.set("root-b", mockAgent({ id: "root-b", sessionId: "session-b", agentType: "main" }));
+
+    render(
+      <SessionComparison
+        leftSession="session-a"
+        rightSession="session-b"
+        agents={agents}
+        onExit={() => {}}
+      />
+    );
+
+    // session-a has 2 agents (root + child), session-b has 1
+    const agentCountCells = screen.getAllByText("Agents");
+    expect(agentCountCells.length).toBe(2);
+    // The "2" agent count for session-a should appear
+    expect(screen.getByText("2")).toBeDefined();
+  });
 });

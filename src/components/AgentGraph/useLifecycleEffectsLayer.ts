@@ -51,6 +51,9 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
       refs.prevActivityLenRef.current = activityNumId(activity[activity.length - 1]);
     }
 
+    // Build O(1) lookup once for all new entries rather than Array.find per entry.
+    const nodeById = new Map<string, SimNode>(refs.nodesRef.current.map((n) => [n.id, n]));
+
     for (const entry of newEntries) {
       let effectNode: SimNode | undefined;
       let effectType: "spawn" | "complete" | "error" | null = null;
@@ -58,16 +61,16 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
 
       switch (evt.type) {
         case "agent:register":
-          effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+          effectNode = nodeById.get(evt.agentId);
           effectType = "spawn";
           break;
         case "agent:complete":
-          effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+          effectNode = nodeById.get(evt.agentId);
           effectType = "complete";
           break;
         case "agent:status":
           if (evt.status === "error") {
-            effectNode = refs.nodesRef.current.find((n) => n.id === evt.agentId);
+            effectNode = nodeById.get(evt.agentId);
             effectType = "error";
           }
           break;

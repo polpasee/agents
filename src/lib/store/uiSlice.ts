@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import { loadLocalStorage } from "./helpers";
 import type { ThemeMode, GraphLayout, ComparisonState, HeatmapMetric } from "../types";
+import { resolveSessionId } from "../sessions";
 
 export type UISlice = Pick<AgentStore,
   | "selectedAgentId" | "selectedTeamId" | "selectedSessionIds"
@@ -65,7 +66,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
     const liveSessionIds = new Set<string>();
     for (const a of agents.values()) {
       if (a.parentId) continue;
-      liveSessionIds.add(a.sessionId || a.id);
+      liveSessionIds.add(resolveSessionId(a, agents));
     }
 
     // Hydration restored a prior selection — but only honor it if at least
