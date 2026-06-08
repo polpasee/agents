@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
@@ -195,6 +195,23 @@ describe("parseWorkflowFile", () => {
     expect(agent.phaseIndex).toBe(2);
   });
 
+  it("drops workflow_agent entries with empty-string agentId", async () => {
+    const fixture = {
+      ...FULL_FIXTURE,
+      workflowProgress: [
+        { type: "workflow_agent", agentId: "", label: "empty-id-agent", state: "done" },
+        { type: "workflow_agent", agentId: "valid-agent", label: "ok", state: "done" },
+      ],
+    };
+    const filePath = path.join(tmpDir, "wf_emptyid.json");
+    await fs.writeFile(filePath, JSON.stringify(fixture));
+    const result = parseWorkflowFile(filePath, "sess-abc");
+
+    expect(result).not.toBeNull();
+    expect(result!.agents).toHaveLength(1);
+    expect(result!.agents[0].agentId).toBe("valid-agent");
+  });
+
   it("falls back to agents.length when agentCount is absent", async () => {
     const { agentCount: _ac, ...withoutCount } = FULL_FIXTURE;
     const filePath = path.join(tmpDir, "wf_noagentcount.json");
@@ -257,6 +274,29 @@ describe("scanWorkflows", () => {
     // Second call without file changes — should skip all
     const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
     expect(second).toHaveLength(0);
+  });
+
+  it("does not re-read a malformed file on second call when mtime is unchanged", async () => {
+    const sessionId = "sess-mtime-bad";
+    const wfDir = path.join(tmpDir, sessionId, "workflows");
+    await fs.mkdir(wfDir, { recursive: true });
+    await fs.writeFile(path.join(wfDir, "wf_bad.json"), "{not valid json");
+
+    const mtimeCache = new Map<string, number>();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const first = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+      expect(first).toEqual([]);
+      // mtime should be cached even though parse failed
+      expect(mtimeCache.size).toBe(1);
+
+      const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+      expect(second).toEqual([]);
+      // warn must have been called exactly once across both calls
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("re-parses a file when its mtime advances", async () => {

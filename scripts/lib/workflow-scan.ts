@@ -36,7 +36,7 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
     const agents: WorkflowAgentRef[] = rawProgress
       .filter((entry: unknown) => {
         const e = entry as Record<string, unknown>;
-        return e.type === "workflow_agent" && typeof e.agentId === "string";
+        return e.type === "workflow_agent" && typeof e.agentId === "string" && e.agentId.length > 0;
       })
       .map((entry: unknown) => {
         const e = entry as Record<string, unknown>;
@@ -112,11 +112,9 @@ export async function scanWorkflows(
         continue;
       }
       if (mtimeCache.get(filePath) === stat.mtimeMs) continue;
+      mtimeCache.set(filePath, stat.mtimeMs); // record regardless of parse outcome — a malformed file must not be re-read every poll
       const run = parseWorkflowFile(filePath, sessionId);
-      if (run !== null) {
-        mtimeCache.set(filePath, stat.mtimeMs);
-        results.push(run);
-      }
+      if (run !== null) results.push(run);
     } else {
       const run = parseWorkflowFile(filePath, sessionId);
       if (run !== null) results.push(run);

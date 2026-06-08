@@ -158,7 +158,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // Team cluster backgrounds (rendered first so they appear behind everything)
     const teamClusterGroup = canvas.append("g").attr("class", "team-clusters");
 
-    // Workflow cluster backgrounds (behind team clusters and nodes)
+    // Workflow cluster backgrounds (in front of team clusters, behind nodes)
     const workflowClusterGroup = canvas.append("g").attr("class", "workflow-clusters");
 
     // Tool links rendered behind agent links for visual hierarchy
