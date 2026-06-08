@@ -199,12 +199,16 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   upsertWorkflow: (run) => {
     const workflows = new Map(get().workflows);
     workflows.set(run.runId, run);
+    // Bump topologyVersion: workflow hulls/phase labels are only (re)rendered
+    // inside the topologyVersion-gated rebuild in useTopologyEffect.
     set({ workflows, topologyVersion: get().topologyVersion + 1 });
   },
 
   removeWorkflow: (runId) => {
     const workflows = new Map(get().workflows);
     if (!workflows.delete(runId)) return;
+    // Bump topologyVersion: workflow hulls/phase labels are only (re)rendered
+    // inside the topologyVersion-gated rebuild in useTopologyEffect.
     set({ workflows, topologyVersion: get().topologyVersion + 1 });
   },
 

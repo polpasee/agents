@@ -1,14 +1,8 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
-import { UI } from "@/lib/colors";
+import { UI, WORKFLOW_COLOR, WORKFLOW_STATUS_COLORS } from "@/lib/colors";
 import { formatNumber } from "@/lib/utils";
-
-const WORKFLOW_STATUS_COLORS: Record<string, string> = {
-  running: "#22d3ee",
-  completed: "#4ade80",
-  failed: "#ef4444",
-};
 
 export function WorkflowPanel() {
   const workflows = useAgentStore((s) => s.workflows);
@@ -47,8 +41,8 @@ export function WorkflowPanel() {
               className="rounded-md p-2 cursor-pointer transition-colors text-left w-full"
               onClick={() => selectWorkflow(isSelected ? null : run.runId)}
               style={{
-                background: isSelected ? `#a855f711` : "transparent",
-                border: `1px solid ${isSelected ? "#a855f744" : "var(--color-border)"}`,
+                background: isSelected ? `${WORKFLOW_COLOR}11` : "transparent",
+                border: `1px solid ${isSelected ? `${WORKFLOW_COLOR}44` : "var(--color-border)"}`,
               }}
             >
               {/* Run header */}
@@ -58,7 +52,7 @@ export function WorkflowPanel() {
                     className="w-2 h-2 rounded-full"
                     style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
                   />
-                  <span className="text-sm font-bold font-mono" style={{ color: "#a855f7" }}>
+                  <span className="text-sm font-bold font-mono" style={{ color: WORKFLOW_COLOR }}>
                     {run.name}
                   </span>
                 </div>
@@ -81,7 +75,7 @@ export function WorkflowPanel() {
                 </span>
                 {run.totalTokens !== undefined && (
                   <span style={{ color: UI.text.dimmed }}>
-                    Tokens: <span style={{ color: "#a855f7" }}>{formatNumber(run.totalTokens)}</span>
+                    Tokens: <span style={{ color: WORKFLOW_COLOR }}>{formatNumber(run.totalTokens)}</span>
                   </span>
                 )}
                 {run.totalToolCalls !== undefined && (

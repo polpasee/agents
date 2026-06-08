@@ -1,4 +1,4 @@
-import type { AgentEvent, ServerEvent, AgentStatus, AgentType } from "./types";
+import type { AgentEvent, ServerEvent, AgentStatus, AgentType, WorkflowRunState } from "./types";
 
 function isAnnotationShape(v: unknown): boolean {
   if (!v || typeof v !== "object") return false;
@@ -17,14 +17,14 @@ function isAgentType(v: unknown): v is AgentType {
   return typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v);
 }
 
-function isWorkflowRunState(v: unknown): boolean {
+function isWorkflowRunState(v: unknown): v is WorkflowRunState {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
   return (
     typeof r.runId === "string" &&
     typeof r.sessionId === "string" &&
     typeof r.name === "string" &&
-    typeof r.status === "string" &&
+    (r.status === "running" || r.status === "completed" || r.status === "failed") &&
     typeof r.startTime === "number" &&
     typeof r.agentCount === "number" &&
     Array.isArray(r.phases) &&

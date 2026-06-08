@@ -4,7 +4,7 @@ import { zoom } from "d3-zoom";
 import { drag } from "d3-drag";
 import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from "d3-force";
 import { polygonHull, polygonCentroid } from "d3-polygon";
-import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
+import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
@@ -27,11 +27,12 @@ interface Options {
 /**
  * Effect 1: full simulation rebuild on topology change.
  *
- * Reads:  filteredAgents, edges, agents, teams (props), nodesRef (for prev positions)
+ * Reads:  filteredAgents, edges, agents, teams, workflows, selectedAgentId,
+ *         selectedTeamId, selectedWorkflowId (props), nodesRef (for prev positions)
  * Writes: svgRef DOM, simulationRef, nodesRef, linksRef, zoomRef
  *
- * The tick handler updates link/node/team-cluster geometry only. It does NOT
- * render lifecycle effects — those run on a RAF loop in
+ * The tick handler updates link/node/team-cluster/workflow-hull geometry only.
+ * It does NOT render lifecycle effects — those run on a RAF loop in
  * `useLifecycleEffectsLayer` (P-H1 fix).
  */
 export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
@@ -249,6 +250,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     );
 
     // Build workflow-to-nodes lookup for cluster rendering.
+    // Precomputed once per topology rebuild (not per ~60Hz tick). Filtered to
+    // runs with ≥2 present member nodes; the join is best-effort against
+    // currently-live SimNodes — a run may reference agents not yet/no longer
+    // live, and the hull appears only once ≥2 members are present.
     // Each run's agents are joined to SimNodes by agentId.
     const agentIdToRunId = new Map<string, string>();
     const agentIdToPhaseTitle = new Map<string, string | undefined>();
@@ -423,7 +428,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             .map((n) => [n.x!, n.y!] as [number, number]);
           const run = workflows.get(runId);
           const isSelectedWorkflow = runId === selectedWorkflowId;
-          const wfColor = "#a855f7";
+          const wfColor = WORKFLOW_COLOR;
 
           let d = "";
           if (points.length === 2) {
@@ -508,7 +513,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
               select(this)
                 .attr("x", avgX)
                 .attr("y", avgY - 18)
-                .attr("fill", "#a855f7")
+                .attr("fill", WORKFLOW_COLOR)
                 .attr("opacity", 0.5)
                 .text(phaseTitle);
             });
@@ -517,14 +522,17 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     refs.simulationRef.current = simulation;
     return () => { simulation.stop(); };
-    // Intentional: closure over selectedAgentId/selectedTeamId/teams/agents is
-    // fine because Effect 2b handles agents/selectedAgentId; the tick handler
-    // re-reads selectedTeamId/teams from closure on every simulation tick.
+    // Intentional: closure over selectedAgentId/selectedTeamId/selectedWorkflowId/
+    // teams/workflows/agents is fine because Effect 2b handles agents/selectedAgentId;
+    // the tick handler re-reads selectedTeamId/teams/selectedWorkflowId/workflows
+    // from closure on every simulation tick.
     // Rebuilding only on topologyVersion is the entire point of PR #6.
+    // upsertWorkflow/removeWorkflow and the team/agent equivalents all bump
+    // topologyVersion, so workflow hull changes correctly ride the existing rebuild.
     //
     // We DO include filteredAgents.length: the session/type filter is a UI
     // concern that doesn't bump topologyVersion (which tracks graph-shape
-    // changes — agent register/remove, parent/team moves, edge add/remove),
+    // changes — agent register/remove, parent/team/workflow moves, edge add/remove),
     // so without this dep a filter flip from "no matches" to "1 match" leaves
     // the graph stuck on the empty-state message.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -92,6 +92,16 @@ describe("workflow event validation", () => {
   it("rejects workflow:remove with non-string runId", () => {
     expect(isValidServerEvent({ type: "workflow:remove", runId: 42 })).toBe(false);
   });
+
+  it("rejects workflow:update whose workflow.status is not a valid union member", () => {
+    const bad = { ...validWorkflow, status: "bogus" };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(false);
+  });
+
+  it("accepts workflow:update whose workflow.status is a valid union member", () => {
+    const running = { ...validWorkflow, status: "running" };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: running })).toBe(true);
+  });
 });
 
 describe("isValidAgentEvent", () => {
