@@ -15,6 +15,8 @@ import { TopologyUsageStatus } from "./TopologyUsageStatus";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
 import { TeamPanel } from "./TeamPanel";
+import { WorkflowPanel } from "./WorkflowPanel";
+import { WorkflowDetail } from "./WorkflowDetail";
 import { ActivityStream } from "./ActivityStream";
 import { ReplayBar } from "./ReplayBar";
 import { LogViewer } from "./LogViewer";
@@ -221,6 +223,9 @@ export function Dashboard() {
       <ErrorBoundary>
         <TeamPanel />
       </ErrorBoundary>
+      <ErrorBoundary>
+        <WorkflowPanel />
+      </ErrorBoundary>
       {replayActive && (
         <ErrorBoundary>
           <ReplayBar />
@@ -239,6 +244,7 @@ export function Dashboard() {
       <ErrorDrillDown />
       <ExportModal />
       <DiffViewer />
+      <WorkflowDetail />
     </div>
   );
 }
