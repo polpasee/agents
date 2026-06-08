@@ -45,12 +45,12 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
           label: typeof e.label === "string" ? e.label : (e.agentId as string),
           state: typeof e.state === "string" ? e.state : "unknown",
         };
-        if (e.phaseIndex !== undefined) ref.phaseIndex = Number(e.phaseIndex);
+        if (e.phaseIndex !== undefined) { const n = Number(e.phaseIndex); if (Number.isFinite(n)) ref.phaseIndex = n; }
         if (e.phaseTitle !== undefined) ref.phaseTitle = String(e.phaseTitle);
         if (e.model !== undefined) ref.model = String(e.model);
-        if (e.tokens !== undefined) ref.tokens = Number(e.tokens);
-        if (e.toolCalls !== undefined) ref.toolCalls = Number(e.toolCalls);
-        if (e.durationMs !== undefined) ref.durationMs = Number(e.durationMs);
+        if (e.tokens !== undefined) { const n = Number(e.tokens); if (Number.isFinite(n)) ref.tokens = n; }
+        if (e.toolCalls !== undefined) { const n = Number(e.toolCalls); if (Number.isFinite(n)) ref.toolCalls = n; }
+        if (e.durationMs !== undefined) { const n = Number(e.durationMs); if (Number.isFinite(n)) ref.durationMs = n; }
         return ref;
       });
 
@@ -71,7 +71,8 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
     if (typeof data.summary === "string") run.summary = data.summary;
 
     return run;
-  } catch {
+  } catch (err) {
+    console.warn(`Failed to parse workflow file ${filePath}:`, err);
     return null;
   }
 }
@@ -79,8 +80,17 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
 /**
  * Read <projectPath>/<sessionId>/workflows/wf_*.json and parse each.
  * Drops null results from unparseable files.
+ *
+ * When `mtimeCache` is provided, each file's mtime is checked before
+ * reading: if the cached mtime matches, the file is skipped (omitted from
+ * the returned array). On a successful parse the cache is updated.
+ * When omitted, all files are parsed unconditionally (existing behavior).
  */
-export async function scanWorkflows(projectPath: string, sessionId: string): Promise<WorkflowRunState[]> {
+export async function scanWorkflows(
+  projectPath: string,
+  sessionId: string,
+  mtimeCache?: Map<string, number>,
+): Promise<WorkflowRunState[]> {
   const wfDir = path.join(projectPath, sessionId, "workflows");
   let files: string[];
   try {
@@ -93,8 +103,24 @@ export async function scanWorkflows(projectPath: string, sessionId: string): Pro
   for (const file of files) {
     if (!file.startsWith("wf_") || !file.endsWith(".json")) continue;
     const filePath = path.join(wfDir, file);
-    const run = parseWorkflowFile(filePath, sessionId);
-    if (run !== null) results.push(run);
+
+    if (mtimeCache !== undefined) {
+      let stat: { mtimeMs: number };
+      try {
+        stat = await fsp.stat(filePath);
+      } catch {
+        continue;
+      }
+      if (mtimeCache.get(filePath) === stat.mtimeMs) continue;
+      const run = parseWorkflowFile(filePath, sessionId);
+      if (run !== null) {
+        mtimeCache.set(filePath, stat.mtimeMs);
+        results.push(run);
+      }
+    } else {
+      const run = parseWorkflowFile(filePath, sessionId);
+      if (run !== null) results.push(run);
+    }
   }
   return results;
 }

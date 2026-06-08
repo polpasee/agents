@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import { parseWorkflowFile, scanWorkflows } from "../workflow-scan";
+import { utimes } from "node:fs/promises";
 
 let tmpDir: string;
 
@@ -163,6 +164,47 @@ describe("parseWorkflowFile", () => {
 
     expect(result).toBeNull();
   });
+
+  it("omits NaN numeric fields when a workflow_agent entry has non-numeric strings", async () => {
+    const fixture = {
+      ...FULL_FIXTURE,
+      workflowProgress: [
+        {
+          type: "workflow_agent",
+          agentId: "agent-nantest",
+          label: "nan-agent",
+          state: "done",
+          tokens: "N/A",
+          durationMs: "not-a-number",
+          toolCalls: "12",
+          phaseIndex: "2",
+        },
+      ],
+    };
+    const filePath = path.join(tmpDir, "wf_nan.json");
+    await fs.writeFile(filePath, JSON.stringify(fixture));
+    const result = parseWorkflowFile(filePath, "sess-abc");
+
+    expect(result).not.toBeNull();
+    const agent = result!.agents[0];
+    // Non-numeric strings must be omitted (undefined), not NaN
+    expect(agent.tokens).toBeUndefined();
+    expect(agent.durationMs).toBeUndefined();
+    // Valid numeric strings must still parse
+    expect(agent.toolCalls).toBe(12);
+    expect(agent.phaseIndex).toBe(2);
+  });
+
+  it("falls back to agents.length when agentCount is absent", async () => {
+    const { agentCount: _ac, ...withoutCount } = FULL_FIXTURE;
+    const filePath = path.join(tmpDir, "wf_noagentcount.json");
+    await fs.writeFile(filePath, JSON.stringify(withoutCount));
+    const result = parseWorkflowFile(filePath, "sess-abc");
+
+    expect(result).not.toBeNull();
+    // FULL_FIXTURE has 2 workflow_agent entries
+    expect(result!.agentCount).toBe(2);
+  });
 });
 
 describe("scanWorkflows", () => {
@@ -200,5 +242,40 @@ describe("scanWorkflows", () => {
     const result = await scanWorkflows(tmpDir, sessionId);
     expect(result).toHaveLength(1);
     expect(result[0].runId).toBe("wf_1abd6ed8-fdb");
+  });
+
+  it("skips all files on second call when mtimeCache is provided and files unchanged", async () => {
+    const sessionId = "sess-mtime";
+    const wfDir = path.join(tmpDir, sessionId, "workflows");
+    await fs.mkdir(wfDir, { recursive: true });
+    await fs.writeFile(path.join(wfDir, "wf_run1.json"), JSON.stringify(FULL_FIXTURE));
+
+    const mtimeCache = new Map<string, number>();
+    const first = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+    expect(first).toHaveLength(1);
+
+    // Second call without file changes — should skip all
+    const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+    expect(second).toHaveLength(0);
+  });
+
+  it("re-parses a file when its mtime advances", async () => {
+    const sessionId = "sess-mtime2";
+    const wfDir = path.join(tmpDir, sessionId, "workflows");
+    await fs.mkdir(wfDir, { recursive: true });
+    const filePath = path.join(wfDir, "wf_run1.json");
+    await fs.writeFile(filePath, JSON.stringify(FULL_FIXTURE));
+
+    const mtimeCache = new Map<string, number>();
+    const first = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+    expect(first).toHaveLength(1);
+
+    // Advance mtime by 2 seconds
+    const now = Date.now() / 1000;
+    await utimes(filePath, now + 2, now + 2);
+
+    const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
+    expect(second).toHaveLength(1);
+    expect(second[0].runId).toBe(FULL_FIXTURE.runId);
   });
 });
