@@ -46,10 +46,20 @@ vi.mock("../agent-state", () => ({
   processEntry: vi.fn(),
   parseAgentType: vi.fn().mockReturnValue("generic"),
   broadcast: vi.fn(),
+  workflows: new Map(),
+  upsertWorkflow: vi.fn(),
+  removeWorkflow: vi.fn(),
+}));
+
+// Step 1.5 of discoverActiveSessions scans each session's workflows dir; stub
+// it out so the readdir/stat mocks above only have to model agent discovery.
+vi.mock("../workflow-scan", () => ({
+  scanWorkflows: vi.fn().mockResolvedValue([]),
 }));
 
 import * as fs from "node:fs";
 import { extractTaskFromJSONL, readNewLines } from "../file-reader";
+import { scanWorkflows } from "../workflow-scan";
 import {
   discoverActiveSessions,
   refreshTrackedAgents,
@@ -458,6 +468,7 @@ describe("settings.json cache — reads each path at most once per discovery pas
       startTime: Date.now(),
     });
     vi.mocked(readNewLines).mockReturnValue([]);
+    vi.mocked(scanWorkflows).mockResolvedValue([]);
 
     const projectDirName = "-Users-erdos-Github-agents";
     // Real UUID filenames so both main sessions actually register (the UUID
