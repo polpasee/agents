@@ -17,6 +17,21 @@ function isAgentType(v: unknown): v is AgentType {
   return typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v);
 }
 
+function isWorkflowRunState(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.runId === "string" &&
+    typeof r.sessionId === "string" &&
+    typeof r.name === "string" &&
+    typeof r.status === "string" &&
+    typeof r.startTime === "number" &&
+    typeof r.agentCount === "number" &&
+    Array.isArray(r.phases) &&
+    Array.isArray(r.agents)
+  );
+}
+
 /** Validate that a parsed object is a well-formed ServerEvent */
 export function isValidServerEvent(data: unknown): data is ServerEvent {
   if (!data || typeof data !== "object") return false;
@@ -41,6 +56,10 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
     case "annotation:update":
       if (obj.action !== "add" && obj.action !== "remove") return false;
       return isAnnotationShape(obj.annotation);
+    case "workflow:update":
+      return isWorkflowRunState(obj.workflow);
+    case "workflow:remove":
+      return typeof obj.runId === "string";
     default:
       return false;
   }

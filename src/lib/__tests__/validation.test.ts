@@ -56,6 +56,44 @@ describe("isValidServerEvent", () => {
 
 });
 
+describe("workflow event validation", () => {
+  const validWorkflow = {
+    runId: "wf_abc",
+    sessionId: "sess-1",
+    name: "code-review",
+    status: "completed",
+    startTime: 1000,
+    agentCount: 3,
+    phases: [],
+    agents: [],
+  };
+
+  it("accepts workflow:update with valid WorkflowRunState", () => {
+    expect(isValidServerEvent({ type: "workflow:update", workflow: validWorkflow })).toBe(true);
+  });
+
+  it("rejects workflow:update with missing runId", () => {
+    const bad = { ...validWorkflow, runId: undefined };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(false);
+  });
+
+  it("rejects workflow:update with missing workflow field", () => {
+    expect(isValidServerEvent({ type: "workflow:update" })).toBe(false);
+  });
+
+  it("accepts workflow:remove with string runId", () => {
+    expect(isValidServerEvent({ type: "workflow:remove", runId: "wf_abc" })).toBe(true);
+  });
+
+  it("rejects workflow:remove without runId", () => {
+    expect(isValidServerEvent({ type: "workflow:remove" })).toBe(false);
+  });
+
+  it("rejects workflow:remove with non-string runId", () => {
+    expect(isValidServerEvent({ type: "workflow:remove", runId: 42 })).toBe(false);
+  });
+});
+
 describe("isValidAgentEvent", () => {
   it("accepts valid agent:register", () => {
     expect(isValidAgentEvent({ type: "agent:register", agentId: "a1", agentType: "main", task: "do stuff" })).toBe(true);
