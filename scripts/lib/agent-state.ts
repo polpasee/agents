@@ -7,6 +7,7 @@ import type {
   TeamState,
   ThinkingEffort,
   ToolCallEntry,
+  WorkflowRunState,
 } from "../../src/lib/types";
 import {
   STATUS_RUNNING_THRESHOLD_MS,
@@ -29,6 +30,7 @@ declare global {
     agents: Map<string, AgentState>;
     edges: EdgeState[];
     teams: Map<string, TeamState>;
+    workflows: Map<string, WorkflowRunState>;
     agentLastModified: Map<string, number>;
     removedAgentIds: Map<string, number>;
     agentFilePaths: Map<string, string>;
@@ -40,6 +42,7 @@ const store = (globalThis.__agentMonitorState ??= {
   agents: new Map<string, AgentState>(),
   edges: [] as EdgeState[],
   teams: new Map<string, TeamState>(),
+  workflows: new Map<string, WorkflowRunState>(),
   agentLastModified: new Map<string, number>(),
   removedAgentIds: new Map<string, number>(),
   agentFilePaths: new Map<string, string>(),
@@ -52,6 +55,17 @@ export const teams = store.teams;
 export const agentLastModified = store.agentLastModified;
 export const removedAgentIds = store.removedAgentIds;
 export const agentFilePaths = store.agentFilePaths;
+export const workflows = store.workflows;
+
+export function upsertWorkflow(run: WorkflowRunState): void {
+  workflows.set(run.runId, run);
+  broadcast({ type: "workflow:update", workflow: run });
+}
+
+export function removeWorkflow(runId: string): void {
+  workflows.delete(runId);
+  broadcast({ type: "workflow:remove", runId });
+}
 
 /** Get the JSONL file path for an agent */
 export function getAgentFilePath(agentId: string): string | undefined {

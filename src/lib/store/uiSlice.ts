@@ -5,14 +5,14 @@ import type { ThemeMode, GraphLayout, ComparisonState, HeatmapMetric } from "../
 import { resolveSessionId } from "../sessions";
 
 export type UISlice = Pick<AgentStore,
-  | "selectedAgentId" | "selectedTeamId" | "selectedSessionIds"
+  | "selectedAgentId" | "selectedTeamId" | "selectedWorkflowId" | "selectedSessionIds"
   | "sessionFilterInitialized"
   | "viewMode" | "hiddenAgentTypes"
   | "transcriptOpen" | "fileAttentionOpen"
   | "heatmapEnabled" | "heatmapMetric"
   | "graphLayout" | "showExportModal" | "showLiveMetrics"
   | "theme" | "soundMuted" | "comparison"
-  | "selectAgent" | "selectTeam" | "toggleSession" | "selectAllSessions"
+  | "selectAgent" | "selectTeam" | "selectWorkflow" | "toggleSession" | "selectAllSessions"
   | "autoSelectInitialSession"
   | "setViewMode" | "toggleAgentType"
   | "toggleTranscript" | "toggleFileAttention"
@@ -35,6 +35,7 @@ function persistSessionFilter(ids: Set<string>) {
 export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, get) => ({
   selectedAgentId: null,
   selectedTeamId: null,
+  selectedWorkflowId: null,
   selectedSessionIds: new Set(), // F5: empty = all sessions
   sessionFilterInitialized: false,
 
@@ -103,6 +104,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   },
 
   selectTeam: (teamId) => set({ selectedTeamId: teamId }),
+  selectWorkflow: (runId) => set({ selectedWorkflowId: runId }),
 
   viewMode: "graph",
   setViewMode: (mode) => set({ viewMode: mode }),

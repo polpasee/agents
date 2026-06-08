@@ -232,3 +232,13 @@ export const COMPARISON_COLORS = {
   better: TW.emerald400,
   worse: TW.red500,
 } as const;
+
+/** Accent color for workflow hulls, labels, and detail overlay. */
+export const WORKFLOW_COLOR = "#a855f7";
+
+/** Status dot / text colors for workflow run status badges. */
+export const WORKFLOW_STATUS_COLORS: Record<string, string> = {
+  running: TW.cyan400,
+  completed: TW.green400,
+  failed: TW.red500,
+};

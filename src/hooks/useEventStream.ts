@@ -82,7 +82,7 @@ export function useEventStream() {
           // reference the old snapshot and would corrupt the fresh one.
           if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }
           eventBuffer = [];
-          if (!replayActive) store.syncState(event.agents, event.edges, event.teams);
+          if (!replayActive) store.syncState(event.agents, event.edges, event.teams, event.workflows ?? []);
           break;
         case "state:update":
           if (!replayActive) enqueueEvent(event.event, event.timestamp);
@@ -99,6 +99,12 @@ export function useEventStream() {
         case "annotation:update":
           if (event.action === "add") store.addAnnotation(event.annotation);
           else store.removeAnnotation(event.annotation.id);
+          break;
+        case "workflow:update":
+          if (!replayActive) store.upsertWorkflow(event.workflow);
+          break;
+        case "workflow:remove":
+          if (!replayActive) store.removeWorkflow(event.runId);
           break;
       }
     };

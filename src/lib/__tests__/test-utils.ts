@@ -1,4 +1,4 @@
-import type { AgentState, TeamState, AgentType, AgentStatus, TeamStatus } from "../types";
+import type { AgentState, TeamState, AgentType, AgentStatus, TeamStatus, WorkflowRunState } from "../types";
 import { useAgentStore } from "../store";
 
 let agentCounter = 0;
@@ -35,16 +35,30 @@ export function mockTeam(overrides: Partial<TeamState> = {}): TeamState {
   };
 }
 
+export function mockWorkflowRun(overrides: Partial<WorkflowRunState> = {}): WorkflowRunState {
+  return {
+    runId: `wf_test-${Date.now()}`,
+    sessionId: "sess-main",
+    name: "test-workflow",
+    status: "running",
+    startTime: Date.now(),
+    agentCount: 1,
+    phases: [],
+    agents: [],
+    ...overrides,
+  };
+}
+
 /**
  * Reset the Zustand store to its initial state.
  * Call this in beforeEach/afterEach to isolate tests.
  */
 export function resetStore(): void {
   const store = useAgentStore.getState();
-  // Reset core state by syncing empty data
-  store.syncState([], [], []);
+  store.syncState([], [], [], []);
   store.selectAgent(null);
   store.selectTeam(null);
+  store.selectWorkflow(null);
   agentCounter = 0;
   teamCounter = 0;
 }

@@ -19,6 +19,7 @@ import type {
   GraphLayout,
   ComparisonState,
   AgentType,
+  WorkflowRunState,
 } from "../types";
 
 export interface AgentStore {
@@ -49,6 +50,8 @@ export interface AgentStore {
   connected: boolean;
   teams: Map<string, TeamState>;
   selectedTeamId: string | null;
+  workflows: Map<string, WorkflowRunState>;
+  selectedWorkflowId: string | null;
 
   // Actions
   setConnected: (connected: boolean) => void;
@@ -58,8 +61,11 @@ export interface AgentStore {
   /** Pick the most-recent main session into selectedSessionIds — runs once on boot. */
   autoSelectInitialSession: () => void;
   selectTeam: (teamId: string | null) => void;
+  selectWorkflow: (runId: string | null) => void;
+  upsertWorkflow: (run: WorkflowRunState) => void;
+  removeWorkflow: (runId: string) => void;
   getTeamStats: (teamId: string) => TeamStats;
-  syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[]) => void;
+  syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[], workflows?: WorkflowRunState[]) => void;
   handleEvent: (event: AgentEvent, timestamp: number) => void;
   removeAgent: (agentId: string) => void;
   recording: boolean;

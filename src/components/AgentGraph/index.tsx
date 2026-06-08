@@ -34,6 +34,8 @@ export function AgentGraph({ ref }: Props) {
   const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
   const activity = useAgentStore((s) => s.activity);
   const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
+  const workflows = useAgentStore((s) => s.workflows);
+  const selectedWorkflowId = useAgentStore((s) => s.selectedWorkflowId);
   const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
   const heatmapMetric = useAgentStore((s) => s.heatmapMetric);
   const graphLayout = useAgentStore((s) => s.graphLayout);
@@ -59,8 +61,8 @@ export function AgentGraph({ ref }: Props) {
   }, [topologyVersion, fitToView]);
 
   useTopologyEffect(refs, {
-    filteredAgents, edges, agents, teams,
-    selectedAgentId, selectedTeamId, topologyVersion, selectAgent,
+    filteredAgents, edges, agents, teams, workflows,
+    selectedAgentId, selectedTeamId, selectedWorkflowId, topologyVersion, selectAgent,
   });
   useNodeVisualsEffect(refs, { agents, selectedAgentId, heatmapEnabled, heatmapMetric });
   useToolNodesEffect(refs, { agents });

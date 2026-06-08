@@ -93,13 +93,15 @@ export type AgentEvent =
 
 // Events sent from server to dashboard
 export type ServerEvent =
-  | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[]; protocolVersion?: number }
+  | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[]; workflows?: WorkflowRunState[]; protocolVersion?: number }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
   | { type: "state:remove"; agentId: string }
   | { type: "log:response"; agentId: string; entries: LogEntry[] }
   | { type: "log:error"; agentId: string; error: string }
   | { type: "annotation:sync"; annotations: Annotation[] }
-  | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" };
+  | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" }
+  | { type: "workflow:update"; workflow: WorkflowRunState }
+  | { type: "workflow:remove"; runId: string };
 
 export interface AgentState {
   id: string;
@@ -157,6 +159,42 @@ export interface TeamState {
   status: TeamStatus;
   task: string;
   startTime: number;
+}
+
+// ── Workflow Monitoring ───────────────────────────────
+export type WorkflowStatus = "running" | "completed" | "failed";
+
+export interface WorkflowPhase {
+  index: number;
+  title: string;
+  detail?: string;
+}
+
+export interface WorkflowAgentRef {
+  agentId: string;
+  label: string;
+  phaseIndex?: number;
+  phaseTitle?: string;
+  model?: string;
+  state: string;
+  tokens?: number;
+  toolCalls?: number;
+  durationMs?: number;
+}
+
+export interface WorkflowRunState {
+  runId: string;
+  sessionId: string;
+  name: string;
+  status: WorkflowStatus;
+  startTime: number;
+  durationMs?: number;
+  agentCount: number;
+  totalTokens?: number;
+  totalToolCalls?: number;
+  summary?: string;
+  phases: WorkflowPhase[];
+  agents: WorkflowAgentRef[];
 }
 
 export interface TeamStats {

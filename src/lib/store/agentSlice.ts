@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type {
   AgentState,
   TeamState,
+  WorkflowRunState,
 } from "../types";
 import { ACTIVITY_MAX_ENTRIES, RECORDING_MAX_EVENTS } from "../config";
 import { calculateCost } from "../costs";
@@ -21,8 +22,9 @@ import {
 } from "./eventHandlers";
 
 export type AgentSlice = Pick<AgentStore,
-  | "agents" | "edges" | "activity" | "nextActivityId" | "topologyVersion" | "teams" | "connected" | "recording" | "recordedEvents"
+  | "agents" | "edges" | "activity" | "nextActivityId" | "topologyVersion" | "teams" | "workflows" | "connected" | "recording" | "recordedEvents"
   | "setConnected" | "syncState" | "handleEvent" | "removeAgent" | "getTeamStats"
+  | "upsertWorkflow" | "removeWorkflow"
   | "startRecording" | "downloadRecording"
   | "errorDetails" | "setErrorDetail"
   | "agentTypeBudgets" | "setAgentTypeBudget"
@@ -35,6 +37,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   nextActivityId: 0,
   topologyVersion: 0,
   teams: new Map(),
+  workflows: new Map(),
   connected: false,
   recording: false,
   recordedEvents: [],
@@ -61,7 +64,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     return { totalTokens, totalCost, memberCount: members.length, completedCount, errorCount, activeCount };
   },
 
-  syncState: (agentsList, edges, teamsList) => {
+  syncState: (agentsList, edges, teamsList, workflowsList = []) => {
     const agents = new Map<string, AgentState>();
     for (const agent of agentsList) {
       agents.set(agent.id, agent);
@@ -70,8 +73,11 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     for (const team of teamsList) {
       teams.set(team.id, team);
     }
-    // Full snapshot replace — anything could have moved.
-    set({ agents, edges, teams, topologyVersion: get().topologyVersion + 1 });
+    const workflows = new Map<string, WorkflowRunState>();
+    for (const run of workflowsList) {
+      workflows.set(run.runId, run);
+    }
+    set({ agents, edges, teams, workflows, topologyVersion: get().topologyVersion + 1 });
   },
 
   handleEvent: (event, timestamp) => {
@@ -188,6 +194,22 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         ? { selectedSessionIds: nextSelectedSessionIds }
         : {}),
     });
+  },
+
+  upsertWorkflow: (run) => {
+    const workflows = new Map(get().workflows);
+    workflows.set(run.runId, run);
+    // Bump topologyVersion: workflow hulls/phase labels are only (re)rendered
+    // inside the topologyVersion-gated rebuild in useTopologyEffect.
+    set({ workflows, topologyVersion: get().topologyVersion + 1 });
+  },
+
+  removeWorkflow: (runId) => {
+    const workflows = new Map(get().workflows);
+    if (!workflows.delete(runId)) return;
+    // Bump topologyVersion: workflow hulls/phase labels are only (re)rendered
+    // inside the topologyVersion-gated rebuild in useTopologyEffect.
+    set({ workflows, topologyVersion: get().topologyVersion + 1 });
   },
 
   // ── F2: Error Drill-Down ──────────────────────────────

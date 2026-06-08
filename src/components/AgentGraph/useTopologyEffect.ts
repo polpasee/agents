@@ -4,11 +4,11 @@ import { zoom } from "d3-zoom";
 import { drag } from "d3-drag";
 import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from "d3-force";
 import { polygonHull, polygonCentroid } from "d3-polygon";
-import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
+import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
-import type { AgentState, EdgeState, TeamState } from "@/lib/types";
+import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 
 interface Options {
@@ -16,8 +16,10 @@ interface Options {
   edges: EdgeState[];
   agents: Map<string, AgentState>;
   teams: Map<string, TeamState>;
+  workflows: Map<string, WorkflowRunState>;
   selectedAgentId: string | null;
   selectedTeamId: string | null;
+  selectedWorkflowId: string | null;
   topologyVersion: number;
   selectAgent: (id: string | null) => void;
 }
@@ -25,15 +27,16 @@ interface Options {
 /**
  * Effect 1: full simulation rebuild on topology change.
  *
- * Reads:  filteredAgents, edges, agents, teams (props), nodesRef (for prev positions)
+ * Reads:  filteredAgents, edges, agents, teams, workflows, selectedAgentId,
+ *         selectedTeamId, selectedWorkflowId (props), nodesRef (for prev positions)
  * Writes: svgRef DOM, simulationRef, nodesRef, linksRef, zoomRef
  *
- * The tick handler updates link/node/team-cluster geometry only. It does NOT
- * render lifecycle effects — those run on a RAF loop in
+ * The tick handler updates link/node/team-cluster/workflow-hull geometry only.
+ * It does NOT render lifecycle effects — those run on a RAF loop in
  * `useLifecycleEffectsLayer` (P-H1 fix).
  */
 export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
-  const { filteredAgents, edges, agents, teams, selectedAgentId, selectedTeamId, selectAgent, topologyVersion } = opts;
+  const { filteredAgents, edges, agents, teams, workflows, selectedAgentId, selectedTeamId, selectedWorkflowId, selectAgent, topologyVersion } = opts;
 
   useEffect(() => {
     const svg = refs.svgRef.current;
@@ -155,6 +158,9 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // Team cluster backgrounds (rendered first so they appear behind everything)
     const teamClusterGroup = canvas.append("g").attr("class", "team-clusters");
 
+    // Workflow cluster backgrounds (in front of team clusters, behind nodes)
+    const workflowClusterGroup = canvas.append("g").attr("class", "workflow-clusters");
+
     // Tool links rendered behind agent links for visual hierarchy
     canvas.append("g").attr("class", "tool-links");
 
@@ -240,6 +246,34 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // need to filter here for teams that have at least 2 *members* (position
     // readiness is checked per-frame inside the hull calculation).
     const teamEntries = Array.from(teamNodeMap.entries()).filter(
+      ([, ns]) => ns.length >= 2,
+    );
+
+    // Build workflow-to-nodes lookup for cluster rendering.
+    // Precomputed once per topology rebuild (not per ~60Hz tick). Filtered to
+    // runs with ≥2 present member nodes; the join is best-effort against
+    // currently-live SimNodes — a run may reference agents not yet/no longer
+    // live, and the hull appears only once ≥2 members are present.
+    // Each run's agents are joined to SimNodes by agentId.
+    const agentIdToRunId = new Map<string, string>();
+    const agentIdToPhaseTitle = new Map<string, string | undefined>();
+    for (const run of workflows.values()) {
+      for (const ref of run.agents) {
+        agentIdToRunId.set(ref.agentId, run.runId);
+        agentIdToPhaseTitle.set(ref.agentId, ref.phaseTitle);
+      }
+    }
+
+    const workflowNodeMap = new Map<string, SimNode[]>();
+    for (const node of nodes) {
+      const runId = agentIdToRunId.get(node.id);
+      if (runId) {
+        const list = workflowNodeMap.get(runId) ?? [];
+        list.push(node);
+        workflowNodeMap.set(runId, list);
+      }
+    }
+    const workflowEntries = Array.from(workflowNodeMap.entries()).filter(
       ([, ns]) => ns.length >= 2,
     );
 
@@ -372,18 +406,133 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             label.text("");
           }
         });
+
+        // Update workflow cluster hulls
+        const workflowGroups = workflowClusterGroup
+          .selectAll<SVGGElement, [string, SimNode[]]>("g.workflow")
+          .data(workflowEntries, (d) => d[0]);
+        workflowGroups.exit().remove();
+        const workflowEnter = workflowGroups.enter().append("g").attr("class", "workflow");
+        workflowEnter.append("path").attr("class", "wf-cluster-shape");
+        workflowEnter.append("text").attr("class", "wf-cluster-label")
+          .attr("text-anchor", "middle")
+          .attr("font-family", "monospace")
+          .attr("font-size", 10)
+          .attr("font-weight", "bold");
+        const workflowMerged = workflowEnter.merge(workflowGroups);
+
+        workflowMerged.each(function ([runId, runNodes]) {
+          const g = select(this);
+          const points = runNodes
+            .filter((n) => n.x != null && n.y != null)
+            .map((n) => [n.x!, n.y!] as [number, number]);
+          const run = workflows.get(runId);
+          const isSelectedWorkflow = runId === selectedWorkflowId;
+          const wfColor = WORKFLOW_COLOR;
+
+          let d = "";
+          if (points.length === 2) {
+            const cx = (points[0][0] + points[1][0]) / 2;
+            const cy = (points[0][1] + points[1][1]) / 2;
+            const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
+            const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
+            d = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
+          } else {
+            const hull = polygonHull(points);
+            if (hull) {
+              const centroid = polygonCentroid(hull);
+              const expanded = hull.map(([x, y]) => {
+                const dx = x - centroid[0];
+                const dy = y - centroid[1];
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const pad = GRAPH.collideRadius;
+                return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
+              });
+              d = `M${expanded.map((p) => p.join(",")).join("L")}Z`;
+            }
+          }
+
+          g.select<SVGPathElement>("path.wf-cluster-shape")
+            .attr("d", d)
+            .attr("fill", `${wfColor}08`)
+            .attr("stroke", wfColor)
+            .attr("stroke-width", isSelectedWorkflow ? 2 : 1)
+            .attr("stroke-opacity", isSelectedWorkflow ? 0.6 : 0.25)
+            .attr("stroke-linejoin", "round");
+
+          const label = g.select<SVGTextElement>("text.wf-cluster-label");
+          if (run) {
+            let minY = Infinity;
+            for (const p of points) if (p[1] < minY) minY = p[1];
+            if (minY === Infinity) minY = 0;
+            const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
+            label
+              .attr("x", avgX)
+              .attr("y", minY - GRAPH.collideRadius - 8)
+              .attr("fill", wfColor)
+              .attr("opacity", isSelectedWorkflow ? 0.9 : 0.5)
+              .text(`⚙ ${run.name}`);
+          } else {
+            label.text("");
+          }
+        });
+
+        // Phase centroid labels inside workflow clusters
+        workflowMerged.each(function ([runId, runNodes]) {
+          const g = select(this);
+          const run = workflows.get(runId);
+          if (!run || run.phases.length === 0) return;
+
+          // Group run nodes by phaseTitle
+          const nodesByPhase = new Map<string, SimNode[]>();
+          for (const node of runNodes) {
+            const phaseTitle = agentIdToPhaseTitle.get(node.id);
+            if (!phaseTitle) continue;
+            const list = nodesByPhase.get(phaseTitle) ?? [];
+            list.push(node);
+            nodesByPhase.set(phaseTitle, list);
+          }
+
+          // Join phase labels
+          const phaseData = Array.from(nodesByPhase.entries()).filter(
+            ([, ns]) => ns.every((n) => n.x != null && n.y != null),
+          );
+
+          const phaseLabels = g.selectAll<SVGTextElement, [string, SimNode[]]>("text.phase-label")
+            .data(phaseData, (d) => d[0]);
+          phaseLabels.exit().remove();
+          phaseLabels.enter().append("text")
+            .attr("class", "phase-label")
+            .attr("text-anchor", "middle")
+            .attr("font-family", "monospace")
+            .attr("font-size", 8)
+            .merge(phaseLabels)
+            .each(function ([phaseTitle, phaseNodes]) {
+              const avgX = phaseNodes.reduce((s, n) => s + n.x!, 0) / phaseNodes.length;
+              const avgY = phaseNodes.reduce((s, n) => s + n.y!, 0) / phaseNodes.length;
+              select(this)
+                .attr("x", avgX)
+                .attr("y", avgY - 18)
+                .attr("fill", WORKFLOW_COLOR)
+                .attr("opacity", 0.5)
+                .text(phaseTitle);
+            });
+        });
       });
 
     refs.simulationRef.current = simulation;
     return () => { simulation.stop(); };
-    // Intentional: closure over selectedAgentId/selectedTeamId/teams/agents is
-    // fine because Effect 2b handles agents/selectedAgentId; the tick handler
-    // re-reads selectedTeamId/teams from closure on every simulation tick.
+    // Intentional: closure over selectedAgentId/selectedTeamId/selectedWorkflowId/
+    // teams/workflows/agents is fine because Effect 2b handles agents/selectedAgentId;
+    // the tick handler re-reads selectedTeamId/teams/selectedWorkflowId/workflows
+    // from closure on every simulation tick.
     // Rebuilding only on topologyVersion is the entire point of PR #6.
+    // upsertWorkflow/removeWorkflow and the team/agent equivalents all bump
+    // topologyVersion, so workflow hull changes correctly ride the existing rebuild.
     //
     // We DO include filteredAgents.length: the session/type filter is a UI
     // concern that doesn't bump topologyVersion (which tracks graph-shape
-    // changes — agent register/remove, parent/team moves, edge add/remove),
+    // changes — agent register/remove, parent/team/workflow moves, edge add/remove),
     // so without this dep a filter flip from "no matches" to "1 match" leaves
     // the graph stuck on the empty-state message.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -2,6 +2,7 @@ import {
   agents,
   edges,
   teams,
+  workflows,
   viewers,
 } from "../../../../scripts/lib/agent-state";
 import { annotations } from "../../../../scripts/lib/annotation-store";
@@ -58,6 +59,7 @@ export function GET(request: Request): Response {
           agents: Array.from(agents.values()),
           edges: [...edges],
           teams: Array.from(teams.values()),
+          workflows: Array.from(workflows.values()),
           protocolVersion: PROTOCOL_VERSION,
         };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(syncEvent)}\n\n`));

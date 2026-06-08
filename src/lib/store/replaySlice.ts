@@ -32,6 +32,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       teams: new Map(),
       selectedAgentId: null,
       selectedTeamId: null,
+      selectedWorkflowId: null,
       errorDetails: new Map(),
       replay: {
         active: true,

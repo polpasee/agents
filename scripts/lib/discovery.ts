@@ -17,8 +17,10 @@ import {
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
-import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
+import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
+import { scanWorkflows } from "./workflow-scan";
+import { workflows, upsertWorkflow, removeWorkflow } from "./agent-state";
 
 // ---------------------------------------------------------------------------
 // Per-pass settings.json cache — avoids re-reading the same file for every
@@ -69,6 +71,22 @@ function readIs1MContextCached(projectDir: string, cache: SettingsCache): boolea
     if (typeof model === "string") return /\[1m\]/i.test(model);
   }
   return undefined;
+}
+
+// Content-hash cache: avoids re-broadcasting workflow runs that haven't changed.
+const wfContentCache = new Map<string, string>();
+
+// Per-file mtime cache: skips reading wf files that haven't changed on disk.
+const wfMtimeCache = new Map<string, number>();
+
+/**
+ * Returns the runIds of workflow runs belonging to the given session.
+ * Exported for testing.
+ */
+export function workflowRunIdsForSession(workflows: Map<string, WorkflowRunState>, sessionId: string): string[] {
+  const ids: string[] = [];
+  for (const [runId, run] of workflows) if (run.sessionId === sessionId) ids.push(runId);
+  return ids;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -291,6 +309,18 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       }
 
       updateAgentStatus(sessionId, stat.mtimeMs);
+
+      // ── Step 1.5: Discover workflow runs for this session ──
+      {
+        const runs = await scanWorkflows(projectPath, sessionId, wfMtimeCache);
+        for (const run of runs) {
+          const hash = JSON.stringify(run);
+          if (wfContentCache.get(run.runId) !== hash) {
+            wfContentCache.set(run.runId, hash);
+            upsertWorkflow(run);
+          }
+        }
+      }
     }
 
     // ── Step 2: Discover sub-agents ──────────────────
@@ -490,6 +520,12 @@ function pruneState(): void {
     } catch (err) {
       console.warn(`Failed to broadcast dedup removal of ${agentId}:`, err);
     }
+    if (agent && !agent.parentId) {
+      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
+        wfContentCache.delete(runId);
+        removeWorkflow(runId);
+      }
+    }
   }
 
   const staleIds = selectStaleAgentIds(agents, agentLastModified, Date.now());
@@ -518,6 +554,12 @@ function pruneState(): void {
       broadcast({ type: "state:remove", agentId });
     } catch (err) {
       console.warn(`Failed to broadcast removal of ${agentId}:`, err);
+    }
+    if (agent && !agent.parentId) {
+      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
+        wfContentCache.delete(runId);
+        removeWorkflow(runId);
+      }
     }
   }
 
