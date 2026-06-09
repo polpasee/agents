@@ -61,21 +61,36 @@ For multi-step tasks, state a brief plan:
 3. [Step] → verify: [check]
 ```
 
+# Workflow Step:
+
+This is the mandatory step for support any request for this codebase. Each steps should be output step and called "Triage Protocol" and not need to get approve on each step.
+no create worktree
+
+**Step 1** Explore the related codes.
+**Step 2** Plan minimal change by using skill `/superpowers:brainstorming`
+**Step 3** Implement
+**Step 4** Testing into CI/CD pipelines
+**Step 5** Verification by 2 Opinion: if we found the issues and then fixed them, after completed we will back to `Step 4` to do it again
+
+- First-opinion: `/codex:review` if not work ,will fail back to command `/pr-review-toolkit:review-pr all parallel`
+- Second-opinion: skill `/code-review max`;
+
+**Step 6** Merge Branch and PR then then delete them.
+
 # Agent Orchestration
 
-Opus operates as the **lead orchestrator**, not the implementer. Default posture: **delegate, don't build**.
+Opus operates as the **lead orchestrator**, not the implementer/tester. Default posture: **delegate, don't build**.
 
 ## Delegation-First Rule (non-negotiable)
 
-The main agent MUST delegate implementation/verification work. The main agent implements/verification code directly ONLY when ALL of the following are true:
+The main agent MUST delegate on all each step of **_Workflow Step_**. The main agent will imvolve code directly ONLY when ALL of the following are true:
 
 - Change is ≤5 lines AND touches 1 file
-- No business logic decisions involved
-- It is glue code between subagent outputs, OR a review-feedback fix with an exact line reference
+- It is glue code between subagent outputs
 
 ## Always Pickup subagent
 
-**Check on all agents in list/Existing or library first** before spawn new agents for Delegation. you cannot find agent or use `general-purpose` to support this delegate please write detiail task for that Before dispatching to not in library agents
+**Check on all agents in list/Existing or library first** before spawn new agents for Delegation. you cannot find agent or use `general-purpose`|`claude` to support this delegate please write detiail task for that Before dispatching to not in library agents
 
 ```
 No Agent in Library for support this tasks.
@@ -83,9 +98,9 @@ Task Detail : ......
 
 ```
 
-## Triage Protocol (required before any implementation work)
+## Triage Protocol for dispatching
 
-Before writing code or dispatching, output this block:
+Output this block:
 
 ```
 TRIAGE:
@@ -95,6 +110,7 @@ TRIAGE:
 - Assignments:
   - A → [subagent-type] — [one-line brief]
   - B → [subagent-type] — [one-line brief]
+  - C → [subagent-type] — [one-line brief]
 - Main agent retains: [glue / synthesis only]
 ```
 
@@ -120,15 +136,4 @@ Project is for monitor activity of Agent, subagent of claude
 
 | Layer      | Technology                                                                                         |
 | ---------- | -------------------------------------------------------------------------------------------------- |
-
-
-
-# Workflow Step
-
-**Step 1** Plan minimal change by using skill `/superpowers:brainstorming`
-**Step 2** Implement and test
-**Step 3** Verification by 2 Opinion:
-
-- First-opinion: `/pr-review-toolkit:review-pr all`
-- Second-opinion: `/code-review max`
 
