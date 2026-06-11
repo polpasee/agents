@@ -4,8 +4,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 // ccstatusline writes fresh data to CCSTATUSLINE_CACHE every ~3 minutes. The
 // startBackgroundTasks usage poll loop owns refresh cadence (see
-// scripts/lib/ccstatusline.ts). This route is a pure cache reader — no spawn,
-// no side effects, idempotent GET.
+// scripts/lib/background-tasks.ts; ccstatusline.ts exposes the helpers it calls).
+// This route is a pure cache reader — no spawn, no side effects, idempotent GET.
 import { CCSTATUSLINE_CACHE } from "../../../../scripts/lib/ccstatusline";
 
 /** Legacy fallback: Claude Code's own file. Older versions wrote it when

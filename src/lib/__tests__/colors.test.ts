@@ -9,31 +9,19 @@ import {
   ANNOTATION_COLOR,
   METRIC_COLORS,
   COMPARISON_COLORS,
+  BUDGET_COLORS,
   agentColor,
   assignAgentColor,
   releaseAgentColor,
   resetAgentColorRegistry,
+  getBarColor,
 } from "../colors";
+import { AGENT_TYPES, AGENT_STATUSES } from "../types";
 import type { AgentType, AgentStatus } from "../types";
 
-const ALL_AGENT_TYPES: AgentType[] = [
-  "main",
-  "explore",
-  "plan",
-  "build",
-  "review",
-  "test",
-  "team-lead",
-  "generic",
-];
+const ALL_AGENT_TYPES: AgentType[] = [...AGENT_TYPES];
 
-const ALL_AGENT_STATUSES: AgentStatus[] = [
-  "running",
-  "waiting",
-  "idle",
-  "completed",
-  "error",
-];
+const ALL_AGENT_STATUSES: AgentStatus[] = [...AGENT_STATUSES];
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
 
@@ -250,6 +238,24 @@ describe("assignAgentColor", () => {
       expect(c).not.toBe("#fb7185"); // TW.rose400
       expect(c).not.toBe("#facc15"); // TW.yellow400
     }
+  });
+});
+
+describe("getBarColor", () => {
+  it("60 → ok color (not above warning threshold)", () => {
+    expect(getBarColor(60)).toBe(BUDGET_COLORS.ok);
+  });
+
+  it("61 → warning color (just above 60)", () => {
+    expect(getBarColor(61)).toBe(BUDGET_COLORS.warning);
+  });
+
+  it("85 → warning color (not above critical threshold)", () => {
+    expect(getBarColor(85)).toBe(BUDGET_COLORS.warning);
+  });
+
+  it("86 → critical color (just above 85)", () => {
+    expect(getBarColor(86)).toBe(BUDGET_COLORS.critical);
   });
 });
 

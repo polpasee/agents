@@ -109,13 +109,13 @@ export function loadLocalStorage<T>(key: string, fallback: T): T {
 /**
  * Counterpart to loadLocalStorage: guarded, throw-safe write. Strings are
  * stored raw (loadLocalStorage's parse-fallback reads them back as-is);
- * `null` removes the key. Quota / privacy-mode failures are silently
- * ignored so the caller's in-memory state update still proceeds.
+ * `null` removes the key. Quota / privacy-mode failures are warned via
+ * console.warn so the caller's in-memory state update still proceeds.
  */
 export function saveLocalStorage(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-  } catch { /* quota / privacy mode — silently skip */ }
+  } catch (err) { console.warn(`localStorage write failed for ${key}:`, err); }
 }

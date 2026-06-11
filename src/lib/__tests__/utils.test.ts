@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { totalTokens, getTokenPercent, formatNumber, formatDuration, truncateId, formatTimestamp, formatTimestampShort } from "../utils";
+import { totalTokens, getTokenPercent, formatNumber, formatDuration, truncateId, formatTimestamp, formatTimestampShort, formatResetTime } from "../utils";
 import { mockAgent } from "./test-utils";
 
 describe("totalTokens", () => {
@@ -177,5 +177,23 @@ describe("formatTimestampShort", () => {
 
   it("returns a string (not undefined or empty)", () => {
     expect(formatTimestampShort(Date.now())).toBeTruthy();
+  });
+});
+
+describe("formatResetTime", () => {
+  it("0ms → '0m'", () => {
+    expect(formatResetTime(0)).toBe("0m");
+  });
+
+  it("90 minutes → '1hr 30m'", () => {
+    expect(formatResetTime(90 * 60 * 1000)).toBe("1hr 30m");
+  });
+
+  it("24h rollover → '1d 0hr'", () => {
+    expect(formatResetTime(24 * 60 * 60 * 1000)).toBe("1d 0hr");
+  });
+
+  it("25h → '1d 1hr'", () => {
+    expect(formatResetTime(25 * 60 * 60 * 1000)).toBe("1d 1hr");
   });
 });

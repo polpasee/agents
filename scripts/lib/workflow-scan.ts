@@ -83,7 +83,8 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
  *
  * When `mtimeCache` is provided, each file's mtime is checked before
  * reading: if the cached mtime matches, the file is skipped (omitted from
- * the returned array). On a successful parse the cache is updated.
+ * the returned array). The cache is updated before parsing (regardless of
+ * parse outcome) so a malformed file is not re-read every poll.
  * When omitted, all files are parsed unconditionally (existing behavior).
  */
 export async function scanWorkflows(
