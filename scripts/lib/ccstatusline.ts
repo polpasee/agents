@@ -6,9 +6,10 @@
 // spawn the binary with a minimal stdin payload — the cache write is the
 // useful side effect.
 //
-// This module is imported by both `scripts/ws-server.ts` (the long-running
-// poll loop that owns refresh cadence) and `src/app/api/usage/route.ts`
-// (which used to spawn directly but now just reads the cache).
+// This module is imported by both the startBackgroundTasks usage poll loop
+// (the long-running loop that owns refresh cadence) and
+// `src/app/api/usage/route.ts` (which used to spawn directly but now just
+// reads the cache).
 //
 // Sprint 1 hardening retained: pinned local binary resolution and a strictly
 // filtered env so a compromised ccstatusline cannot exfiltrate ambient secrets.

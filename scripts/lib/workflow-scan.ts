@@ -113,12 +113,9 @@ export async function scanWorkflows(
       }
       if (mtimeCache.get(filePath) === stat.mtimeMs) continue;
       mtimeCache.set(filePath, stat.mtimeMs); // record regardless of parse outcome — a malformed file must not be re-read every poll
-      const run = parseWorkflowFile(filePath, sessionId);
-      if (run !== null) results.push(run);
-    } else {
-      const run = parseWorkflowFile(filePath, sessionId);
-      if (run !== null) results.push(run);
     }
+    const run = parseWorkflowFile(filePath, sessionId);
+    if (run !== null) results.push(run);
   }
   return results;
 }

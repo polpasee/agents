@@ -2,12 +2,11 @@ import { NextResponse } from "next/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-
-/** ccstatusline writes fresh data here every ~3 minutes. The ws-server now
- *  owns refresh cadence (see scripts/lib/ccstatusline.ts and the
- *  USAGE_REFRESH_INTERVAL_MS poll loop in scripts/ws-server.ts). This route
- *  is a pure cache reader — no spawn, no side effects, idempotent GET. */
-const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");
+// ccstatusline writes fresh data to CCSTATUSLINE_CACHE every ~3 minutes. The
+// startBackgroundTasks usage poll loop owns refresh cadence (see
+// scripts/lib/ccstatusline.ts). This route is a pure cache reader — no spawn,
+// no side effects, idempotent GET.
+import { CCSTATUSLINE_CACHE } from "../../../../scripts/lib/ccstatusline";
 
 /** Legacy fallback: Claude Code's own file. Older versions wrote it when
  *  rate-limit headers came back; newer versions have stopped writing it

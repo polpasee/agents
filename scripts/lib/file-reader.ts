@@ -1,69 +1,6 @@
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
-import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
-
-function warnNonMissing(file: string, err: unknown): void {
-  if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-    console.warn(`Failed to read settings ${file}:`, err);
-  }
-}
-
-/**
- * Resolve the candidate settings.json paths (project-first, user fallback).
- * Centralized so the effort + 1M-context readers share lookup order without
- * each re-doing the project-vs-user precedence dance.
- */
-function settingsCandidates(projectDir?: string): string[] {
-  return [
-    projectDir ? path.join(projectDir, ".claude", "settings.json") : null,
-    path.join(os.homedir(), ".claude", "settings.json"),
-  ].filter((p): p is string => Boolean(p));
-}
-
-/**
- * Read the user's extended-thinking effort tier from `.claude/settings.json`.
- * Returns `undefined` when the setting is missing or malformed — the renderer
- * hides the line in that case rather than guessing a default.
- */
-export function readEffortLevel(projectDir?: string): ThinkingEffort | undefined {
-  for (const file of settingsCandidates(projectDir)) {
-    try {
-      const raw = fs.readFileSync(file, "utf-8");
-      const parsed = JSON.parse(raw);
-      const value = parsed?.effortLevel;
-      if (typeof value === "string" && (THINKING_EFFORTS as readonly string[]).includes(value)) {
-        return value as ThinkingEffort;
-      }
-    } catch (err) {
-      warnNonMissing(file, err);
-    }
-  }
-  return undefined;
-}
-
-/**
- * Detect whether the user has the 1M-context beta enabled — encoded as a
- * `[1m]` suffix on the `model` field of `.claude/settings.json` (e.g.
- * `"model": "opus[1m]"`). Returns `undefined` when no candidate file
- * yields a usable `model` string — distinguishing "we don't know" from
- * "definitely off" so the slice's `??` merge can preserve a known value
- * across transient read failures.
- */
-export function readIs1MContext(projectDir?: string): boolean | undefined {
-  for (const file of settingsCandidates(projectDir)) {
-    try {
-      const raw = fs.readFileSync(file, "utf-8");
-      const parsed = JSON.parse(raw);
-      const model = parsed?.model;
-      if (typeof model === "string") return /\[1m\]/i.test(model);
-    } catch (err) {
-      warnNonMissing(file, err);
-    }
-  }
-  return undefined;
-}
 
 const fileOffsets = new Map<string, number>();
 

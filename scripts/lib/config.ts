@@ -44,11 +44,12 @@ export const MAX_ARG_PREVIEW_LENGTH = 60;
 export const INLINE_ARGS_MAX_KEYS = 2;
 export const JSONL_MAX_BYTES = 16384;
 
-/** ── Usage cache refresh (ws-server-owned) ─────────────
- *  ws-server polls the ccstatusline cache file mtime on this interval and
- *  fires a refresh spawn if the cache is older than USAGE_REFRESH_THRESHOLD_MS.
- *  Owning refresh cadence here (vs. the HTTP route) makes the GET handler
- *  pure and removes a TOCTOU race between concurrent requests. */
+/** ── Usage cache refresh (startBackgroundTasks-owned) ─────────────
+ *  The startBackgroundTasks usage poll loop checks the ccstatusline cache file
+ *  mtime on this interval and fires a refresh spawn if the cache is older than
+ *  USAGE_REFRESH_THRESHOLD_MS. Owning refresh cadence there (vs. the HTTP
+ *  route) makes the GET handler pure and removes a TOCTOU race between
+ *  concurrent requests. */
 export const USAGE_REFRESH_INTERVAL_MS = 30 * 1000;
 /** Spawn ccstatusline when the cache is older than this. Matches ccstatusline's
  *  own internal CACHE_MAX_AGE (180s) so a refresh actually round-trips to the API. */
