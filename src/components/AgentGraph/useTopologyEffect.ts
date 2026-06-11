@@ -6,8 +6,7 @@ import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide
 import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
-import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
-import { agentDepth, depthFactor } from "@/lib/d3/depth";
+import { renderNodeVisuals, updateLinkVisuals, bezierPath, agentDepth, depthFactor } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
@@ -282,21 +281,26 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
         if (d.edgeType === "tool") return GRAPH.toolLinkDistance;
-        // Parent links shrink with the child's nesting depth (depth 1 is a no-op)
-        if (d.edgeType === "parent") return GRAPH.subAgentLinkDistance * depthFactor((d.target as SimNode).depth ?? 1);
+        // Parent links shrink with the child's nesting depth (depth 1 is a
+        // no-op). Team members render full-size, so their links don't scale.
+        if (d.edgeType === "parent") {
+          const target = d.target as SimNode;
+          return GRAPH.subAgentLinkDistance * (target.agent.teamId ? 1 : depthFactor(target.depth));
+        }
         return GRAPH.linkDistance;
       }))
       .force("charge", forceManyBody<SimNode>()
         .distanceMax(GRAPH.chargeDistanceMax)
         .strength((d) => {
           if (d.toolCall) return GRAPH.chargeStrengthTool;
-          if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent * depthFactor(d.depth ?? 1);
+          // Team members render full-size, so their charge doesn't scale.
+          if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent * (d.agent.teamId ? 1 : depthFactor(d.depth));
           return GRAPH.chargeStrengthMain;
         }))
       .force("x", forceX<SimNode>(width / 2).strength((d) => d.toolCall ? 0 : GRAPH.centerStrength))
       .force("y", forceY<SimNode>(height / 2).strength((d) => d.toolCall ? 0 : GRAPH.centerStrength))
       .force("collide", forceCollide<SimNode>().radius((d) =>
-        d.toolCall ? GRAPH.toolNodeRadius + 4 : getNodeRadius(d.agent) + 4,
+        d.toolCall ? GRAPH.toolNodeRadius + 4 : getNodeRadius(d.agent, depthFactor(d.depth)) + 4,
       ))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
@@ -529,6 +533,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // teams/workflows/agents is fine because Effect 2b handles agents/selectedAgentId;
     // the tick handler re-reads selectedTeamId/teams/selectedWorkflowId/workflows
     // from closure on every simulation tick.
+    // This effect also derives per-node depth from `agents` (agentDepth at
+    // node-build time). That stays correct only because every parentId
+    // mutation sets topologyDirty — bumping topologyVersion and rebuilding
+    // here; Effect 2b refreshes d.agent in place but never d.depth.
     // Rebuilding only on topologyVersion is the entire point of PR #6.
     // upsertWorkflow/removeWorkflow and the team/agent equivalents all bump
     // topologyVersion, so workflow hull changes correctly ride the existing rebuild.

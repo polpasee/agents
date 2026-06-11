@@ -4,6 +4,7 @@ import {
   TOOL_CALLS_MAX_PER_AGENT,
   DEFAULT_CONTEXT_WINDOW,
   GRAPH,
+  getNodeRadius,
 } from "../config";
 
 describe("Client-side config", () => {
@@ -64,6 +65,20 @@ describe("Client-side config", () => {
     it("nodeRadius < glowRingRadius < collideRadius", () => {
       expect(GRAPH.nodeRadius).toBeLessThan(GRAPH.glowRingRadius);
       expect(GRAPH.glowRingRadius).toBeLessThan(GRAPH.collideRadius);
+    });
+  });
+
+  describe("getNodeRadius", () => {
+    it("defaults to the flat radii when no depth factor is given", () => {
+      expect(getNodeRadius({ parentId: "p" })).toBe(GRAPH.subAgentNodeRadius);
+      expect(getNodeRadius({})).toBe(GRAPH.nodeRadius);
+      expect(getNodeRadius({ parentId: "p", teamId: "t" })).toBe(GRAPH.nodeRadius);
+    });
+
+    it("scales only the sub-agent branch by the depth factor", () => {
+      expect(getNodeRadius({ parentId: "p" }, 0.85)).toBe(GRAPH.subAgentNodeRadius * 0.85);
+      expect(getNodeRadius({}, 0.85)).toBe(GRAPH.nodeRadius);
+      expect(getNodeRadius({ parentId: "p", teamId: "t" }, 0.85)).toBe(GRAPH.nodeRadius);
     });
   });
 });

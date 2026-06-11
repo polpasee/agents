@@ -25,10 +25,10 @@ export function agentDepth(agentId: string, agents: Map<string, AgentState>): nu
 
 /**
  * Gentle per-level shrink applied to sub-agent link distance, charge
- * strength, and node radius. Depth ≤1 is exactly 1 so direct sub-agents
- * render unchanged; deeper levels decay by GRAPH.depthScale per level,
- * floored at GRAPH.depthScaleMin.
+ * strength, and node radius. Depth ≤1 (or omitted) is exactly 1 so direct
+ * sub-agents render unchanged; deeper levels decay by GRAPH.depthScale per
+ * level, floored at GRAPH.depthScaleMin.
  */
-export function depthFactor(depth: number): number {
-  return depth <= 1 ? 1 : Math.max(GRAPH.depthScaleMin, Math.pow(GRAPH.depthScale, depth - 1));
+export function depthFactor(depth = 1): number {
+  return Math.max(GRAPH.depthScaleMin, GRAPH.depthScale ** Math.max(0, depth - 1));
 }

@@ -98,6 +98,11 @@ describe("renderNodeVisuals depth scaling", () => {
     const agent = createMockAgent();
     expect(renderHex(agent, 3)).toBe(hexPath(GRAPH.nodeRadius));
   });
+
+  it("team member (parentId + teamId) stays full-size regardless of depth", () => {
+    const agent = createMockAgent({ parentId: "p1", teamId: "t1" });
+    expect(renderHex(agent, 2)).toBe(hexPath(GRAPH.nodeRadius));
+  });
 });
 
 describe("updateLinkVisuals", () => {

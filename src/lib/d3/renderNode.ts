@@ -1,6 +1,6 @@
 import type { Selection } from "d3-selection";
 import { AGENT_LABELS, agentColor } from "@/lib/colors";
-import { GRAPH } from "@/lib/config";
+import { GRAPH, getNodeRadius } from "@/lib/config";
 import { depthFactor } from "./depth";
 import type { AgentState } from "@/lib/types";
 
@@ -100,7 +100,7 @@ export function renderNodeVisuals(
 
   // Effective radius & scale (used by backplate, body hex, and label sizing).
   // Nested sub-agents shrink per nesting level; depth 1 / undefined is a no-op.
-  const r = isSubAgent ? GRAPH.subAgentNodeRadius * depthFactor(depth ?? 1) : GRAPH.nodeRadius;
+  const r = getNodeRadius(agent, depthFactor(depth));
   const scale = r / GRAPH.nodeRadius;
 
   // Opaque backplate keeps links occluded when the rest of the node dims —

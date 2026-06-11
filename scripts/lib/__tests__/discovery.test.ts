@@ -85,8 +85,9 @@ import {
   reparentAgent,
   spawnIndex,
   viewers,
+  broadcast,
 } from "../agent-state";
-import { STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS } from "../config";
+import { STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS } from "../config";
 
 // The unmocked module — used by the nested-subagent fixtures to restore real
 // implementations onto the vi.fn wrappers after each resetAllMocks(). State
@@ -95,6 +96,15 @@ const actualAgentState = await vi.importActual<typeof import("../agent-state")>(
 
 beforeEach(() => {
   vi.resetAllMocks();
+  agents.clear();
+  edges.length = 0;
+  teams.clear();
+  agentLastModified.clear();
+  removedAgentIds.clear();
+  agentFilePaths.clear();
+  spawnIndex.clear();
+  pendingReparents.clear();
+  viewers.clear();
 });
 
 describe("discoverActiveSessions", () => {
@@ -646,16 +656,6 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
   }
 
   beforeEach(() => {
-    agents.clear();
-    edges.length = 0;
-    teams.clear();
-    agentLastModified.clear();
-    removedAgentIds.clear();
-    agentFilePaths.clear();
-    spawnIndex.clear();
-    pendingReparents.clear();
-    viewers.clear();
-
     // The file-level resetAllMocks() wiped implementations; restore the real
     // agent-state behaviour so scans mutate the actual state maps.
     vi.mocked(registerAgent).mockImplementation(actualAgentState.registerAgent);
@@ -879,16 +879,6 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
 
 describe("pruneState — dedup purge cleans spawn bookkeeping", () => {
   it("drops the losing main's spawnIndex entries and its descendant's pendingReparents entry", async () => {
-    agents.clear();
-    edges.length = 0;
-    teams.clear();
-    agentLastModified.clear();
-    removedAgentIds.clear();
-    agentFilePaths.clear();
-    spawnIndex.clear();
-    pendingReparents.clear();
-    viewers.clear();
-
     const NOW = Date.now();
     const register = actualAgentState.registerAgent;
     const base = { projectDir: "-Users-x-proj", task: "t", slug: "s", model: "m", startTime: NOW };
@@ -914,5 +904,63 @@ describe("pruneState — dedup purge cleans spawn bookkeeping", () => {
     expect(agents.has("winner")).toBe(true);
     expect(spawnIndex.has("toolu_loser")).toBe(false);
     expect(pendingReparents.has("loser-child")).toBe(false);
+  });
+});
+
+describe("pruneState — stale purge cleans every tracking structure", () => {
+  it("purges a quiet sub-agent through the stale path: maps, spawn bookkeeping, edges, team, tombstone, broadcast", async () => {
+    const NOW = Date.now();
+    const register = actualAgentState.registerAgent;
+    const base = { projectDir: "-Users-x-proj", task: "t", slug: "s", model: "m", startTime: NOW };
+    register({ ...base, agentId: "main", sessionId: "main", agentType: "main" });
+    register({
+      ...base,
+      agentId: "stale-sub",
+      sessionId: "main",
+      agentType: "generic",
+      parentId: "main",
+      teamId: "team-x",
+      teamName: "Team X",
+    });
+    agentLastModified.set("main", NOW);
+    // Quiet beyond the 60s sub-agent stale window, with no descendants to
+    // shield it — only the stale loop can evict it (its parent is a single
+    // fresh main, so the dedup loop never fires).
+    agentLastModified.set("stale-sub", NOW - SUBAGENT_STALE_THRESHOLD_MS - 60_000);
+
+    // Tracking state the purge must clean.
+    agentFilePaths.set("main", "/projects/p/main.jsonl");
+    agentFilePaths.set("stale-sub", "/projects/p/agent-stale-sub.jsonl");
+    spawnIndex.set("toolu_owned", "stale-sub");
+    pendingReparents.set("stale-sub", "toolu_unresolved");
+    // Second incident edge on top of the parent edge from registration, so
+    // both the source-match and target-match splice branches are covered.
+    edges.push({ source: "stale-sub", target: "main", edgeType: "message" });
+
+    // Files vanished (session dir cleaned up) → the refresh loop skips both
+    // agents without touching mtimes and leaves eviction to pruneState.
+    mockStat.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+
+    await refreshTrackedAgents();
+
+    // Tracking maps.
+    expect(agents.has("stale-sub")).toBe(false);
+    expect(agentLastModified.has("stale-sub")).toBe(false);
+    expect(agentFilePaths.has("stale-sub")).toBe(false);
+    // Spawn bookkeeping.
+    expect(spawnIndex.has("toolu_owned")).toBe(false);
+    expect(pendingReparents.has("stale-sub")).toBe(false);
+    // Incident edges spliced (parent edge + message edge).
+    expect(edges.some((e) => e.source === "stale-sub" || e.target === "stale-sub")).toBe(false);
+    // Sole team member removed → empty team deleted.
+    expect(teams.has("team-x")).toBe(false);
+    // Tombstone set so the next scan doesn't immediately resurrect it.
+    expect(removedAgentIds.has("stale-sub")).toBe(true);
+    // Removal broadcast to viewers.
+    expect(vi.mocked(broadcast)).toHaveBeenCalledWith({ type: "state:remove", agentId: "stale-sub" });
+    // The fresh main survives untouched.
+    expect(agents.has("main")).toBe(true);
+    expect(agentFilePaths.has("main")).toBe(true);
+    expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith({ type: "state:remove", agentId: "main" });
   });
 });

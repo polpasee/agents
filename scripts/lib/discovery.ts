@@ -23,7 +23,7 @@ import {
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
-import { THINKING_EFFORTS, type AgentState, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
+import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
 import { scanWorkflows } from "./workflow-scan";
 import { workflows, upsertWorkflow, removeWorkflow } from "./agent-state";
@@ -641,13 +641,13 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 }
 
 /**
- * Shared per-agent purge cleanup used by both eviction loops in pruneState():
+ * Complete per-agent purge shared by both eviction loops in pruneState():
  * drops the agent from every tracking map and the spawn-index / pending-
- * reparent bookkeeping, tombstones its id, splices its edges, and removes it
- * from its team. Returns the pre-delete agent so callers can run their
- * divergent tails (broadcast warn wording, workflow removal for mains).
+ * reparent bookkeeping, tombstones its id, splices its edges, removes it
+ * from its team, broadcasts the removal to viewers (warn wording set by
+ * warnLabel), and tears down workflow runs for parentless mains.
  */
-function purgeAgent(agentId: string): AgentState | undefined {
+function purgeAgent(agentId: string, warnLabel: string): void {
   const agent = agents.get(agentId);
   agents.delete(agentId);
   agentLastModified.delete(agentId);
@@ -670,7 +670,17 @@ function purgeAgent(agentId: string): AgentState | undefined {
       }
     }
   }
-  return agent;
+  try {
+    broadcast({ type: "state:remove", agentId });
+  } catch (err) {
+    console.warn(`Failed to broadcast ${warnLabel} of ${agentId}:`, err);
+  }
+  if (agent && !agent.parentId) {
+    for (const runId of workflowRunIdsForSession(workflows, agentId)) {
+      wfContentCache.delete(runId);
+      removeWorkflow(runId);
+    }
+  }
 }
 
 /**
@@ -686,34 +696,12 @@ function pruneState(): void {
   // never reach tier-1 completion — they disappear wholesale instead.
   const losingIds = selectLosingMains(agents, agentLastModified, Date.now());
   for (const agentId of losingIds) {
-    const agent = purgeAgent(agentId);
-    try {
-      broadcast({ type: "state:remove", agentId });
-    } catch (err) {
-      console.warn(`Failed to broadcast dedup removal of ${agentId}:`, err);
-    }
-    if (agent && !agent.parentId) {
-      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
-        wfContentCache.delete(runId);
-        removeWorkflow(runId);
-      }
-    }
+    purgeAgent(agentId, "dedup removal");
   }
 
   const staleIds = selectStaleAgentIds(agents, agentLastModified, Date.now());
   for (const agentId of staleIds) {
-    const agent = purgeAgent(agentId);
-    try {
-      broadcast({ type: "state:remove", agentId });
-    } catch (err) {
-      console.warn(`Failed to broadcast removal of ${agentId}:`, err);
-    }
-    if (agent && !agent.parentId) {
-      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
-        wfContentCache.delete(runId);
-        removeWorkflow(runId);
-      }
-    }
+    purgeAgent(agentId, "removal");
   }
 
   // Purge old entries from removedAgentIds to prevent memory leak

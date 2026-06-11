@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { select } from "d3-selection";
+import type { Selection } from "d3-selection";
 import {
   createHeatmapScale,
   computeMetricValue,
@@ -6,6 +8,7 @@ import {
   renderHeatmapNode,
   renderHeatmapLegend,
 } from "../d3/heatmap";
+import { GRAPH } from "../config";
 import type { AgentState, HeatmapMetric } from "../types";
 import { mockAgent as createMockAgent } from "./test-utils";
 
@@ -162,6 +165,32 @@ describe("computeMetricValue — timeToFirstTool uses earliest timestamp", () =>
 describe("renderHeatmapNode", () => {
   it("is exported as a function", () => {
     expect(typeof renderHeatmapNode).toBe("function");
+  });
+
+  // With isSelected=false the first circle appended is the main node circle,
+  // so its `r` pins down the effective radius exactly.
+  function renderRadius(agent: AgentState, depth?: number): number {
+    const svg = select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = svg.append("g") as Selection<SVGGElement, any, any, any>;
+    renderHeatmapNode(g, agent, 0.5, createHeatmapScale(), false, depth);
+    return Number(g.select("circle").attr("r"));
+  }
+
+  it("shrinks depth-2 sub-agents by one depthScale step", () => {
+    const agent = createMockAgent({ parentId: "p1" });
+    expect(renderRadius(agent, 2)).toBe(GRAPH.subAgentNodeRadius * GRAPH.depthScale);
+  });
+
+  it("renders depth-1 and depth-omitted sub-agents at the flat radius", () => {
+    const agent = createMockAgent({ parentId: "p1" });
+    expect(renderRadius(agent, 1)).toBe(GRAPH.subAgentNodeRadius);
+    expect(renderRadius(agent)).toBe(GRAPH.subAgentNodeRadius);
+  });
+
+  it("keeps team members full-size regardless of depth", () => {
+    const agent = createMockAgent({ parentId: "p1", teamId: "t1" });
+    expect(renderRadius(agent, 2)).toBe(GRAPH.nodeRadius);
   });
 });
 

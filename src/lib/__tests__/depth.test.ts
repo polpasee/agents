@@ -82,6 +82,11 @@ describe("depthFactor", () => {
     expect(depthFactor(1)).toBe(1);
   });
 
+  it("returns exactly 1 when depth is omitted or undefined", () => {
+    expect(depthFactor()).toBe(1);
+    expect(depthFactor(undefined)).toBe(1);
+  });
+
   it("decreases monotonically with depth until the floor", () => {
     expect(depthFactor(2)).toBeLessThan(depthFactor(1));
     expect(depthFactor(3)).toBeLessThan(depthFactor(2));
