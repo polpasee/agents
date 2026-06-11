@@ -1,28 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { UI, BUDGET_COLORS } from "@/lib/colors";
+import { UI, getBarColor } from "@/lib/colors";
 import { formatCost } from "@/lib/costs";
+import { formatResetTime } from "@/lib/utils";
 import { useApiUsage } from "@/hooks/useApiUsage";
-
-function getBarColor(percent: number): string {
-  if (percent > 85) return BUDGET_COLORS.critical;
-  if (percent > 60) return BUDGET_COLORS.warning;
-  return BUDGET_COLORS.ok;
-}
-
-function formatResetTime(ms: number): string {
-  const totalMin = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMin / 60);
-  const minutes = totalMin % 60;
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24);
-    const remHours = hours % 24;
-    return `${days}d${remHours}h`;
-  }
-  if (hours > 0) return `${hours}h${minutes}m`;
-  return `${minutes}m`;
-}
 
 interface CostBuckets {
   day: number;

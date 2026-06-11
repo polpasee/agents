@@ -4,7 +4,7 @@ import { useRef, useEffect, useState } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
-import { formatDuration } from "@/lib/utils";
+import { earliestStartTime, formatDuration } from "@/lib/utils";
 
 export function TimelineBar() {
   const activity = useAgentStore((s) => s.activity);
@@ -29,13 +29,8 @@ export function TimelineBar() {
     (a) => a.status === "running" || a.status === "idle"
   ).length;
 
-  const agentList = Array.from(agents.values());
-  // Argument-list spread on Math.min explodes with 70k+ agents (RangeError:
-  // Maximum call stack size exceeded). Fold to keep this O(n) and stack-safe.
   const now = Date.now();
-  let earliest = Infinity;
-  for (const a of agentList) if (a.startTime < earliest) earliest = a.startTime;
-  if (earliest === Infinity) earliest = now;
+  const earliest = earliestStartTime(agents.values(), now);
   const elapsed = now - earliest;
 
   const dots = activity
@@ -54,7 +49,7 @@ export function TimelineBar() {
           color = a ? AGENT_COLORS[a.agentType] : UI.text.muted; }
           break;
         case "agent:complete":
-          color = "#00ff88";
+          color = UI.success;
           break;
         case "agent:status":
           color = entry.event.status === "error" ? UI.error : UI.text.dimmed;
@@ -101,14 +96,14 @@ export function TimelineBar() {
             <div
               className="w-2 h-2 rounded-full"
               style={{
-                background: connected ? "#00ff88" : UI.error,
-                boxShadow: connected ? "0 0 6px #00ff88" : `0 0 6px ${UI.error}`,
+                background: connected ? UI.success : UI.error,
+                boxShadow: `0 0 6px ${connected ? UI.success : UI.error}`,
                 animation: connected ? "pulse-glow 1.5s ease-in-out infinite" : "none",
               }}
             />
             <span
               className="text-xs font-mono font-bold tracking-wider"
-              style={{ color: connected ? "#00ff88" : UI.error }}
+              style={{ color: connected ? UI.success : UI.error }}
             >
               LIVE
             </span>

@@ -6,7 +6,6 @@ import {
   UI,
   TEAM_STATUS_COLORS,
   CHANGE_COLORS,
-  ROLE_COLORS,
   ANNOTATION_COLOR,
   METRIC_COLORS,
   COMPARISON_COLORS,
@@ -161,22 +160,6 @@ describe("CHANGE_COLORS", () => {
   it("has valid hex color strings", () => {
     for (const [key, color] of Object.entries(CHANGE_COLORS)) {
       expect(color, `CHANGE_COLORS["${key}"]`).toMatch(HEX_COLOR_RE);
-    }
-  });
-});
-
-describe("ROLE_COLORS", () => {
-  const EXPECTED_KEYS = ["user", "assistant", "system", "default"];
-
-  it("has all expected role keys", () => {
-    for (const key of EXPECTED_KEYS) {
-      expect(ROLE_COLORS).toHaveProperty(key);
-    }
-  });
-
-  it("has valid hex color strings", () => {
-    for (const [key, color] of Object.entries(ROLE_COLORS)) {
-      expect(color, `ROLE_COLORS["${key}"]`).toMatch(HEX_COLOR_RE);
     }
   });
 });

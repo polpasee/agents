@@ -41,6 +41,8 @@ const TW = {
 export const UI = {
   primary: TW.cyan400,
   error: TW.red500,
+  /** Success/complete green — matches `--color-green` in globals.css. */
+  success: "#00ff88",
   tool: TW.amber500,
   cache: { read: TW.emerald400, write: TW.amber500 },
   text: {
@@ -55,7 +57,7 @@ export const UI = {
 
 /** Amber is reserved for the main agent — never appears in the sub-agent
  *  palette so the lead is always visually identifiable. */
-export const MAIN_AGENT_COLOR = TW.amber400;
+const MAIN_AGENT_COLOR = TW.amber400;
 
 export const AGENT_COLORS: Record<AgentType, string> = {
   main: MAIN_AGENT_COLOR,
@@ -165,11 +167,12 @@ export const BUDGET_COLORS = {
   critical: TW.red500,
 } as const;
 
-export const HEATMAP_COLORS = {
-  healthy: TW.emerald400,
-  moderate: TW.yellow500,
-  bottleneck: TW.red500,
-} as const;
+/** Map a usage percentage onto the budget palette for usage bars. */
+export function getBarColor(percent: number): string {
+  if (percent > 85) return BUDGET_COLORS.critical;
+  if (percent > 60) return BUDGET_COLORS.warning;
+  return BUDGET_COLORS.ok;
+}
 
 export const AGENT_LABELS: Record<AgentType, string> = {
   main: "MAIN",
@@ -186,12 +189,6 @@ export const AGENT_LABELS: Record<AgentType, string> = {
 export const EDGE_COLORS = {
   blocking: TW.red500,
   dependency: TW.yellow500,
-} as const;
-
-// F11: Theme color palettes
-export const THEME_COLORS = {
-  dark: { bg: TW.slate950, panel: TW.slate900, border: TW.slate800, text: TW.slate200 },
-  light: { bg: "#f8fafc", panel: "#ffffff", border: TW.slate200, text: "#1e293b" },
 } as const;
 
 // F15: Efficiency score colors
@@ -212,13 +209,6 @@ export const CHANGE_COLORS: Record<string, string> = {
   create: TW.emerald400,
   edit: TW.yellow500,
   delete: TW.red500,
-};
-
-export const ROLE_COLORS: Record<string, string> = {
-  user: TW.cyan400,
-  assistant: TW.emerald400,
-  system: TW.gray500,
-  default: TW.slate400,
 };
 
 export const ANNOTATION_COLOR = TW.amber500;

@@ -3,7 +3,7 @@
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI } from "@/lib/colors";
 import { useAgentStore } from "@/lib/store";
-import { formatDuration, truncateId } from "@/lib/utils";
+import { earliestStartTime, formatDuration, truncateId } from "@/lib/utils";
 
 export function Timeline() {
   const agents = useFilteredAgents();
@@ -19,11 +19,7 @@ export function Timeline() {
   }
 
   const now = Date.now();
-  // Avoid `Math.min(...arr)` — argument-list spread blows the stack at
-  // ~80k+ items. Fold instead so this scales linearly without limit.
-  let earliest = Infinity;
-  for (const a of agents) if (a.startTime < earliest) earliest = a.startTime;
-  if (earliest === Infinity) earliest = now;
+  const earliest = earliestStartTime(agents, now);
   const totalRange = now - earliest || 1;
 
   const sorted = [...agents].sort((a, b) => {

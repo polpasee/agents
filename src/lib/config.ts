@@ -72,9 +72,6 @@ export const HEATMAP = {
   colors: ["#00ff88", "#eab308", "#ff4444"] as [string, string, string],
 } as const;
 
-/** Idle agent timeout — agents idle longer than this are hidden from the graph */
-export const IDLE_TIMEOUT_MS = 60_000;
-
 /** Replay tick interval — how often the replay clock advances */
 export const REPLAY_TICK_MS = 50;
 
