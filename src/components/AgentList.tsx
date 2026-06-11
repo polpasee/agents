@@ -54,6 +54,25 @@ interface SessionGroup {
   agents: AgentState[];
 }
 
+function groupBySession(list: AgentState[], agents: Map<string, AgentState>): Map<string, SessionGroup> {
+  const groups = new Map<string, SessionGroup>();
+
+  for (const agent of list) {
+    const sessionId = resolveSessionId(agent, agents);
+    const root = agents.get(sessionId) ?? agent;
+    const label = (root.metadata?.projectName as string) || sessionId;
+
+    const group = groups.get(sessionId);
+    if (group) {
+      group.agents.push(agent);
+    } else {
+      groups.set(sessionId, { sessionId, label, agents: [agent] });
+    }
+  }
+
+  return groups;
+}
+
 function SessionAgents({
   agents,
   teams,
@@ -170,21 +189,7 @@ export function AgentList() {
 
   // Build session groups from ALL agents (not filtered) so we always show all sessions in the sidebar
   const allSessionGroups = useMemo(() => {
-    const groups = new Map<string, SessionGroup>();
-    const allAgents = Array.from(agents.values());
-
-    for (const agent of allAgents) {
-      const sessionId = resolveSessionId(agent, agents);
-      const root = agents.get(sessionId) ?? agent;
-      const label = (root.metadata?.projectName as string) || sessionId;
-
-      const group = groups.get(sessionId);
-      if (group) {
-        group.agents.push(agent);
-      } else {
-        groups.set(sessionId, { sessionId, label, agents: [agent] });
-      }
-    }
+    const groups = groupBySession(Array.from(agents.values()), agents);
 
     // Disambiguate label collisions: when two Claude sessions live in the same
     // project, append a short session-id suffix so users can tell them apart.
@@ -200,24 +205,10 @@ export function AgentList() {
   }, [agents]);
 
   // Filtered agents grouped by session (for rendering agent rows)
-  const filteredSessionGroups = useMemo(() => {
-    const groups = new Map<string, SessionGroup>();
-
-    for (const agent of agentList) {
-      const sessionId = resolveSessionId(agent, agents);
-      const root = agents.get(sessionId) ?? agent;
-      const label = (root.metadata?.projectName as string) || sessionId;
-
-      const group = groups.get(sessionId);
-      if (group) {
-        group.agents.push(agent);
-      } else {
-        groups.set(sessionId, { sessionId, label, agents: [agent] });
-      }
-    }
-
-    return groups;
-  }, [agentList, agents]);
+  const filteredSessionGroups = useMemo(
+    () => groupBySession(agentList, agents),
+    [agentList, agents],
+  );
 
   const sessionCount = allSessionGroups.length;
   const hasMultipleSessions = sessionCount > 1;

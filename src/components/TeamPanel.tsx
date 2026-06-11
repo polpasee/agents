@@ -58,76 +58,81 @@ export function TeamPanel() {
           const elapsed = Date.now() - team.startTime;
 
           return (
-            <button
+            <div
               key={team.id}
-              type="button"
-              className="rounded-md p-2 cursor-pointer transition-colors text-left w-full"
-              onClick={() => selectTeam(isSelected ? null : team.id)}
+              className="rounded-md p-2 transition-colors"
               style={{
                 background: isSelected ? `${UI.primary}11` : "transparent",
                 border: `1px solid ${isSelected ? `${UI.primary}44` : "var(--color-border)"}`,
               }}
             >
-              {/* Team header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
-                  />
-                  <span className="text-sm font-bold font-mono" style={{ color: UI.primary }}>
-                    {team.name}
+              <button
+                type="button"
+                className="cursor-pointer text-left w-full"
+                onClick={() => selectTeam(isSelected ? null : team.id)}
+              >
+                {/* Team header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
+                    />
+                    <span className="text-sm font-bold font-mono" style={{ color: UI.primary }}>
+                      {team.name}
+                    </span>
+                  </div>
+                  <span className="text-xs capitalize" style={{ color: statusColor }}>
+                    {team.status}
                   </span>
                 </div>
-                <span className="text-xs capitalize" style={{ color: statusColor }}>
-                  {team.status}
-                </span>
-              </div>
 
-              {/* Task */}
-              <div className="text-xs mt-1 truncate" style={{ color: UI.text.muted }}>
-                {team.task}
-              </div>
+                {/* Task */}
+                <div className="text-xs mt-1 truncate" style={{ color: UI.text.muted }}>
+                  {team.task}
+                </div>
 
-              {/* Stats row */}
-              <div className="flex gap-3 mt-1.5 text-xs">
-                <span style={{ color: UI.text.dimmed }}>
-                  Members: <span style={{ color: UI.text.secondary }}>{members.length}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Active: <span style={{ color: STATUS_COLORS.running }}>{activeCount}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Done: <span style={{ color: STATUS_COLORS.completed }}>{completedCount}</span>
-                </span>
-                {errorCount > 0 && (
+                {/* Stats row */}
+                <div className="flex gap-3 mt-1.5 text-xs">
                   <span style={{ color: UI.text.dimmed }}>
-                    Errors: <span style={{ color: UI.error }}>{errorCount}</span>
+                    Members: <span style={{ color: UI.text.secondary }}>{members.length}</span>
                   </span>
-                )}
-              </div>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Active: <span style={{ color: STATUS_COLORS.running }}>{activeCount}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Done: <span style={{ color: STATUS_COLORS.completed }}>{completedCount}</span>
+                  </span>
+                  {errorCount > 0 && (
+                    <span style={{ color: UI.text.dimmed }}>
+                      Errors: <span style={{ color: UI.error }}>{errorCount}</span>
+                    </span>
+                  )}
+                </div>
 
-              {/* Tokens + Cost + Duration */}
-              <div className="flex gap-3 mt-1 text-xs">
-                <span style={{ color: UI.text.dimmed }}>
-                  Tokens: <span style={{ color: UI.primary }}>{formatNumber(totalTokens)}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Cost: <span style={{ color: UI.primary }}>{formatCost(totalCostValue)}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Time: <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
-                </span>
-              </div>
+                {/* Tokens + Cost + Duration */}
+                <div className="flex gap-3 mt-1 text-xs">
+                  <span style={{ color: UI.text.dimmed }}>
+                    Tokens: <span style={{ color: UI.primary }}>{formatNumber(totalTokens)}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Cost: <span style={{ color: UI.primary }}>{formatCost(totalCostValue)}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Time: <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
+                  </span>
+                </div>
+              </button>
 
-              {/* Member list (expanded when selected) */}
+              {/* Member list (expanded when selected); sibling of the card button
+                  because interactive content may not nest inside a <button> */}
               {isSelected && (
                 <div className="mt-2 space-y-1">
                   {leader && (
                     <div className="flex items-center gap-1 text-xs">
                       <span style={{ color: UI.text.dimmed }}>Lead:</span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); selectAgent(leader.id); }}
+                        onClick={() => selectAgent(leader.id)}
                         className="hover:underline"
                         style={{ color: AGENT_COLORS[leader.agentType] }}
                       >
@@ -145,7 +150,7 @@ export function TeamPanel() {
                           style={{ background: color }}
                         />
                         <button
-                          onClick={(e) => { e.stopPropagation(); selectAgent(m.id); }}
+                          onClick={() => selectAgent(m.id)}
                           className="hover:underline truncate"
                           style={{ color }}
                         >
@@ -159,7 +164,7 @@ export function TeamPanel() {
                   })}
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

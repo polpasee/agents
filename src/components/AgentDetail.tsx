@@ -27,25 +27,26 @@ export function AgentDetail() {
     openLogViewer(agent.id);
     if (!logEntries.has(agent.id)) {
       setLogLoading(agent.id, true);
+      const fail = (msg: string, ...err: unknown[]) => {
+        useAgentStore.getState().setLogLoading(agent.id, false);
+        console.warn(msg, ...err);
+      };
       void (async () => {
         try {
           const res = await fetch(`/api/logs/${encodeURIComponent(agent.id)}`);
           if (!res.ok) {
             const { error } = await res.json().catch(() => ({ error: res.statusText }));
-            useAgentStore.getState().setLogLoading(agent.id, false);
-            console.warn("Log fetch failed:", error);
+            fail("Log fetch failed:", error);
             return;
           }
           const body = await res.json();
           if (!Array.isArray(body.entries)) {
-            useAgentStore.getState().setLogLoading(agent.id, false);
-            console.warn("Log fetch returned non-array entries");
+            fail("Log fetch returned non-array entries");
             return;
           }
           useAgentStore.getState().setLogEntries(agent.id, body.entries);
         } catch (err) {
-          useAgentStore.getState().setLogLoading(agent.id, false);
-          console.warn("Log fetch threw:", err);
+          fail("Log fetch threw:", err);
         }
       })();
     }

@@ -70,12 +70,15 @@ export function CostProjection() {
     return "ok";
   }, [budgetThreshold, projection.percentOfBudget]);
 
-  const statColor =
+  // Shared critical/warning color; each usage site supplies its own "ok" fallback
+  const alertColor =
     alertLevel === "critical"
       ? BUDGET_COLORS.critical
       : alertLevel === "warning"
         ? BUDGET_COLORS.warning
-        : UI.primary;
+        : null;
+
+  const statColor = alertColor ?? UI.primary;
 
   const handleBudgetSubmit = () => {
     const val = parseFloat(budgetInput);
@@ -173,16 +176,7 @@ export function CostProjection() {
           {budgetThreshold && budgetThreshold > 0 && burnRate > 0 && (
             <div className="flex justify-between mb-2">
               <span style={{ color: UI.text.secondary }}>Time to Limit</span>
-              <span
-                style={{
-                  color:
-                    alertLevel === "critical"
-                      ? BUDGET_COLORS.critical
-                      : alertLevel === "warning"
-                        ? BUDGET_COLORS.warning
-                        : UI.text.primary,
-                }}
-              >
+              <span style={{ color: alertColor ?? UI.text.primary }}>
                 {formatTime(projection.timeToThreshold)}
               </span>
             </div>
@@ -208,16 +202,8 @@ export function CostProjection() {
                   className="h-full rounded-full transition-all duration-300"
                   style={{
                     width: `${Math.min(projection.percentOfBudget, 100)}%`,
-                    background:
-                      alertLevel === "critical"
-                        ? BUDGET_COLORS.critical
-                        : alertLevel === "warning"
-                          ? BUDGET_COLORS.warning
-                          : BUDGET_COLORS.ok,
-                    boxShadow:
-                      alertLevel !== "ok"
-                        ? `0 0 6px ${alertLevel === "critical" ? BUDGET_COLORS.critical : BUDGET_COLORS.warning}88`
-                        : undefined,
+                    background: alertColor ?? BUDGET_COLORS.ok,
+                    boxShadow: alertColor ? `0 0 6px ${alertColor}88` : undefined,
                   }}
                 />
               </div>
