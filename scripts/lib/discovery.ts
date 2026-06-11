@@ -87,27 +87,27 @@ function readIs1MContextCached(projectDir: string, cache: SettingsCache): boolea
  * registers the session as a "main" agent. The tombstone gates differ per
  * call site and stay with the callers.
  */
-function registerMainAgent(
-  sessionId: string,
-  filePath: string,
-  projectDir: string,
-  fallbackStartMs: number,
-  settingsCache: SettingsCache,
-): void {
-  removedAgentIds.delete(sessionId);
-  const info = extractTaskFromJSONL(filePath);
-  agentFilePaths.set(sessionId, filePath);
+function registerMainAgent(opts: {
+  sessionId: string;
+  filePath: string;
+  projectDir: string;
+  fallbackStartMs: number;
+  settingsCache: SettingsCache;
+}): void {
+  removedAgentIds.delete(opts.sessionId);
+  const info = extractTaskFromJSONL(opts.filePath);
+  agentFilePaths.set(opts.sessionId, opts.filePath);
   registerAgent({
-    agentId: sessionId,
-    sessionId,
-    projectDir,
+    agentId: opts.sessionId,
+    sessionId: opts.sessionId,
+    projectDir: opts.projectDir,
     agentType: "main",
     task: info.task,
     slug: info.slug,
     model: info.model,
-    startTime: info.startTime || fallbackStartMs,
-    effort: readEffortLevelCached(projectDir, settingsCache),
-    is1MContext: readIs1MContextCached(projectDir, settingsCache),
+    startTime: info.startTime || opts.fallbackStartMs,
+    effort: readEffortLevelCached(opts.projectDir, opts.settingsCache),
+    is1MContext: readIs1MContextCached(opts.projectDir, opts.settingsCache),
   });
 }
 
@@ -382,7 +382,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       if (!agents.has(sessionId)) {
         const removedAt = removedAgentIds.get(sessionId);
         if (removedAt !== undefined && stat.mtimeMs <= removedAt) continue;
-        registerMainAgent(sessionId, filePath, projectDir, stat.mtimeMs, settingsCache);
+        registerMainAgent({ sessionId, filePath, projectDir, fallbackStartMs: stat.mtimeMs, settingsCache });
       }
 
       const newLines = readNewLines(filePath);
@@ -431,7 +431,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       }
 
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-      const metaFiles = files.filter((f) => f.endsWith(".meta.json"));
+      const metaFiles = new Set(files.filter((f) => f.endsWith(".meta.json")));
 
       // ── Phase A: read + harvest ────────────────────
       // Stat and read each fresh JSONL exactly once, buffering parsed entries
@@ -484,7 +484,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         const { agentId } = file;
         if (!agentId || isIgnoredSubagentId(agentId)) continue;
         const metaFile = `agent-${agentId}.meta.json`;
-        if (!metaFiles.includes(metaFile)) continue;
+        if (!metaFiles.has(metaFile)) continue;
         try {
           const meta = JSON.parse(
             fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
@@ -553,7 +553,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
               parentStat.mtimeMs <= removedAt &&
               stat.mtimeMs <= removedAt
             ) continue;
-            registerMainAgent(sessionId, parentJsonl, projectDir, parentStat.mtimeMs, settingsCache);
+            registerMainAgent({ sessionId, filePath: parentJsonl, projectDir, fallbackStartMs: parentStat.mtimeMs, settingsCache });
             // Seed lastModified from the fresher of parent mtime or child mtime
             // so the main stays marked alive while the sub is active.
             updateAgentStatus(sessionId, Math.max(parentStat.mtimeMs, stat.mtimeMs));

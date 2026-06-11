@@ -135,6 +135,41 @@ FileAttentionPanel/TimelineBar/UsagePanel/TopologyUsageStatus.
 4. Step 6: single PR from `worktree-workflow-codebase-refactor`, per-workstream
    commits, merge, delete branch + worktree.
 
+## Post-Review Amendments (2026-06-12)
+
+Two-opinion review (first: pr-review-toolkit 5-agent panel; second: /code-review
+max — 9 finder angles, per-candidate verification, gap sweep; 29 confirmed
+findings, none functional) corrected this spec and drove a fix pass:
+
+**Accepted deltas (the spec previously claimed only one):**
+1. TopologyUsageStatus reset-text format (as originally documented).
+2. TeamPanel click surface: the nested-`<button>` fix means clicks on the card
+   padding and expanded member-list whitespace/labels no longer toggle the team
+   (on main they bubbled to the card button — accidental fallout of the invalid
+   DOM). "Same interactions" in WS-E above was an overclaim; the header button
+   and member buttons behave identically, and the lost surface is accepted.
+3. localStorage error policy: unifying the five writers normalized failure
+   handling to warn-and-continue. Previously one site swallowed silently by
+   recorded decision and four threw before the state update; the unified
+   policy (in-memory update proceeds, console.warn emitted) is accepted as the
+   better default and documented in the helper.
+
+**Review-driven cleanups applied:** TeamPanel adopts getTeamStats/teamMembers/
+truncateId; CostProjection/UsagePanel/TopologyUsageStatus adopt the shared
+fold/reset helpers; hull geometry moved to src/lib/d3/clusterHull.ts; shared
+fx-aware linkPath; UI.success adopted at the two remaining byte-identical
+sites; getBarColor thresholds hoisted to config; PROJECTS_DIR and
+CCSTATUSLINE_CACHE single-sourced in scripts/lib/config.ts; registerMainAgent
+takes an options object; background-tasks owns its start-once flag; discovery
+meta lookup uses a Set.
+
+**Deliberately not done (recorded):** generalizing the min-fold shared by
+clusterLabelAnchor/earliestStartTime (speculative abstraction over unlike
+shapes); hoisting the pre-existing per-tick d3 data-join/static-attr work out
+of the topology tick handler (delicate restructure of pre-existing cost —
+follow-up); HEATMAP.colors keeps its literal green (independent scale
+endpoint, not UI "success" semantics).
+
 ## Risks
 
 - Concurrent agents share one worktree → workstream file sets are strictly disjoint;

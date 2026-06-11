@@ -8,7 +8,7 @@ import { ACTIVITY_MAX_ENTRIES, RECORDING_MAX_EVENTS } from "../config";
 import { calculateCost } from "../costs";
 import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
-import { isDuplicateActivity, saveLocalStorage } from "./helpers";
+import { isDuplicateActivity, saveLocalStorage, teamMembers } from "./helpers";
 import { releaseAgentColor } from "../colors";
 import { resolveSessionId } from "../sessions";
 import {
@@ -48,7 +48,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     const { agents, teams } = get();
     const team = teams.get(teamId);
     if (!team) return { totalTokens: 0, totalCost: 0, memberCount: 0, completedCount: 0, errorCount: 0, activeCount: 0 };
-    const members = team.memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
+    const members = teamMembers(team.memberIds, agents);
     let totalTokens = 0;
     let totalCost = 0;
     let completedCount = 0;

@@ -141,7 +141,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
           g.append("circle")
             .attr("class", "ring")
             .attr("fill", "none")
-            .attr("stroke", "#00ff88");
+            .attr("stroke", UI.success);
           g.append("circle")
             .attr("class", "flash")
             .attr("fill", "white");

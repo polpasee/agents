@@ -22,7 +22,7 @@ export { viewers, broadcast };
 
 // ── HMR-safe singleton state ─────────────────────────
 // Stashed on globalThis so Next.js dev hot-reloads do not wipe accumulated
-// agent state, the polling loops' "started" flag, or in-flight viewer set.
+// agent state or the in-flight viewer set.
 declare global {
   // eslint-disable-next-line no-var
   var __agentMonitorState: {
@@ -35,7 +35,6 @@ declare global {
     agentFilePaths: Map<string, string>;
     spawnIndex: Map<string, string>;
     pendingReparents: Map<string, string>;
-    started: boolean;
   } | undefined;
 }
 
@@ -49,7 +48,6 @@ const store = (globalThis.__agentMonitorState ??= {
   agentFilePaths: new Map<string, string>(),
   spawnIndex: new Map<string, string>(),
   pendingReparents: new Map<string, string>(),
-  started: false,
 });
 // A dev process may have created the singleton before newer fields existed;
 // hot-reload reuses that object, so backfill anything missing.
@@ -80,10 +78,6 @@ export function removeWorkflow(runId: string): void {
 export function getAgentFilePath(agentId: string): string | undefined {
   return agentFilePaths.get(agentId);
 }
-
-/** Internal: exposed for background-tasks.ts to consult/mutate the started flag */
-export function _backgroundStarted(): boolean { return store.started; }
-export function _markBackgroundStarted(): void { store.started = true; }
 
 // ── Parse agent type from meta.json or slug ────────────
 export function parseAgentType(raw?: string): AgentType {

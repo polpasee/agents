@@ -5,7 +5,7 @@ import { useAgentStore } from "@/lib/store";
 import { UI, BUDGET_COLORS, getBarColor } from "@/lib/colors";
 import { formatNumber, formatDuration, formatResetTime, totalTokens } from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
-import { useApiUsage } from "@/hooks/useApiUsage";
+import { useApiUsage, deriveUsageBars } from "@/hooks/useApiUsage";
 
 function formatAge(ms: number): string {
   const min = Math.floor(ms / 60000);
@@ -82,15 +82,8 @@ export function UsagePanel() {
   const barColor = getBarColor(stats.contextPercent);
   const elapsed = stats.earliest < Infinity ? Date.now() - stats.earliest : 0;
 
-  const now = Date.now();
-  const blockPercent = apiUsage?.blockPercent ?? 0;
-  const weeklyPercent = apiUsage?.weeklyPercent ?? 0;
-  const blockResetMs = apiUsage?.blockResetAt
-    ? new Date(apiUsage.blockResetAt).getTime() - now
-    : 0;
-  const weeklyResetMs = apiUsage?.weeklyResetAt
-    ? new Date(apiUsage.weeklyResetAt).getTime() - now
-    : 0;
+  const { blockPercent, weeklyPercent, blockResetMs, weeklyResetMs } =
+    deriveUsageBars(apiUsage);
 
   return (
     <div

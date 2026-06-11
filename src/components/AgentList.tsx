@@ -54,7 +54,7 @@ interface SessionGroup {
   agents: AgentState[];
 }
 
-function groupBySession(list: AgentState[], agents: Map<string, AgentState>): Map<string, SessionGroup> {
+function groupBySession(list: Iterable<AgentState>, agents: Map<string, AgentState>): Map<string, SessionGroup> {
   const groups = new Map<string, SessionGroup>();
 
   for (const agent of list) {
@@ -189,7 +189,7 @@ export function AgentList() {
 
   // Build session groups from ALL agents (not filtered) so we always show all sessions in the sidebar
   const allSessionGroups = useMemo(() => {
-    const groups = groupBySession(Array.from(agents.values()), agents);
+    const groups = groupBySession(agents.values(), agents);
 
     // Disambiguate label collisions: when two Claude sessions live in the same
     // project, append a short session-id suffix so users can tell them apart.

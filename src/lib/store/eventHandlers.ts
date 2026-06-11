@@ -69,19 +69,8 @@ export function createMutationContext(snapshot: {
 
 // ── Re-register (metadata refresh) field-merge strategies ────────────
 //
-// When an already-live agent sends a second agent:register, we merge the
-// event's fields into the existing state without wiping accumulated data
-// (toolCalls, tokens, startTime, etc. come from `...existing` spread).
-//
-// Three merge strategies (applied per-field in applyRegister):
-//   incoming        — event.x || existing.x  (truthy incoming wins; model
-//                     additionally carries a "" final fallback)
-//   incomingNullish — event.x ?? existing.x  (nullish-check: even
-//                     false/0 from the event replaces the existing value)
-//   keepFirst       — existing.x || event.x  (once set, never replaced)
-//
 // Adding a new AgentState field? Add it to the merge block in applyRegister
-// so the policy is explicit.
+// so the policy is explicit (per-strategy semantics documented inline there).
 
 // ── Per-event handlers ────────────────────────────────────────────────
 

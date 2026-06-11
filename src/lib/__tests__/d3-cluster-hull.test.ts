@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { GRAPH } from "@/lib/config";
-import { clusterHullPath, clusterLabelAnchor } from "../AgentGraph/useTopologyEffect";
+import { GRAPH } from "../config";
+import { clusterHullPath, clusterLabelAnchor } from "../d3/clusterHull";
 
 /**
  * Direct unit tests for the cluster-hull geometry helpers extracted from the

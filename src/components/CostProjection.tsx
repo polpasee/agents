@@ -6,6 +6,7 @@ import { UI, BUDGET_COLORS, AGENT_COLORS, AGENT_LABELS } from "@/lib/colors";
 import type { AgentType } from "@/lib/types";
 import { COST_WARNING_PERCENT, COST_CRITICAL_PERCENT } from "@/lib/config";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
+import { earliestStartTime } from "@/lib/utils";
 import { calculateBurnRate, calculateProjection } from "@/lib/costProjection";
 
 export function CostProjection() {
@@ -49,11 +50,9 @@ export function CostProjection() {
   );
 
   const elapsedMs = useMemo(() => {
-    let earliest = Date.now();
-    for (const agent of agents.values()) {
-      if (agent.startTime < earliest) earliest = agent.startTime;
-    }
-    return Date.now() - earliest;
+    const now = Date.now();
+    // Math.min clamps future startTimes so elapsedMs is never negative.
+    return now - Math.min(now, earliestStartTime(agents.values(), now));
   }, [agents]);
 
   const projection = useMemo(

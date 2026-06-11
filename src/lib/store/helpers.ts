@@ -1,8 +1,13 @@
 import type { ActivityEntry, AgentEvent, AgentState, ErrorDetail, TeamState, TeamStatus } from "../types";
 
+/** Resolve a team's memberIds to live AgentState entries (unknown ids dropped). */
+export function teamMembers(memberIds: string[], agents: Map<string, AgentState>): AgentState[] {
+  return memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
+}
+
 /** Derive team status from member statuses */
 function computeTeamStatus(memberIds: string[], agents: Map<string, AgentState>, fallback: TeamStatus): TeamStatus {
-  const members = memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
+  const members = teamMembers(memberIds, agents);
   if (members.some(a => a.status === "error")) return "error";
   if (members.every(a => a.status === "completed")) return "completed";
   if (members.some(a => a.status === "running" || a.status === "idle")) return "active";
@@ -108,9 +113,11 @@ export function loadLocalStorage<T>(key: string, fallback: T): T {
 
 /**
  * Counterpart to loadLocalStorage: guarded, throw-safe write. Strings are
- * stored raw (loadLocalStorage's parse-fallback reads them back as-is);
- * `null` removes the key. Quota / privacy-mode failures are warned via
- * console.warn so the caller's in-memory state update still proceeds.
+ * stored raw — loadLocalStorage reads them back as-is only when they aren't
+ * valid JSON (e.g. "42" or "true" would parse back to non-strings; current
+ * callers' strings, like theme values, are safe). `null` removes the key.
+ * Quota / privacy-mode failures are warned via console.warn so the caller's
+ * in-memory state update still proceeds.
  */
 export function saveLocalStorage(key: string, value: unknown): void {
   if (typeof window === "undefined") return;

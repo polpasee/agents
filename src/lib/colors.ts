@@ -1,4 +1,5 @@
 import type { AgentType, AgentStatus, AgentState } from "./types";
+import { USAGE_WARNING_PERCENT, USAGE_CRITICAL_PERCENT } from "./config";
 
 /**
  * Curated subset of Tailwind v3 colors (https://tailwindcss.com/docs/colors).
@@ -169,8 +170,8 @@ export const BUDGET_COLORS = {
 
 /** Map a usage percentage onto the budget palette for usage bars. */
 export function getBarColor(percent: number): string {
-  if (percent > 85) return BUDGET_COLORS.critical;
-  if (percent > 60) return BUDGET_COLORS.warning;
+  if (percent > USAGE_CRITICAL_PERCENT) return BUDGET_COLORS.critical;
+  if (percent > USAGE_WARNING_PERCENT) return BUDGET_COLORS.warning;
   return BUDGET_COLORS.ok;
 }
 

@@ -11,6 +11,7 @@ describe("TeamPanel", () => {
       teams: new Map(),
       agents: new Map(),
       selectedTeamId: null,
+      selectedAgentId: null,
     });
   });
 

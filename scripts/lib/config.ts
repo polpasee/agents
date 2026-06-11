@@ -1,5 +1,13 @@
 // ── Server-side configuration ─────────────────────────
 
+import * as os from "node:os";
+import * as path from "node:path";
+
+/** The durable record of every Claude Code session — discovery, cost
+ *  history, and mock seeding all operate under here. Kept hard-coded
+ *  (not env-driven); consumers tolerate a missing dir. */
+export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+
 export const POLL_INTERVAL_MS = 1500;
 
 /** Full filesystem rediscovery (scan every project dir for *new* sessions)
@@ -54,3 +62,7 @@ export const USAGE_REFRESH_INTERVAL_MS = 30 * 1000;
 /** Spawn ccstatusline when the cache is older than this. Matches ccstatusline's
  *  own internal CACHE_MAX_AGE (180s) so a refresh actually round-trips to the API. */
 export const USAGE_REFRESH_THRESHOLD_MS = 180 * 1000;
+/** ccstatusline writes fresh usage data here every ~3 minutes. Lives in config
+ *  (not the spawn helper) so pure cache readers like src/app/api/usage/route.ts
+ *  can import the path without pulling in node:child_process. */
+export const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");

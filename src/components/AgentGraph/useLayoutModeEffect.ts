@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { select } from "d3-selection";
-import { bezierPath } from "@/lib/d3";
+import { linkPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
 import type { GraphLayout } from "@/lib/types";
@@ -53,14 +53,8 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
         .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
       const linkGroup = d3svg.select<SVGGElement>("g.links");
       if (!linkGroup.empty()) {
-        const linkD = (d: SimLink) => bezierPath(
-          ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
-          ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
-          ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
-          ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
-        );
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow").attr("d", linkD);
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.main").attr("d", linkD);
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow").attr("d", (d) => (d.pathD = linkPath(d)));
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.main").attr("d", (d) => d.pathD ?? "");
       }
     }
   }, [refs, graphLayout, topologyVersion]);

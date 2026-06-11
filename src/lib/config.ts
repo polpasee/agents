@@ -64,6 +64,10 @@ export const COST_PROJECTION_WINDOW_MS = 60_000;
 export const COST_WARNING_PERCENT = 80;
 export const COST_CRITICAL_PERCENT = 95;
 
+/** Usage-bar thresholds (rate-limit/context %) — distinct from the cost-budget thresholds above. */
+export const USAGE_WARNING_PERCENT = 60;
+export const USAGE_CRITICAL_PERCENT = 85;
+
 /** Heatmap overlay configuration */
 export const HEATMAP = {
   legendWidth: 150,

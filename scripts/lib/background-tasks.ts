@@ -3,22 +3,26 @@
 // stand-alone ws-server process. After the SSE migration they run inside
 // the Next.js process, started exactly once by src/instrumentation.ts.
 
-import * as path from "node:path";
-import * as os from "node:os";
-import { agents, _backgroundStarted, _markBackgroundStarted } from "./agent-state";
+import { agents } from "./agent-state";
+
+// ── HMR-safe start-once flag ─────────────────────────
+// Stashed on globalThis (same pattern as agent-state's store) so Next.js dev
+// hot-reloads cannot start a second set of polling loops.
+declare global {
+  // eslint-disable-next-line no-var
+  var __backgroundTasksStarted: boolean | undefined;
+}
 
 export async function startBackgroundTasks(): Promise<void> {
-  if (_backgroundStarted()) return;
+  if (globalThis.__backgroundTasksStarted) return;
 
   // Flip the started flag only AFTER all dynamic imports resolve. If any
   // import rejects, the flag stays false so a later caller can retry —
   // previously a failed import would permanently wedge polling off.
   const { discoverActiveSessions, refreshTrackedAgents } = await import("./discovery");
-  const { POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
+  const { PROJECTS_DIR, POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
   const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
   const { loadWebhookConfig } = await import("./webhooks");
-
-  const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
   loadWebhookConfig();
 
@@ -64,7 +68,7 @@ export async function startBackgroundTasks(): Promise<void> {
     }
   }
 
-  _markBackgroundStarted();
+  globalThis.__backgroundTasksStarted = true;
   pollLoop();
   usagePollLoop();
 }

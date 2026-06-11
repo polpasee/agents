@@ -2,55 +2,13 @@ import { useEffect } from "react";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
 import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from "d3-force";
-import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
-import { renderNodeVisuals, updateLinkVisuals, bezierPath, agentDepth, depthFactor } from "@/lib/d3";
+import { renderNodeVisuals, updateLinkVisuals, linkPath, clusterHullPath, clusterLabelAnchor, agentDepth, depthFactor } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 import { simulationDrag } from "./simulationDrag";
-
-/**
- * SVG path for a cluster hull around member positions: an ellipse for
- * exactly 2 points, an outward-expanded convex hull for 3+, and "" when
- * no hull can be drawn yet (fewer than 2 positioned points / degenerate hull).
- */
-export function clusterHullPath(points: [number, number][]): string {
-  if (points.length === 2) {
-    const cx = (points[0][0] + points[1][0]) / 2;
-    const cy = (points[0][1] + points[1][1]) / 2;
-    const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
-    const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
-    // Ellipse as SVG path
-    return `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
-  }
-  const hull = polygonHull(points);
-  if (!hull) return "";
-  const centroid = polygonCentroid(hull);
-  const expanded = hull.map(([x, y]) => {
-    const dx = x - centroid[0];
-    const dy = y - centroid[1];
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const pad = GRAPH.collideRadius;
-    return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
-  });
-  return `M${expanded.map((p) => p.join(",")).join("L")}Z`;
-}
-
-/**
- * Anchor for a cluster label: horizontally centered over the member points,
- * just above the topmost one.
- */
-export function clusterLabelAnchor(points: [number, number][]): { x: number; y: number } {
-  // Avoid Math.min(...spread) — fold to stay stack-safe with
-  // arbitrarily many cluster points.
-  let minY = Infinity;
-  for (const p of points) if (p[1] < minY) minY = p[1];
-  if (minY === Infinity) minY = 0;
-  const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
-  return { x: avgX, y: minY - GRAPH.collideRadius - 8 };
-}
 
 interface Options {
   filteredAgents: AgentState[];
@@ -251,10 +209,6 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // Force simulation — use low alpha when restoring positions
     const linkGlow = linkGroup.selectAll<SVGPathElement, SimLink>("path.glow");
     const linkLine = linkGroup.selectAll<SVGPathElement, SimLink>("path.main");
-    const linkD = (d: SimLink) => bezierPath(
-      (d.source as SimNode).x!, (d.source as SimNode).y!,
-      (d.target as SimNode).x!, (d.target as SimNode).y!
-    );
 
     // Build team-to-nodes lookup for cluster rendering
     const teamNodeMap = new Map<string, SimNode[]>();
@@ -330,8 +284,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       ))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
-        linkGlow.attr("d", linkD);
-        linkLine.attr("d", linkD);
+        // Glow/main pairs share datum objects (same `links` array), so compute
+        // each path once on the glow pass and reuse the cached value for main.
+        linkGlow.attr("d", (d) => (d.pathD = linkPath(d)));
+        linkLine.attr("d", (d) => d.pathD ?? "");
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
 
         // Update tool node positions
