@@ -34,22 +34,24 @@ vi.mock("../file-reader", () => ({
   cleanupFileOffsets: vi.fn(),
 }));
 
-vi.mock("../agent-state", () => ({
-  agents: new Map(),
-  edges: [],
-  teams: new Map(),
-  agentLastModified: new Map(),
-  removedAgentIds: new Map(),
-  agentFilePaths: new Map(),
-  registerAgent: vi.fn(),
-  updateAgentStatus: vi.fn(),
-  processEntry: vi.fn(),
-  parseAgentType: vi.fn().mockReturnValue("generic"),
-  broadcast: vi.fn(),
-  workflows: new Map(),
-  upsertWorkflow: vi.fn(),
-  removeWorkflow: vi.fn(),
-}));
+vi.mock("../agent-state", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../agent-state")>();
+  // Spread the real module so the state maps (globalThis-backed) and the
+  // spawn-index helpers stay real; wrap only the functions tests assert on
+  // or need neutered. The nested-subagent fixtures below restore the real
+  // implementations per test via mockImplementation(actualAgentState.*).
+  return {
+    ...actual,
+    registerAgent: vi.fn(),
+    updateAgentStatus: vi.fn(),
+    processEntry: vi.fn(),
+    parseAgentType: vi.fn().mockReturnValue("generic"),
+    broadcast: vi.fn(),
+    upsertWorkflow: vi.fn(),
+    removeWorkflow: vi.fn(),
+    reparentAgent: vi.fn(),
+  };
+});
 
 // Step 1.5 of discoverActiveSessions scans each session's workflows dir; stub
 // it out so the readdir/stat mocks above only have to model agent discovery.
@@ -58,6 +60,7 @@ vi.mock("../workflow-scan", () => ({
 }));
 
 import * as fs from "node:fs";
+import * as path from "node:path";
 import { extractTaskFromJSONL, readNewLines } from "../file-reader";
 import { scanWorkflows } from "../workflow-scan";
 import {
@@ -66,9 +69,29 @@ import {
   selectStaleAgentIds,
   selectLosingMains,
   isEphemeralProjectDir,
+  pendingReparents,
 } from "../discovery";
-import { agentFilePaths, updateAgentStatus } from "../agent-state";
+import {
+  agents,
+  edges,
+  teams,
+  agentLastModified,
+  removedAgentIds,
+  agentFilePaths,
+  registerAgent,
+  updateAgentStatus,
+  processEntry,
+  parseAgentType,
+  reparentAgent,
+  spawnIndex,
+  viewers,
+} from "../agent-state";
 import { STALE_THRESHOLD_MS } from "../config";
+
+// The unmocked module — used by the nested-subagent fixtures to restore real
+// implementations onto the vi.fn wrappers after each resetAllMocks(). State
+// maps are globalThis-backed, so both instances share the same storage.
+const actualAgentState = await vi.importActual<typeof import("../agent-state")>("../agent-state");
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -510,5 +533,191 @@ describe("settings.json cache — reads each path at most once per discovery pas
     //   1 × project settings.json  +  1 × user settings.json = 2 reads total.
     // Without the cache it would be 4 (2 agents × 2 candidates each).
     expect(settingsPaths.length).toBe(2);
+  });
+});
+
+describe("discoverActiveSessions — nested sub-agent parent resolution", () => {
+  const FIX_PROJECT = "-Users-erdos-Github-agents";
+  const FIX_PROJECT_PATH = path.join("/projects", FIX_PROJECT);
+
+  let sessionId: string;
+  let subagentListing: string[];
+  /** jsonl path → unread lines; consumed on read like real offset tracking */
+  let pendingLines: Map<string, string[]>;
+  let metaContents: Map<string, string>;
+
+  const sessionJsonlPath = () => path.join(FIX_PROJECT_PATH, `${sessionId}.jsonl`);
+  const subagentsDir = () => path.join(FIX_PROJECT_PATH, sessionId, "subagents");
+  const agentJsonlPath = (id: string) => path.join(subagentsDir(), `agent-${id}.jsonl`);
+
+  /** A JSONL line whose assistant message contains an Agent spawn tool_use. */
+  function spawnLine(toolUseId: string): string {
+    return JSON.stringify({
+      timestamp: new Date().toISOString(),
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", id: toolUseId, name: "Agent", input: { description: "spawn" } }],
+      },
+    });
+  }
+
+  function buildFixture(opts: {
+    sessionId: string;
+    sessionLines: string[];
+    subagents: Array<{ id: string; lines?: string[]; meta?: Record<string, unknown> }>;
+  }): void {
+    sessionId = opts.sessionId;
+    pendingLines = new Map([[sessionJsonlPath(), opts.sessionLines]]);
+    metaContents = new Map();
+    subagentListing = [];
+    for (const sub of opts.subagents) {
+      subagentListing.push(`agent-${sub.id}.jsonl`);
+      pendingLines.set(agentJsonlPath(sub.id), sub.lines ?? []);
+      if (sub.meta) {
+        subagentListing.push(`agent-${sub.id}.meta.json`);
+        metaContents.set(path.join(subagentsDir(), `agent-${sub.id}.meta.json`), JSON.stringify(sub.meta));
+      }
+    }
+
+    mockAccess.mockResolvedValue(undefined);
+    mockReaddir.mockImplementation(async (p: unknown) => {
+      const dir = String(p);
+      if (dir === "/projects") return [dirent(FIX_PROJECT, true)];
+      if (dir === FIX_PROJECT_PATH) return [dirent(`${sessionId}.jsonl`, false), dirent(sessionId, true)];
+      if (dir === subagentsDir()) return [...subagentListing];
+      return [];
+    });
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: Date.now() - 1_000, size: 100 });
+    vi.mocked(readNewLines).mockImplementation((p: string) => {
+      const lines = pendingLines.get(p) ?? [];
+      pendingLines.set(p, []);
+      return lines;
+    });
+    vi.mocked(fs.readFileSync).mockImplementation(((p: unknown) => {
+      const content = metaContents.get(String(p));
+      if (content === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return content;
+    }) as typeof fs.readFileSync);
+  }
+
+  beforeEach(() => {
+    agents.clear();
+    edges.length = 0;
+    teams.clear();
+    agentLastModified.clear();
+    removedAgentIds.clear();
+    agentFilePaths.clear();
+    spawnIndex.clear();
+    pendingReparents.clear();
+    viewers.clear();
+
+    // The file-level resetAllMocks() wiped implementations; restore the real
+    // agent-state behaviour so scans mutate the actual state maps.
+    vi.mocked(registerAgent).mockImplementation(actualAgentState.registerAgent);
+    vi.mocked(updateAgentStatus).mockImplementation(actualAgentState.updateAgentStatus);
+    vi.mocked(processEntry).mockImplementation(actualAgentState.processEntry);
+    vi.mocked(parseAgentType).mockImplementation(actualAgentState.parseAgentType);
+    vi.mocked(reparentAgent).mockImplementation(actualAgentState.reparentAgent);
+    vi.mocked(scanWorkflows).mockResolvedValue([]);
+    vi.mocked(extractTaskFromJSONL).mockReturnValue({
+      task: "test task",
+      slug: "test-slug",
+      model: "claude-sonnet-4-20250514",
+      startTime: Date.now(),
+    });
+  });
+
+  it("parents a nested sub-agent to its spawner even when the child file sorts first", async () => {
+    const sess = "11111111-1111-1111-1111-111111111111";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [spawnLine("toolu_A")],
+      subagents: [
+        // Child sorts alphabetically before its spawner ("aaa" < "bbb"),
+        // matching the real readdir order hazard.
+        { id: "aaa-child", meta: { agentType: "build", description: "child", toolUseId: "toolu_B" } },
+        { id: "bbb-parent", lines: [spawnLine("toolu_B")], meta: { agentType: "explore", description: "parent", toolUseId: "toolu_A" } },
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("bbb-parent")?.parentId).toBe(sess);
+    expect(agents.get("aaa-child")?.parentId).toBe("bbb-parent");
+    expect(edges).toContainEqual({ source: "bbb-parent", target: "aaa-child" });
+    expect(pendingReparents.size).toBe(0);
+  });
+
+  it("resolves every level of a depth-5 spawn chain", async () => {
+    const sess = "22222222-2222-2222-2222-222222222222";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [spawnLine("toolu_1")],
+      subagents: [
+        // Listed deepest-first to force the dependency sort to reorder.
+        { id: "lvl5", meta: { description: "l5", toolUseId: "toolu_5" } },
+        { id: "lvl4", lines: [spawnLine("toolu_5")], meta: { description: "l4", toolUseId: "toolu_4" } },
+        { id: "lvl3", lines: [spawnLine("toolu_4")], meta: { description: "l3", toolUseId: "toolu_3" } },
+        { id: "lvl2", lines: [spawnLine("toolu_3")], meta: { description: "l2", toolUseId: "toolu_2" } },
+        { id: "lvl1", lines: [spawnLine("toolu_2")], meta: { description: "l1", toolUseId: "toolu_1" } },
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("lvl1")?.parentId).toBe(sess);
+    expect(agents.get("lvl2")?.parentId).toBe("lvl1");
+    expect(agents.get("lvl3")?.parentId).toBe("lvl2");
+    expect(agents.get("lvl4")?.parentId).toBe("lvl3");
+    expect(agents.get("lvl5")?.parentId).toBe("lvl4");
+  });
+
+  it("falls back to the session when meta.json has no toolUseId", async () => {
+    const sess = "33333333-3333-3333-3333-333333333333";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [],
+      subagents: [{ id: "plain", meta: { agentType: "explore", description: "no spawn pointer" } }],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("plain")?.parentId).toBe(sess);
+    expect(pendingReparents.size).toBe(0);
+  });
+
+  it("re-parents on a later scan once the spawner's tool_use line appears (cross-tick race)", async () => {
+    const sess = "44444444-4444-4444-4444-444444444444";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [spawnLine("toolu_A")],
+      subagents: [
+        // The parent's spawning line has not been flushed yet on the first scan.
+        { id: "late-child", meta: { description: "child", toolUseId: "toolu_B" } },
+        { id: "parent", meta: { description: "parent", toolUseId: "toolu_A" } },
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("late-child")?.parentId).toBe(sess);
+    expect(pendingReparents.get("late-child")).toBe("toolu_B");
+
+    // The spawning tool_use line lands in the parent's JSONL before scan 2.
+    pendingLines.set(agentJsonlPath("parent"), [spawnLine("toolu_B")]);
+    const sent: Array<{ type: string; event?: Record<string, unknown> }> = [];
+    viewers.add({ send: (data: string) => sent.push(JSON.parse(data)) });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("late-child")?.parentId).toBe("parent");
+    expect(edges).toContainEqual({ source: "parent", target: "late-child" });
+    expect(edges.some((e) => e.source === sess && e.target === "late-child")).toBe(false);
+    expect(pendingReparents.has("late-child")).toBe(false);
+    // The re-parent was broadcast as a refreshed registration.
+    const rebroadcast = sent.find(
+      (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "late-child",
+    );
+    expect(rebroadcast?.event?.parentId).toBe("parent");
   });
 });

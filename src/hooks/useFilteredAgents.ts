@@ -28,17 +28,27 @@ export function useFilteredAgents() {
       list = list.filter((a) => !hiddenAgentTypes.has(a.agentType));
     }
 
-    // If a sub-agent survived filtering but its parent was dropped, restore the parent
-    // so sub-agent nodes are never rendered without a visible anchor.
+    // If a sub-agent survived filtering but ancestors were dropped, restore the
+    // full ancestor chain (nested sub-agents can be several levels deep) so
+    // sub-agent nodes are never rendered without a visible anchor. The visited
+    // set guards against parentId cycles.
     const listedIds = new Set(list.map((a) => a.id));
+    const visited = new Set<string>();
+    const queue: string[] = [];
     for (const a of list) {
-      if (a.parentId && !listedIds.has(a.parentId)) {
-        const parent = agents.get(a.parentId);
-        if (parent) {
-          list.push(parent);
-          listedIds.add(parent.id);
-        }
+      if (a.parentId) queue.push(a.parentId);
+    }
+    for (let i = 0; i < queue.length; i++) {
+      const id = queue[i];
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const ancestor = agents.get(id);
+      if (!ancestor) continue;
+      if (!listedIds.has(ancestor.id)) {
+        list.push(ancestor);
+        listedIds.add(ancestor.id);
       }
+      if (ancestor.parentId) queue.push(ancestor.parentId);
     }
 
     return list;

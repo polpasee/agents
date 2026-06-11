@@ -181,6 +181,89 @@ describe("useFilteredAgents", () => {
     expect(ids).toEqual(["main-1", "sub-1"]);
   });
 
+  it("restores a dropped parent for a surviving sub-agent (single level)", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("parent", mockAgent({ id: "parent", agentType: "explore" }));
+    agents.set(
+      "child",
+      mockAgent({ id: "child", parentId: "parent", agentType: "build" }),
+    );
+
+    useAgentStore.setState({ agents, hiddenAgentTypes: new Set(["explore"]) });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    const ids = result.current.map((a) => a.id).sort();
+    expect(ids).toEqual(["child", "parent"]);
+  });
+
+  it("restores hidden intermediate and root in a depth-3 chain", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("root", mockAgent({ id: "root", agentType: "main" }));
+    agents.set(
+      "mid",
+      mockAgent({ id: "mid", parentId: "root", agentType: "explore" }),
+    );
+    agents.set(
+      "leaf",
+      mockAgent({ id: "leaf", parentId: "mid", agentType: "build" }),
+    );
+
+    useAgentStore.setState({ agents, hiddenAgentTypes: new Set(["explore"]) });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    const ids = result.current.map((a) => a.id).sort();
+    // mid is hidden but leaf survived — both mid and root must be present
+    expect(ids).toEqual(["leaf", "mid", "root"]);
+  });
+
+  it("restores every hidden intermediate in a depth-5 chain", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("root", mockAgent({ id: "root", agentType: "main" }));
+    agents.set(
+      "d1",
+      mockAgent({ id: "d1", parentId: "root", agentType: "explore" }),
+    );
+    agents.set(
+      "d2",
+      mockAgent({ id: "d2", parentId: "d1", agentType: "plan" }),
+    );
+    agents.set(
+      "d3",
+      mockAgent({ id: "d3", parentId: "d2", agentType: "explore" }),
+    );
+    agents.set(
+      "d4",
+      mockAgent({ id: "d4", parentId: "d3", agentType: "build" }),
+    );
+
+    useAgentStore.setState({
+      agents,
+      hiddenAgentTypes: new Set(["explore", "plan"]),
+    });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    const ids = result.current.map((a) => a.id).sort();
+    expect(ids).toEqual(["d1", "d2", "d3", "d4", "root"]);
+  });
+
+  it("does not hang on a parentId cycle (a -> b -> a)", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set(
+      "a",
+      mockAgent({ id: "a", parentId: "b", agentType: "build" }),
+    );
+    agents.set(
+      "b",
+      mockAgent({ id: "b", parentId: "a", agentType: "explore" }),
+    );
+
+    useAgentStore.setState({ agents, hiddenAgentTypes: new Set(["explore"]) });
+
+    const { result } = renderHook(() => useFilteredAgents());
+    const ids = result.current.map((a) => a.id).sort();
+    expect(ids).toEqual(["a", "b"]);
+  });
+
   it("canonical walk: grandchild is resolved to root's sessionId (multi-level hierarchy)", () => {
     const agents = new Map<string, AgentState>();
     agents.set(

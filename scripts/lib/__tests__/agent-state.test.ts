@@ -4,7 +4,13 @@ import {
   registerAgent,
   processEntry,
   updateAgentStatus,
+  reparentAgent,
+  harvestSpawnToolUses,
+  resolveSpawnOwner,
   agents,
+  edges,
+  spawnIndex,
+  viewers,
 } from "../agent-state";
 
 describe("parseAgentType", () => {
@@ -403,6 +409,122 @@ describe("registerAgent: project label", () => {
       startTime: Date.now(),
     });
     expect(agents.get("m2")?.metadata?.projectName).toBe("Users/erdos/private/notes");
+  });
+});
+
+describe("spawn index", () => {
+  beforeEach(() => {
+    agents.clear();
+    spawnIndex.clear();
+  });
+
+  it("harvests Agent and Task tool_use ids and ignores other tools", () => {
+    harvestSpawnToolUses(
+      {
+        message: {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_agent", name: "Agent", input: {} },
+            { type: "tool_use", id: "toolu_task", name: "Task", input: {} },
+            { type: "tool_use", id: "toolu_bash", name: "Bash", input: {} },
+            { type: "text", text: "narration" },
+          ],
+        },
+      },
+      "spawner-1",
+    );
+
+    expect(resolveSpawnOwner("toolu_agent")).toBe("spawner-1");
+    expect(resolveSpawnOwner("toolu_task")).toBe("spawner-1");
+    expect(resolveSpawnOwner("toolu_bash")).toBeUndefined();
+  });
+
+  it("ignores spawn blocks without a string id", () => {
+    harvestSpawnToolUses(
+      {
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", name: "Agent", input: {} }],
+        },
+      },
+      "spawner-1",
+    );
+    expect(spawnIndex.size).toBe(0);
+  });
+
+  it("records spawn ids from processEntry's tool_use loop", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "t",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_x", name: "Agent", input: { prompt: "go" } }],
+        },
+      },
+      "a1",
+      "a1",
+    );
+
+    expect(resolveSpawnOwner("toolu_x")).toBe("a1");
+  });
+});
+
+describe("reparentAgent", () => {
+  const reg = (agentId: string, parentId?: string) =>
+    registerAgent({
+      agentId,
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: parentId ? "generic" : "main",
+      parentId,
+      task: agentId,
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+  beforeEach(() => {
+    agents.clear();
+    edges.length = 0;
+    viewers.clear();
+  });
+
+  it("updates parentId, swaps the parent edge, and re-broadcasts registration", () => {
+    reg("sess");
+    reg("parent", "sess");
+    reg("child", "sess");
+
+    const sent: Array<{ type: string; event?: Record<string, unknown> }> = [];
+    viewers.add({ send: (data: string) => sent.push(JSON.parse(data)) });
+
+    reparentAgent("child", "parent");
+
+    expect(agents.get("child")?.parentId).toBe("parent");
+    expect(edges).toContainEqual({ source: "parent", target: "child" });
+    expect(edges.some((e) => e.source === "sess" && e.target === "child")).toBe(false);
+    // The parent's own anchor edge is untouched.
+    expect(edges).toContainEqual({ source: "sess", target: "parent" });
+
+    const rebroadcast = sent.find(
+      (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "child",
+    );
+    expect(rebroadcast?.event?.parentId).toBe("parent");
+  });
+
+  it("is a no-op for unknown agents", () => {
+    expect(() => reparentAgent("ghost", "parent")).not.toThrow();
+    expect(edges).toHaveLength(0);
   });
 });
 

@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createMutationContext } from "../eventHandlers";
 import { applyRegister } from "../eventHandlers";
-import type { AgentState } from "../../types";
+import type { AgentState, EdgeState } from "../../types";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -288,6 +288,59 @@ describe("topologyDirty on re-register", () => {
     const existing = makeExisting({ parentId: undefined, teamId: undefined });
     const ctx = makeCtx(existing);
     applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 2000);
+    expect(ctx.topologyDirty).toBe(false);
+  });
+});
+
+// ── parentId: incoming-wins + parent-edge swap (nested sub-agents) ───────────
+
+describe("parentId field (incoming-wins) and parent-edge swap", () => {
+  function makeCtxWithEdges(existing: AgentState, edges: EdgeState[]) {
+    return createMutationContext({
+      agents: new Map([["a1", existing]]),
+      edges,
+      errorDetails: new Map(),
+      teams: new Map(),
+      agentTypeBudgets: {},
+    });
+  }
+
+  it("re-register with a new parentId updates the stored agent's parentId", () => {
+    const existing = makeExisting({ parentId: "old-parent" });
+    const ctx = makeCtxWithEdges(existing, [{ source: "old-parent", target: "a1" }]);
+    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
+    expect(ctx.newAgents!.get("a1")!.parentId).toBe("new-parent");
+  });
+
+  it("swaps the parent edge and leaves blocking/message edges untouched", () => {
+    const existing = makeExisting({ parentId: "old-parent" });
+    const edges: EdgeState[] = [
+      { source: "old-parent", target: "a1" },
+      { source: "blocker", target: "a1", edgeType: "blocking" },
+      { source: "a1", target: "peer", edgeType: "message" },
+    ];
+    const ctx = makeCtxWithEdges(existing, edges);
+    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
+    expect(ctx.newEdges).not.toContainEqual({ source: "old-parent", target: "a1" });
+    expect(ctx.newEdges).toContainEqual({ source: "new-parent", target: "a1" });
+    expect(ctx.newEdges).toContainEqual({ source: "blocker", target: "a1", edgeType: "blocking" });
+    expect(ctx.newEdges).toContainEqual({ source: "a1", target: "peer", edgeType: "message" });
+  });
+
+  it("sets topologyDirty when parentId changes", () => {
+    const existing = makeExisting({ parentId: "old-parent" });
+    const ctx = makeCtxWithEdges(existing, [{ source: "old-parent", target: "a1" }]);
+    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
+    expect(ctx.topologyDirty).toBe(true);
+  });
+
+  it("re-register without parentId keeps the existing parentId and edges unchanged", () => {
+    const existing = makeExisting({ parentId: "old-parent" });
+    const edges: EdgeState[] = [{ source: "old-parent", target: "a1" }];
+    const ctx = makeCtxWithEdges(existing, edges);
+    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 2000);
+    expect(ctx.newAgents!.get("a1")!.parentId).toBe("old-parent");
+    expect(ctx.newEdges).toBe(edges); // same array — no edge mutation
     expect(ctx.topologyDirty).toBe(false);
   });
 });

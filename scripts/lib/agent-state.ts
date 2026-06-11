@@ -34,6 +34,7 @@ declare global {
     agentLastModified: Map<string, number>;
     removedAgentIds: Map<string, number>;
     agentFilePaths: Map<string, string>;
+    spawnIndex: Map<string, string>;
     started: boolean;
   } | undefined;
 }
@@ -46,6 +47,7 @@ const store = (globalThis.__agentMonitorState ??= {
   agentLastModified: new Map<string, number>(),
   removedAgentIds: new Map<string, number>(),
   agentFilePaths: new Map<string, string>(),
+  spawnIndex: new Map<string, string>(),
   started: false,
 });
 
@@ -56,6 +58,7 @@ export const agentLastModified = store.agentLastModified;
 export const removedAgentIds = store.removedAgentIds;
 export const agentFilePaths = store.agentFilePaths;
 export const workflows = store.workflows;
+export const spawnIndex = store.spawnIndex;
 
 export function upsertWorkflow(run: WorkflowRunState): void {
   workflows.set(run.runId, run);
@@ -105,6 +108,50 @@ export function parseAgentType(raw?: string): AgentType {
       || /-pro\b/.test(lower)) return "build";
 
   return "generic";
+}
+
+// ── Spawn index: tool_use id → spawning agent ─────────
+// A nested sub-agent's meta.json carries the toolUseId of the `Agent`/`Task`
+// tool_use block that spawned it; that block lives in the spawner's JSONL.
+// Recording every spawn block's owner here is what lets discovery resolve a
+// child's real parent instead of anchoring it to the main session.
+
+/** Record the spawning agent for a single Agent/Task tool_use block. */
+function recordSpawnToolUse(block: Record<string, unknown>, agentId: string): void {
+  if (block.type !== "tool_use") return;
+  if (block.name !== "Agent" && block.name !== "Task") return;
+  if (typeof block.id !== "string" || block.id.length === 0) return;
+  spawnIndex.set(block.id, agentId);
+}
+
+/**
+ * Phase-A harvest: record Agent/Task spawn tool_use ids from an
+ * already-parsed JSONL entry. Discovery runs this over every fresh
+ * sub-agent file before registering anything, so the index is complete
+ * even when readdir lists a child before its spawner.
+ */
+export function harvestSpawnToolUses(entry: Record<string, unknown>, agentId: string): void {
+  const msg = entry.message;
+  if (!msg || typeof msg !== "object") return;
+  const message = msg as Record<string, unknown>;
+  if (message.role !== "assistant" || !Array.isArray(message.content)) return;
+  for (const block of message.content) {
+    if (block && typeof block === "object") {
+      recordSpawnToolUse(block as Record<string, unknown>, agentId);
+    }
+  }
+}
+
+/** Resolve which agent emitted the given spawn tool_use id, if known. */
+export function resolveSpawnOwner(toolUseId: string): string | undefined {
+  return spawnIndex.get(toolUseId);
+}
+
+/** Drop spawn-index entries owned by a purged agent. */
+export function dropSpawnEntriesFor(agentId: string): void {
+  for (const [toolUseId, owner] of spawnIndex) {
+    if (owner === agentId) spawnIndex.delete(toolUseId);
+  }
 }
 
 // ── Register an agent and broadcast ──────────────────
@@ -201,6 +248,48 @@ export function registerAgent(opts: {
     is1MContext: opts.is1MContext,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
+}
+
+// ── Re-parent an agent onto its real spawner ──────────
+// Used when a nested sub-agent registered against the session fallback and
+// the spawn index later resolved its true parent (cross-tick race).
+export function reparentAgent(agentId: string, newParentId: string): void {
+  const agent = agents.get(agentId);
+  if (!agent || agent.parentId === newParentId) return;
+  const oldParentId = agent.parentId;
+  agent.parentId = newParentId;
+
+  // Swap the parent edge: drop the old anchor, add the new one.
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (edges[i].source === oldParentId && edges[i].target === agentId) {
+      edges.splice(i, 1);
+    }
+  }
+  if (!edges.some(e => e.source === newParentId && e.target === agentId)) {
+    edges.push({ source: newParentId, target: agentId });
+  }
+
+  // Re-broadcast registration so connected dashboards adopt the new parent
+  // (mirrors the mid-session model-change re-broadcast in processEntryInner).
+  broadcast({
+    type: "state:update",
+    event: {
+      type: "agent:register",
+      agentId,
+      agentType: agent.agentType,
+      displayType: agent.displayType,
+      task: agent.task,
+      sessionId: agent.sessionId,
+      slug: agent.slug,
+      model: agent.model,
+      teamId: agent.teamId,
+      parentId: newParentId,
+      metadata: agent.metadata,
+      effort: agent.effort,
+      is1MContext: agent.is1MContext,
+    },
+    timestamp: Date.now(),
+  });
 }
 
 // ── Update team status based on member states ────────
@@ -385,6 +474,9 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string, _ses
       const b = block as Record<string, unknown>;
       if (b.type !== "tool_use") continue;
       if (typeof b.name !== "string") continue;
+      // Agent/Task tool_use blocks are spawn points — index them so nested
+      // sub-agents can resolve their real parent (meta.toolUseId).
+      recordSpawnToolUse(b, agentId);
       {
         const toolName = b.name;
         const input = b.input && typeof b.input === "object" ? b.input as Record<string, unknown> : undefined;

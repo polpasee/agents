@@ -84,6 +84,7 @@ export function createMutationContext(snapshot: {
 const REGISTER_REFRESH = {
   model:       "incoming",         // label must reflect live model switches
   agentType:   "incoming",         // coarse type can be corrected on refresh
+  parentId:    "incoming",         // re-parent broadcast for nested sub-agents
   task:        "keepFirst",        // first task description wins
   slug:        "keepFirst",        // stable identifier once assigned
   displayType: "keepFirst",        // display label set on first register
@@ -122,6 +123,7 @@ export function applyRegister(
         const merged: AgentState = { ...existing };
         // Apply declarative policy for each refreshable field.
         merged.agentType   = applyPolicy(REGISTER_REFRESH.agentType,   event.agentType,   existing.agentType)   as AgentState["agentType"];
+        merged.parentId    = applyPolicy(REGISTER_REFRESH.parentId,    event.parentId,    existing.parentId)    as AgentState["parentId"];
         merged.task        = applyPolicy(REGISTER_REFRESH.task,         event.task,        existing.task)        as string;
         merged.slug        = applyPolicy(REGISTER_REFRESH.slug,         event.slug,        existing.slug)        as AgentState["slug"];
         merged.displayType = applyPolicy(REGISTER_REFRESH.displayType,  event.displayType, existing.displayType) as AgentState["displayType"];
@@ -164,6 +166,15 @@ export function applyRegister(
     ctx.topologyDirty = true;
   } else if (existing.parentId !== agent.parentId || existing.teamId !== agent.teamId) {
     ctx.topologyDirty = true;
+  }
+
+  // Re-parent on refresh: swap the agent's parent edge (the edge with no
+  // edgeType targeting it) to hang off the new parent.
+  if (existing && agent.parentId && existing.parentId !== agent.parentId) {
+    ctx.newEdges = [
+      ...ctx.newEdges.filter(e => !(e.target === event.agentId && !e.edgeType)),
+      { source: agent.parentId, target: event.agentId },
+    ];
   }
 
   // Edge and team membership only on first register — avoids duplicate
