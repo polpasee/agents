@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { select } from "d3-selection";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
-import { hexPath } from "@/lib/d3";
+import { depthFactor, hexPath } from "@/lib/d3";
 import type { SimNode } from "@/lib/d3";
 import type { AgentState, ActivityEntry } from "@/lib/types";
 import type { AgentGraphRefs, LifecycleEffect } from "./refs";
@@ -79,7 +79,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
       if (effectNode && effectType && effectNode.x != null && effectNode.y != null) {
         const a = agents.get(effectNode.id);
         const color = a ? agentColor(a) : UI.text.secondary;
-        const effectRadius = a ? getNodeRadius(a) : GRAPH.nodeRadius;
+        const effectRadius = a ? getNodeRadius(a, depthFactor(effectNode.depth)) : GRAPH.nodeRadius;
         refs.effectsRef.current.push({
           x: effectNode.x,
           y: effectNode.y,

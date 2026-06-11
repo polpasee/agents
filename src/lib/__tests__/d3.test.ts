@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import * as d3 from "d3";
-import { renderNodeVisuals } from "../d3/renderNode";
+import { renderNodeVisuals, hexPath } from "../d3/renderNode";
 import { updateLinkVisuals } from "../d3/updateLinks";
+import { GRAPH } from "../config";
 import type { AgentState } from "../types";
 import type { SimLink } from "../d3/updateLinks";
 
@@ -64,6 +65,43 @@ describe("renderNodeVisuals", () => {
     const agent = createMockAgent({ status: "completed" });
 
     expect(() => renderNodeVisuals(g, agent, null)).not.toThrow();
+  });
+});
+
+describe("renderNodeVisuals depth scaling", () => {
+  // The first path appended is the opaque backplate hex drawn at the
+  // effective node radius, so its `d` pins down the radius exactly.
+  function renderHex(agent: AgentState, depth?: number): string {
+    const svg = d3
+      .select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    renderNodeVisuals(g, agent, null, depth);
+    return g.select("path").attr("d");
+  }
+
+  it("depth-1 sub-agent hex uses exactly the pre-change radius", () => {
+    const agent = createMockAgent({ parentId: "p1" });
+    expect(renderHex(agent, 1)).toBe(hexPath(28));
+  });
+
+  it("omitted depth renders identically to depth 1", () => {
+    const agent = createMockAgent({ parentId: "p1" });
+    expect(renderHex(agent)).toBe(renderHex(agent, 1));
+  });
+
+  it("depth-2 sub-agent hex shrinks by one depthScale step", () => {
+    const agent = createMockAgent({ parentId: "p1" });
+    expect(renderHex(agent, 2)).toBe(hexPath(GRAPH.subAgentNodeRadius * GRAPH.depthScale));
+  });
+
+  it("main agent radius ignores depth", () => {
+    const agent = createMockAgent();
+    expect(renderHex(agent, 3)).toBe(hexPath(GRAPH.nodeRadius));
+  });
+
+  it("team member (parentId + teamId) stays full-size regardless of depth", () => {
+    const agent = createMockAgent({ parentId: "p1", teamId: "t1" });
+    expect(renderHex(agent, 2)).toBe(hexPath(GRAPH.nodeRadius));
   });
 });
 

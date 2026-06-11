@@ -35,6 +35,8 @@ export const GRAPH = {
   chargeStrengthTool: -80, // Repulsion strength applied to tool nodes
   centerStrength: 0.05, // Per-node strength for forceX/forceY pull toward viewport center
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
+  depthScale: 0.85, // Per-level shrink factor for nested sub-agents at depth >= 2 (depth <= 1 stays at 1.0)
+  depthScaleMin: 0.55, // Floor on the cumulative depth shrink so depth-5 nodes stay legible
   collideRadius: 120, // Padding (px) used for team-cluster hull/ellipse geometry — no longer fed into d3 forceCollide
   zoomExtent: [0.15, 4] as [number, number], // Min and max zoom scale factors
   newNodeAlpha: 0.3, // Simulation alpha reheat value when a new node is added
@@ -50,9 +52,11 @@ export const GRAPH = {
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
 
-/** Returns the effective node radius based on whether the agent is a sub-agent */
-export function getNodeRadius(agent: { parentId?: string; teamId?: string }): number {
-  return agent.parentId && !agent.teamId ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
+/** Returns the effective node radius based on whether the agent is a sub-agent.
+ *  `depthFactor` (see lib/d3/depth.ts) scales ONLY the sub-agent branch so
+ *  nested sub-agents shrink per level; main agents and team members ignore it. */
+export function getNodeRadius(agent: { parentId?: string; teamId?: string }, depthFactor = 1): number {
+  return agent.parentId && !agent.teamId ? GRAPH.subAgentNodeRadius * depthFactor : GRAPH.nodeRadius;
 }
 
 /** Cost projection configuration */

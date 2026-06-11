@@ -62,9 +62,9 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
       g.selectAll("*").remove();
       if (heatmapEnabled && heatmapScale && heatmapNorms) {
         const metricValue = computeMetricValue(latest, heatmapMetric, heatmapNorms);
-        renderHeatmapNode(g, latest, metricValue, heatmapScale, d.id === selectedAgentId);
+        renderHeatmapNode(g, latest, metricValue, heatmapScale, d.id === selectedAgentId, d.depth);
       } else {
-        renderNodeVisuals(g, latest, selectedAgentId);
+        renderNodeVisuals(g, latest, selectedAgentId, d.depth);
       }
     });
 

@@ -3,6 +3,7 @@ import type { ScaleLinear } from "d3-scale";
 import type { Selection } from "d3-selection";
 import type { AgentState, HeatmapMetric } from "../types";
 import { GRAPH, HEATMAP, getNodeRadius } from "../config";
+import { depthFactor } from "./depth";
 import { HEATMAP_COLORS } from "../colors";
 import { AGENT_LABELS } from "../colors";
 
@@ -87,9 +88,10 @@ export function renderHeatmapNode(
   metricValue: number,
   colorScale: ScaleLinear<string, string>,
   isSelected: boolean,
+  depth?: number,
 ): void {
   const color = colorScale(metricValue);
-  const r = getNodeRadius(agent);
+  const r = getNodeRadius(agent, depthFactor(depth));
   const hScale = r / GRAPH.nodeRadius;
 
   // Clear existing children

@@ -641,6 +641,49 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 }
 
 /**
+ * Complete per-agent purge shared by both eviction loops in pruneState():
+ * drops the agent from every tracking map and the spawn-index / pending-
+ * reparent bookkeeping, tombstones its id, splices its edges, removes it
+ * from its team, broadcasts the removal to viewers (warn wording set by
+ * warnLabel), and tears down workflow runs for parentless mains.
+ */
+function purgeAgent(agentId: string, warnLabel: string): void {
+  const agent = agents.get(agentId);
+  agents.delete(agentId);
+  agentLastModified.delete(agentId);
+  agentFilePaths.delete(agentId);
+  dropSpawnEntriesFor(agentId);
+  pendingReparents.delete(agentId);
+  removedAgentIds.set(agentId, Date.now());
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (edges[i].source === agentId || edges[i].target === agentId) {
+      edges.splice(i, 1);
+    }
+  }
+  // Remove agent from its team; delete team if empty
+  if (agent?.teamId) {
+    const team = teams.get(agent.teamId);
+    if (team) {
+      team.memberIds = team.memberIds.filter((id) => id !== agentId);
+      if (team.memberIds.length === 0) {
+        teams.delete(agent.teamId);
+      }
+    }
+  }
+  try {
+    broadcast({ type: "state:remove", agentId });
+  } catch (err) {
+    console.warn(`Failed to broadcast ${warnLabel} of ${agentId}:`, err);
+  }
+  if (agent && !agent.parentId) {
+    for (const runId of workflowRunIdsForSession(workflows, agentId)) {
+      wfContentCache.delete(runId);
+      removeWorkflow(runId);
+    }
+  }
+}
+
+/**
  * In-memory + bookkeeping maintenance shared by the full scan and the cheap
  * per-tick refresh: dedup competing mains, purge stale agents, expire the
  * removed-id tombstones, and clean up file offsets. Does no directory walking,
@@ -653,75 +696,12 @@ function pruneState(): void {
   // never reach tier-1 completion — they disappear wholesale instead.
   const losingIds = selectLosingMains(agents, agentLastModified, Date.now());
   for (const agentId of losingIds) {
-    const agent = agents.get(agentId);
-    agents.delete(agentId);
-    agentLastModified.delete(agentId);
-    agentFilePaths.delete(agentId);
-    dropSpawnEntriesFor(agentId);
-    pendingReparents.delete(agentId);
-    removedAgentIds.set(agentId, Date.now());
-    for (let i = edges.length - 1; i >= 0; i--) {
-      if (edges[i].source === agentId || edges[i].target === agentId) {
-        edges.splice(i, 1);
-      }
-    }
-    if (agent?.teamId) {
-      const team = teams.get(agent.teamId);
-      if (team) {
-        team.memberIds = team.memberIds.filter((id) => id !== agentId);
-        if (team.memberIds.length === 0) {
-          teams.delete(agent.teamId);
-        }
-      }
-    }
-    try {
-      broadcast({ type: "state:remove", agentId });
-    } catch (err) {
-      console.warn(`Failed to broadcast dedup removal of ${agentId}:`, err);
-    }
-    if (agent && !agent.parentId) {
-      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
-        wfContentCache.delete(runId);
-        removeWorkflow(runId);
-      }
-    }
+    purgeAgent(agentId, "dedup removal");
   }
 
   const staleIds = selectStaleAgentIds(agents, agentLastModified, Date.now());
   for (const agentId of staleIds) {
-    const agent = agents.get(agentId);
-    agents.delete(agentId);
-    agentLastModified.delete(agentId);
-    agentFilePaths.delete(agentId);
-    dropSpawnEntriesFor(agentId);
-    pendingReparents.delete(agentId);
-    removedAgentIds.set(agentId, Date.now());
-    for (let i = edges.length - 1; i >= 0; i--) {
-      if (edges[i].source === agentId || edges[i].target === agentId) {
-        edges.splice(i, 1);
-      }
-    }
-    // Remove agent from its team; delete team if empty
-    if (agent?.teamId) {
-      const team = teams.get(agent.teamId);
-      if (team) {
-        team.memberIds = team.memberIds.filter(id => id !== agentId);
-        if (team.memberIds.length === 0) {
-          teams.delete(agent.teamId);
-        }
-      }
-    }
-    try {
-      broadcast({ type: "state:remove", agentId });
-    } catch (err) {
-      console.warn(`Failed to broadcast removal of ${agentId}:`, err);
-    }
-    if (agent && !agent.parentId) {
-      for (const runId of workflowRunIdsForSession(workflows, agentId)) {
-        wfContentCache.delete(runId);
-        removeWorkflow(runId);
-      }
-    }
+    purgeAgent(agentId, "removal");
   }
 
   // Purge old entries from removedAgentIds to prevent memory leak
