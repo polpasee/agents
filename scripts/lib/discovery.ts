@@ -11,9 +11,15 @@ import {
   removedAgentIds,
   agentFilePaths,
   registerAgent,
+  reparentAgent,
   updateAgentStatus,
   processEntry,
   parseAgentType,
+  harvestSpawnToolUses,
+  resolveSpawnOwner,
+  resolveLiveSpawner,
+  dropSpawnEntriesFor,
+  pendingReparents,
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
@@ -187,16 +193,25 @@ export function selectStaleAgentIds(
   agentLastModified: Map<string, number>,
   now: number,
 ): string[] {
+  // A fresh or actively-working child shields its WHOLE ancestor chain, not
+  // just its direct parent: a nested spawner blocked on the Agent tool goes
+  // silent for the entire child run, and purging it would orphan every
+  // descendant (and erase the spawn-index entries needed to re-anchor them).
   const freshParentIds = new Set<string>();
   for (const [childId, child] of agents) {
     if (!child.parentId) continue;
     const childLastMod = agentLastModified.get(childId) || child.startTime;
-    if (now - childLastMod <= STALE_THRESHOLD_MS) {
-      freshParentIds.add(child.parentId);
-    }
-    // Protect main only while a child is actively running or waiting.
-    if (child.status === "running" || child.status === "waiting") {
-      freshParentIds.add(child.parentId);
+    const shields =
+      now - childLastMod <= STALE_THRESHOLD_MS ||
+      child.status === "running" ||
+      child.status === "waiting";
+    if (!shields) continue;
+    let cursorId: string | undefined = child.parentId;
+    const seen = new Set<string>([childId]);
+    while (cursorId !== undefined && !seen.has(cursorId)) {
+      freshParentIds.add(cursorId);
+      seen.add(cursorId);
+      cursorId = agents.get(cursorId)?.parentId;
     }
   }
   const stale: string[] = [];
@@ -205,10 +220,55 @@ export function selectStaleAgentIds(
     const lastMod = agentLastModified.get(agentId) || agent.startTime;
     const threshold = agent.parentId ? SUBAGENT_STALE_THRESHOLD_MS : STALE_THRESHOLD_MS;
     if (now - lastMod <= threshold) continue;
-    if (!agent.parentId && freshParentIds.has(agentId)) continue;
+    if (freshParentIds.has(agentId)) continue;
     stale.push(agentId);
   }
   return stale;
+}
+
+/**
+ * Phase-A buffer for one fresh sub-agent JSONL: stat + parsed lines read
+ * exactly once per tick, registered/processed in Phase B after the spawn
+ * index has been harvested. Meta fields are filled at the start of Phase B.
+ */
+interface BufferedSubagentFile {
+  filePath: string;
+  stat: Stats;
+  parsed: Record<string, unknown>[];
+  agentId?: string;
+  agentType: ReturnType<typeof parseAgentType>;
+  displayType?: string;
+  description: string;
+  teamId?: string;
+  teamName?: string;
+  toolUseId?: string;
+}
+
+/**
+ * Children registered against the sessionId fallback whose meta carried a
+ * toolUseId the spawn index could not resolve yet (the spawner's JSONL line
+ * was not flushed when its file was read). Retried after every scan; entries
+ * drop on resolution or when the agent is purged. Lives in the HMR-safe
+ * singleton next to spawnIndex; re-exported here for testing.
+ */
+export { pendingReparents };
+
+/**
+ * Late parent resolution: if the spawn index now knows a pending child's
+ * spawner and that spawner is a live agent, swap the child onto it.
+ */
+function retryPendingReparents(): void {
+  for (const [agentId, toolUseId] of pendingReparents) {
+    const agent = agents.get(agentId);
+    if (!agent) {
+      pendingReparents.delete(agentId);
+      continue;
+    }
+    const owner = resolveLiveSpawner(toolUseId, agentId);
+    if (owner === undefined) continue;
+    if (owner !== agent.parentId) reparentAgent(agentId, owner);
+    pendingReparents.delete(agentId);
+  }
 }
 
 /**
@@ -348,6 +408,12 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
       const metaFiles = files.filter((f) => f.endsWith(".meta.json"));
 
+      // ── Phase A: read + harvest ────────────────────
+      // Stat and read each fresh JSONL exactly once, buffering parsed entries
+      // for Phase B. Harvesting Agent/Task spawn tool_use ids up front makes
+      // the spawn index complete before any registration below resolves
+      // parents — readdir can list a child before its spawner.
+      const buffered: BufferedSubagentFile[] = [];
       for (const jsonlFile of jsonlFiles) {
         const filePath = path.join(subagentsDir, jsonlFile);
 
@@ -359,6 +425,94 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         }
         const age = Date.now() - stat.mtimeMs;
         if (age > DISCOVERY_THRESHOLD_MS) continue;
+
+        const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
+        const agentId = agentIdMatch ? agentIdMatch[1] : undefined;
+
+        // Gate reads exactly like the old single-pass loop: compact-/mcp__/
+        // non-agent transcripts are never opened (their replayed content must
+        // not reach the spawn index), and a tombstoned agent's backlog stays
+        // unread — offsets only advance for lines Phase B will process, so
+        // the backlog replays if the agent resurrects. The file is still
+        // buffered: its stat drives session backfill/freshness in Phase B,
+        // which always ran before these gates.
+        const parsed: Record<string, unknown>[] = [];
+        if (
+          agentId !== undefined &&
+          !agentId.startsWith("compact-") &&
+          !agentId.startsWith("mcp__")
+        ) {
+          const removedAt = removedAgentIds.get(agentId);
+          if (removedAt === undefined || stat.mtimeMs > removedAt) {
+            for (const line of readNewLines(filePath)) {
+              try {
+                parsed.push(JSON.parse(line));
+              } catch { /* skip */ }
+            }
+            for (const entry of parsed) harvestSpawnToolUses(entry, agentId);
+          }
+        }
+
+        buffered.push({ filePath, stat, parsed, agentId, agentType: "generic", description: "" });
+      }
+
+      // ── Phase B: register + process ────────────────
+      // Pre-read meta.json (type/team/toolUseId) so parent resolution can
+      // order registrations parent-before-child within this batch.
+      for (const file of buffered) {
+        const { agentId } = file;
+        if (!agentId || agentId.startsWith("compact-") || agentId.startsWith("mcp__")) continue;
+        const metaFile = `agent-${agentId}.meta.json`;
+        if (!metaFiles.includes(metaFile)) continue;
+        try {
+          const meta = JSON.parse(
+            fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
+          );
+          file.agentType = parseAgentType(meta.agentType);
+          if (typeof meta.agentType === "string" && meta.agentType.length > 0) {
+            file.displayType = meta.agentType;
+          }
+          file.description = meta.description || "";
+          file.teamId = meta.teamId;
+          file.teamName = meta.teamName;
+          if (typeof meta.toolUseId === "string" && meta.toolUseId.length > 0) {
+            file.toolUseId = meta.toolUseId;
+          }
+        } catch (err) {
+          console.warn(`Failed to read meta file ${metaFile}:`, err);
+        }
+      }
+
+      // Dependency sort: an agent spawned by another agent in this batch must
+      // register after its spawner, so the frontend never sees a child before
+      // its anchor. Depth is capped at 5 (Claude Code's nesting limit), which
+      // also bounds any cycle from corrupt data.
+      const batchIds = new Set<string>();
+      for (const file of buffered) {
+        if (file.agentId) batchIds.add(file.agentId);
+      }
+      const batchParent = new Map<string, string>();
+      for (const file of buffered) {
+        if (!file.agentId || !file.toolUseId) continue;
+        const owner = resolveLiveSpawner(file.toolUseId, file.agentId, (id) => batchIds.has(id));
+        if (owner !== undefined) {
+          batchParent.set(file.agentId, owner);
+        }
+      }
+      const spawnDepth = (agentId?: string): number => {
+        if (!agentId) return 0;
+        let depth = 0;
+        let cur = batchParent.get(agentId);
+        while (cur !== undefined && depth < 5) {
+          depth++;
+          cur = batchParent.get(cur);
+        }
+        return depth;
+      };
+      buffered.sort((a, b) => spawnDepth(a.agentId) - spawnDepth(b.agentId));
+
+      for (const file of buffered) {
+        const { filePath, stat } = file;
 
         // Backfill the parent session if it hasn't been discovered yet —
         // the main's JSONL may be older than DISCOVERY_THRESHOLD_MS while
@@ -403,39 +557,16 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           updateAgentStatus(sessionId, stat.mtimeMs);
         }
 
-        const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
-        if (!agentIdMatch) continue;
-        const agentId = agentIdMatch[1];
+        if (!file.agentId) continue;
+        const agentId = file.agentId;
 
         if (agentId.startsWith("compact-")) continue;
         if (agentId.startsWith("mcp__")) continue;
 
-        let agentType: ReturnType<typeof parseAgentType> = "generic";
-        let displayType: string | undefined;
-        let description = "";
-        let teamId: string | undefined;
-        let teamName: string | undefined;
-        const metaFile = `agent-${agentId}.meta.json`;
-        if (metaFiles.includes(metaFile)) {
-          try {
-            const meta = JSON.parse(
-              fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
-            );
-            agentType = parseAgentType(meta.agentType);
-            if (typeof meta.agentType === "string" && meta.agentType.length > 0) {
-              displayType = meta.agentType;
-            }
-            description = meta.description || "";
-            teamId = meta.teamId;
-            teamName = meta.teamName;
-          } catch (err) {
-            console.warn(`Failed to read meta file ${metaFile}:`, err);
-          }
-        }
-
+        let agentType = file.agentType;
         // If no meta file, try to infer type from description
-        if (agentType === "generic" && description) {
-          agentType = parseAgentType(description);
+        if (agentType === "generic" && file.description) {
+          agentType = parseAgentType(file.description);
         }
 
         if (!agents.has(agentId)) {
@@ -445,38 +576,64 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 
           agentFilePaths.set(agentId, filePath);
           const info = extractTaskFromJSONL(filePath);
-          const parentId = sessionId;
+          // Resolve the real spawner from the spawn index — a nested
+          // sub-agent's meta.toolUseId points at the Agent/Task tool_use in
+          // its spawner's JSONL. Fall back to the session when the id is
+          // unresolved (or the owner isn't registered) and queue a retry.
+          let parentId = sessionId;
+          if (file.toolUseId !== undefined) {
+            const owner = resolveLiveSpawner(file.toolUseId, agentId);
+            if (owner !== undefined) {
+              parentId = owner;
+            } else if (resolveSpawnOwner(file.toolUseId) !== agentId) {
+              // Queue a retry unless the id (corruptly) points at the agent
+              // itself — that could never resolve to a usable parent.
+              pendingReparents.set(agentId, file.toolUseId);
+            }
+          }
 
           registerAgent({
             agentId,
             sessionId,
             projectDir,
             agentType,
-            displayType,
+            displayType: file.displayType,
             parentId,
-            task: description || info.task,
+            task: file.description || info.task,
             slug: info.slug,
             model: info.model,
             startTime: info.startTime || stat.mtimeMs,
-            teamId,
-            teamName,
+            teamId: file.teamId,
+            teamName: file.teamName,
             effort: readEffortLevelCached(projectDir, settingsCache),
             is1MContext: readIs1MContextCached(projectDir, settingsCache),
           });
+        } else if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
+          // Heal the late-meta race: a child whose meta.json appeared a tick
+          // after its JSONL registered on the session fallback with no retry
+          // queued. Queue one now that the toolUseId is visible; the retry
+          // after Step 2 applies it once the spawner is live.
+          const existing = agents.get(agentId);
+          if (existing && existing.parentId === sessionId) {
+            const owner = resolveSpawnOwner(file.toolUseId);
+            if (owner !== agentId && owner !== sessionId) {
+              pendingReparents.set(agentId, file.toolUseId);
+            }
+          }
         }
 
-        const newLines = readNewLines(filePath);
-        for (const line of newLines) {
-          try {
-            const entry = JSON.parse(line);
-            processEntry(entry, agentId, sessionId);
-          } catch { /* skip */ }
+        for (const entry of file.parsed) {
+          processEntry(entry, agentId, sessionId);
         }
 
         updateAgentStatus(agentId, stat.mtimeMs);
       }
     }
   }
+
+  // Late parent resolution for children registered against the session
+  // fallback this tick or earlier whose spawner's tool_use line has landed.
+  retryPendingReparents();
 
   // Shared maintenance: dedup competing mains, purge stale agents, expire the
   // removed-id tombstones, and drop offsets for deleted files.
@@ -500,6 +657,8 @@ function pruneState(): void {
     agents.delete(agentId);
     agentLastModified.delete(agentId);
     agentFilePaths.delete(agentId);
+    dropSpawnEntriesFor(agentId);
+    pendingReparents.delete(agentId);
     removedAgentIds.set(agentId, Date.now());
     for (let i = edges.length - 1; i >= 0; i--) {
       if (edges[i].source === agentId || edges[i].target === agentId) {
@@ -534,6 +693,8 @@ function pruneState(): void {
     agents.delete(agentId);
     agentLastModified.delete(agentId);
     agentFilePaths.delete(agentId);
+    dropSpawnEntriesFor(agentId);
+    pendingReparents.delete(agentId);
     removedAgentIds.set(agentId, Date.now());
     for (let i = edges.length - 1; i >= 0; i--) {
       if (edges[i].source === agentId || edges[i].target === agentId) {

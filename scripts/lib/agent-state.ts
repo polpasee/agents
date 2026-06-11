@@ -34,6 +34,8 @@ declare global {
     agentLastModified: Map<string, number>;
     removedAgentIds: Map<string, number>;
     agentFilePaths: Map<string, string>;
+    spawnIndex: Map<string, string>;
+    pendingReparents: Map<string, string>;
     started: boolean;
   } | undefined;
 }
@@ -46,8 +48,14 @@ const store = (globalThis.__agentMonitorState ??= {
   agentLastModified: new Map<string, number>(),
   removedAgentIds: new Map<string, number>(),
   agentFilePaths: new Map<string, string>(),
+  spawnIndex: new Map<string, string>(),
+  pendingReparents: new Map<string, string>(),
   started: false,
 });
+// A dev process may have created the singleton before newer fields existed;
+// hot-reload reuses that object, so backfill anything missing.
+store.spawnIndex ??= new Map<string, string>();
+store.pendingReparents ??= new Map<string, string>();
 
 export const agents = store.agents;
 export const edges = store.edges;
@@ -56,6 +64,8 @@ export const agentLastModified = store.agentLastModified;
 export const removedAgentIds = store.removedAgentIds;
 export const agentFilePaths = store.agentFilePaths;
 export const workflows = store.workflows;
+export const spawnIndex = store.spawnIndex;
+export const pendingReparents = store.pendingReparents;
 
 export function upsertWorkflow(run: WorkflowRunState): void {
   workflows.set(run.runId, run);
@@ -105,6 +115,70 @@ export function parseAgentType(raw?: string): AgentType {
       || /-pro\b/.test(lower)) return "build";
 
   return "generic";
+}
+
+// ── Spawn index: tool_use id → spawning agent ─────────
+// A nested sub-agent's meta.json carries the toolUseId of the `Agent`/`Task`
+// tool_use block that spawned it; that block lives in the spawner's JSONL.
+// Recording every spawn block's owner here is what lets discovery resolve a
+// child's real parent instead of anchoring it to the main session.
+
+/** Record the spawning agent for a single Agent/Task tool_use block. */
+function recordSpawnToolUse(block: Record<string, unknown>, agentId: string): void {
+  if (block.type !== "tool_use") return;
+  if (block.name !== "Agent" && block.name !== "Task") return;
+  if (typeof block.id !== "string" || block.id.length === 0) return;
+  // First write wins: forked/resumed sessions replay the original
+  // transcript's spawn lines verbatim, and a later harvest must not steal
+  // ownership from the agent that actually issued the call.
+  if (spawnIndex.has(block.id)) return;
+  spawnIndex.set(block.id, agentId);
+}
+
+/**
+ * Phase-A harvest: record Agent/Task spawn tool_use ids from an
+ * already-parsed JSONL entry. Discovery runs this over every fresh
+ * sub-agent file before registering anything, so the index is complete
+ * even when readdir lists a child before its spawner.
+ */
+export function harvestSpawnToolUses(entry: Record<string, unknown>, agentId: string): void {
+  const msg = entry.message;
+  if (!msg || typeof msg !== "object") return;
+  const message = msg as Record<string, unknown>;
+  if (message.role !== "assistant" || !Array.isArray(message.content)) return;
+  for (const block of message.content) {
+    if (block && typeof block === "object") {
+      recordSpawnToolUse(block as Record<string, unknown>, agentId);
+    }
+  }
+}
+
+/** Resolve which agent emitted the given spawn tool_use id, if known. */
+export function resolveSpawnOwner(toolUseId: string): string | undefined {
+  return spawnIndex.get(toolUseId);
+}
+
+/**
+ * Resolve a spawn tool_use id to a spawner that is usable as `selfId`'s
+ * parent: known, not the agent itself, and accepted by `isLive` (registered
+ * agents by default; discovery's dependency sort passes the tick's batch).
+ * All parent-resolution sites must go through this so the guards never drift.
+ */
+export function resolveLiveSpawner(
+  toolUseId: string,
+  selfId: string,
+  isLive: (id: string) => boolean = (id) => agents.has(id),
+): string | undefined {
+  const owner = spawnIndex.get(toolUseId);
+  if (owner === undefined || owner === selfId || !isLive(owner)) return undefined;
+  return owner;
+}
+
+/** Drop spawn-index entries owned by a purged agent. */
+export function dropSpawnEntriesFor(agentId: string): void {
+  for (const [toolUseId, owner] of spawnIndex) {
+    if (owner === agentId) spawnIndex.delete(toolUseId);
+  }
 }
 
 // ── Register an agent and broadcast ──────────────────
@@ -157,6 +231,16 @@ export function registerAgent(opts: {
 
   agents.set(opts.agentId, agent);
 
+  // A resurrected agent's children kept their parentId across the purge,
+  // but the purge spliced their edges — restore them so the edges array
+  // (and state:sync snapshots built from it) stays consistent with parentId.
+  for (const [id, existing] of agents) {
+    if (existing.parentId !== opts.agentId) continue;
+    if (!edges.some(e => !e.edgeType && e.source === opts.agentId && e.target === id)) {
+      edges.push({ source: opts.agentId, target: id });
+    }
+  }
+
   // Handle team membership
   if (opts.teamId) {
     let team = teams.get(opts.teamId);
@@ -201,6 +285,68 @@ export function registerAgent(opts: {
     is1MContext: opts.is1MContext,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
+}
+
+// Single builder for mid-session agent:register re-broadcasts (model
+// change, re-parent), deriving the event from stored state so a new
+// AgentState field only needs adding here.
+function broadcastRegisterFor(agent: AgentState, timestamp: number): void {
+  broadcast({
+    type: "state:update",
+    event: {
+      type: "agent:register",
+      agentId: agent.id,
+      agentType: agent.agentType,
+      displayType: agent.displayType,
+      task: agent.task,
+      sessionId: agent.sessionId,
+      slug: agent.slug,
+      model: agent.model,
+      teamId: agent.teamId,
+      parentId: agent.parentId,
+      metadata: agent.metadata,
+      effort: agent.effort,
+      is1MContext: agent.is1MContext,
+    },
+    timestamp,
+  });
+}
+
+// ── Re-parent an agent onto its real spawner ──────────
+// Used when a nested sub-agent registered against the session fallback and
+// the spawn index later resolved its true parent (cross-tick race).
+export function reparentAgent(agentId: string, newParentId: string): void {
+  const agent = agents.get(agentId);
+  if (!agent || agent.parentId === newParentId) return;
+
+  // Refuse a re-parent that would close a parentId cycle (corrupt or
+  // duplicated tool_use ids): walking up from the new parent must not
+  // reach the agent being moved.
+  let cursorId: string | undefined = newParentId;
+  const seen = new Set<string>();
+  while (cursorId !== undefined && !seen.has(cursorId)) {
+    if (cursorId === agentId) return;
+    seen.add(cursorId);
+    cursorId = agents.get(cursorId)?.parentId;
+  }
+
+  const oldParentId = agent.parentId;
+  agent.parentId = newParentId;
+
+  // Swap the parent edge: drop the old anchor, add the new one. Typed
+  // edges (blocking/tool) are not parent anchors and must survive.
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (!edges[i].edgeType && edges[i].source === oldParentId && edges[i].target === agentId) {
+      edges.splice(i, 1);
+    }
+  }
+  if (!edges.some(e => !e.edgeType && e.source === newParentId && e.target === agentId)) {
+    edges.push({ source: newParentId, target: agentId });
+  }
+
+  // Re-broadcast registration so connected dashboards adopt the new parent
+  // (mirrors the mid-session model-change re-broadcast in processEntryInner).
+  broadcastRegisterFor(agent, Date.now());
 }
 
 // ── Update team status based on member states ────────
@@ -357,25 +503,7 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string, _ses
     const agent = agents.get(agentId);
     if (agent && agent.model !== modelField) {
       agent.model = modelField;
-      broadcast({
-        type: "state:update",
-        event: {
-          type: "agent:register",
-          agentId,
-          agentType: agent.agentType,
-          displayType: agent.displayType,
-          task: agent.task,
-          sessionId: agent.sessionId,
-          slug: agent.slug,
-          model: modelField,
-          teamId: agent.teamId,
-          parentId: agent.parentId,
-          metadata: agent.metadata,
-          effort: agent.effort,
-          is1MContext: agent.is1MContext,
-        },
-        timestamp,
-      });
+      broadcastRegisterFor(agent, timestamp);
     }
   }
 
@@ -385,6 +513,9 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string, _ses
       const b = block as Record<string, unknown>;
       if (b.type !== "tool_use") continue;
       if (typeof b.name !== "string") continue;
+      // Agent/Task tool_use blocks are spawn points — index them so nested
+      // sub-agents can resolve their real parent (meta.toolUseId).
+      recordSpawnToolUse(b, agentId);
       {
         const toolName = b.name;
         const input = b.input && typeof b.input === "object" ? b.input as Record<string, unknown> : undefined;

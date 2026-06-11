@@ -4,7 +4,13 @@ import {
   registerAgent,
   processEntry,
   updateAgentStatus,
+  reparentAgent,
+  harvestSpawnToolUses,
+  resolveSpawnOwner,
   agents,
+  edges,
+  spawnIndex,
+  viewers,
 } from "../agent-state";
 
 describe("parseAgentType", () => {
@@ -403,6 +409,212 @@ describe("registerAgent: project label", () => {
       startTime: Date.now(),
     });
     expect(agents.get("m2")?.metadata?.projectName).toBe("Users/erdos/private/notes");
+  });
+});
+
+describe("spawn index", () => {
+  beforeEach(() => {
+    agents.clear();
+    spawnIndex.clear();
+  });
+
+  it("harvests Agent and Task tool_use ids and ignores other tools", () => {
+    harvestSpawnToolUses(
+      {
+        message: {
+          role: "assistant",
+          content: [
+            { type: "tool_use", id: "toolu_agent", name: "Agent", input: {} },
+            { type: "tool_use", id: "toolu_task", name: "Task", input: {} },
+            { type: "tool_use", id: "toolu_bash", name: "Bash", input: {} },
+            { type: "text", text: "narration" },
+          ],
+        },
+      },
+      "spawner-1",
+    );
+
+    expect(resolveSpawnOwner("toolu_agent")).toBe("spawner-1");
+    expect(resolveSpawnOwner("toolu_task")).toBe("spawner-1");
+    expect(resolveSpawnOwner("toolu_bash")).toBeUndefined();
+  });
+
+  it("ignores spawn blocks without a string id", () => {
+    harvestSpawnToolUses(
+      {
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", name: "Agent", input: {} }],
+        },
+      },
+      "spawner-1",
+    );
+    expect(spawnIndex.size).toBe(0);
+  });
+
+  it("records spawn ids from processEntry's tool_use loop", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "t",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "toolu_x", name: "Agent", input: { prompt: "go" } }],
+        },
+      },
+      "a1",
+      "a1",
+    );
+
+    expect(resolveSpawnOwner("toolu_x")).toBe("a1");
+  });
+
+  it("keeps the first owner when the same tool_use id is harvested again (first write wins)", () => {
+    // Forked/resumed sessions replay the original transcript's spawn lines
+    // verbatim; a later harvest must not steal ownership from the agent that
+    // actually issued the call.
+    const entryWith = (id: string) => ({
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", id, name: "Agent", input: {} }],
+      },
+    });
+
+    harvestSpawnToolUses(entryWith("toolu_dup"), "owner-A");
+    harvestSpawnToolUses(entryWith("toolu_dup"), "owner-B");
+
+    expect(resolveSpawnOwner("toolu_dup")).toBe("owner-A");
+  });
+});
+
+describe("reparentAgent", () => {
+  const reg = (agentId: string, parentId?: string) =>
+    registerAgent({
+      agentId,
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: parentId ? "generic" : "main",
+      parentId,
+      task: agentId,
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+  beforeEach(() => {
+    agents.clear();
+    edges.length = 0;
+    viewers.clear();
+  });
+
+  it("updates parentId, swaps the parent edge, and re-broadcasts registration", () => {
+    reg("sess");
+    reg("parent", "sess");
+    reg("child", "sess");
+
+    const sent: Array<{ type: string; event?: Record<string, unknown> }> = [];
+    viewers.add({ send: (data: string) => sent.push(JSON.parse(data)) });
+
+    reparentAgent("child", "parent");
+
+    expect(agents.get("child")?.parentId).toBe("parent");
+    expect(edges).toContainEqual({ source: "parent", target: "child" });
+    expect(edges.some((e) => e.source === "sess" && e.target === "child")).toBe(false);
+    // The parent's own anchor edge is untouched.
+    expect(edges).toContainEqual({ source: "sess", target: "parent" });
+
+    const rebroadcast = sent.find(
+      (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "child",
+    );
+    expect(rebroadcast?.event?.parentId).toBe("parent");
+  });
+
+  it("is a no-op for unknown agents", () => {
+    expect(() => reparentAgent("ghost", "parent")).not.toThrow();
+    expect(edges).toHaveLength(0);
+  });
+
+  it("refuses a re-parent that would close a parentId cycle (no state change, no broadcast)", () => {
+    reg("sess");
+    reg("B", "sess");
+    reg("A", "B"); // A.parentId === "B"
+
+    const edgesBefore = edges.map((e) => ({ ...e }));
+    const sent: string[] = [];
+    viewers.add({ send: (data: string) => sent.push(data) });
+
+    // Would make B a child of its own descendant — must be refused.
+    reparentAgent("B", "A");
+
+    expect(agents.get("B")?.parentId).toBe("sess");
+    expect(edges).toEqual(edgesBefore);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("preserves typed edges from the new parent and still adds the untyped anchor", () => {
+    reg("sess");
+    reg("OLD", "sess");
+    reg("NEW", "sess");
+    reg("child", "OLD");
+    // A typed (blocking) edge from the new parent exists before the re-parent.
+    edges.push({ source: "NEW", target: "child", edgeType: "blocking" });
+
+    reparentAgent("child", "NEW");
+
+    // The typed edge survives, and it must NOT suppress the untyped anchor.
+    expect(edges).toContainEqual({ source: "NEW", target: "child", edgeType: "blocking" });
+    expect(edges).toContainEqual({ source: "NEW", target: "child" });
+    // The old untyped parent anchor is gone.
+    expect(edges.some((e) => !e.edgeType && e.source === "OLD" && e.target === "child")).toBe(false);
+  });
+});
+
+describe("registerAgent: resurrection restores child edges", () => {
+  beforeEach(() => {
+    agents.clear();
+    edges.length = 0;
+    viewers.clear();
+  });
+
+  it("re-adds the untyped parent edge for children that survived a purge", () => {
+    // Child C registered with parentId "S"...
+    registerAgent({
+      agentId: "C",
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: "generic",
+      parentId: "S",
+      task: "child",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+    // ...then S was purged: the purge spliced its edges, but C (still fresh)
+    // kept parentId = "S" in the agents map.
+    edges.length = 0;
+
+    registerAgent({
+      agentId: "S",
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    expect(edges).toContainEqual({ source: "S", target: "C" });
   });
 });
 
