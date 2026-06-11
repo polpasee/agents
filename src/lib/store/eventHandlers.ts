@@ -67,45 +67,10 @@ export function createMutationContext(snapshot: {
   return ctx;
 }
 
-// ── Re-register (metadata refresh) field-merge policy ────────────────
+// ── Re-register (metadata refresh) field-merge strategies ────────────
 //
-// When an already-live agent sends a second agent:register, we merge the
-// event's fields into the existing state without wiping accumulated data
-// (toolCalls, tokens, startTime, etc. come from `...existing` spread).
-//
-// Three merge strategies:
-//   "incoming"        — event.x || existing.x || ""  (truthy incoming wins;
-//                       the "" final fallback is applied as a post-step for model)
-//   "incomingNullish" — event.x ?? existing.x        (nullish-check: even
-//                       false/0 from the event replaces the existing value)
-//   "keepFirst"       — existing.x || event.x        (once set, never replaced)
-//
-// Adding a new AgentState field? Add it here so the policy is explicit.
-const REGISTER_REFRESH = {
-  model:       "incoming",         // label must reflect live model switches
-  agentType:   "incoming",         // coarse type can be corrected on refresh
-  parentId:    "incoming",         // re-parent broadcast for nested sub-agents
-  task:        "keepFirst",        // first task description wins
-  slug:        "keepFirst",        // stable identifier once assigned
-  displayType: "keepFirst",        // display label set on first register
-  metadata:    "keepFirst",        // arbitrary bag; keep original contents
-  effort:      "incomingNullish",  // settings.json may omit effort on refresh
-  is1MContext: "incomingNullish",  // same: false is meaningful, not "absent"
-} as const;
-type RefreshPolicy = (typeof REGISTER_REFRESH)[keyof typeof REGISTER_REFRESH];
-
-/** Apply REGISTER_REFRESH policy for one field. `model` is excluded here
- *  and handled explicitly below because it carries a "" final fallback that
- *  the generic strategies cannot express. */
-function applyPolicy<K extends keyof typeof REGISTER_REFRESH>(
-  policy: RefreshPolicy,
-  incoming: unknown,
-  prior: unknown,
-): unknown {
-  if (policy === "incoming")        return incoming || prior;
-  if (policy === "incomingNullish") return incoming ?? prior;
-  /* keepFirst */                   return prior || incoming;
-}
+// Adding a new AgentState field? Add it to the merge block in applyRegister
+// so the policy is explicit (per-strategy semantics documented inline there).
 
 // ── Per-event handlers ────────────────────────────────────────────────
 
@@ -119,22 +84,21 @@ export function applyRegister(
   // without wiping accumulated state like toolCalls or tokens.
   const existing = ctx.agents.get(event.agentId);
   const agent: AgentState = existing
-    ? (() => {
-        const merged: AgentState = { ...existing };
-        // Apply declarative policy for each refreshable field.
-        merged.agentType   = applyPolicy(REGISTER_REFRESH.agentType,   event.agentType,   existing.agentType)   as AgentState["agentType"];
-        merged.parentId    = applyPolicy(REGISTER_REFRESH.parentId,    event.parentId,    existing.parentId)    as AgentState["parentId"];
-        merged.task        = applyPolicy(REGISTER_REFRESH.task,         event.task,        existing.task)        as string;
-        merged.slug        = applyPolicy(REGISTER_REFRESH.slug,         event.slug,        existing.slug)        as AgentState["slug"];
-        merged.displayType = applyPolicy(REGISTER_REFRESH.displayType,  event.displayType, existing.displayType) as AgentState["displayType"];
-        merged.metadata    = applyPolicy(REGISTER_REFRESH.metadata,     event.metadata,    existing.metadata)    as AgentState["metadata"];
-        merged.effort      = applyPolicy(REGISTER_REFRESH.effort,       event.effort,      existing.effort)      as AgentState["effort"];
-        merged.is1MContext = applyPolicy(REGISTER_REFRESH.is1MContext,  event.is1MContext, existing.is1MContext) as AgentState["is1MContext"];
-        // model: incoming-wins but with a "" final fallback (can't express
-        // that final fallback in the generic policy, so handle it here).
-        merged.model       = event.model || existing.model || "";
-        return merged;
-      })()
+    ? {
+        ...existing,
+        // incoming: truthy event value wins.
+        model:       event.model || existing.model || "",      // label must reflect live model switches
+        agentType:   event.agentType || existing.agentType,    // coarse type can be corrected on refresh
+        parentId:    event.parentId || existing.parentId,      // re-parent broadcast for nested sub-agents
+        // keepFirst: once set, never replaced.
+        task:        existing.task || event.task,              // first task description wins
+        slug:        existing.slug || event.slug,              // stable identifier once assigned
+        displayType: existing.displayType || event.displayType, // display label set on first register
+        metadata:    existing.metadata || event.metadata,      // arbitrary bag; keep original contents
+        // incomingNullish: even false/0 from the event replaces the value.
+        effort:      event.effort ?? existing.effort,           // settings.json may omit effort on refresh
+        is1MContext: event.is1MContext ?? existing.is1MContext, // same: false is meaningful, not "absent"
+      }
     : {
         id: event.agentId,
         parentId: event.parentId,

@@ -1,5 +1,13 @@
 // ── Server-side configuration ─────────────────────────
 
+import * as os from "node:os";
+import * as path from "node:path";
+
+/** The durable record of every Claude Code session — discovery, cost
+ *  history, and mock seeding all operate under here. Kept hard-coded
+ *  (not env-driven); consumers tolerate a missing dir. */
+export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+
 export const POLL_INTERVAL_MS = 1500;
 
 /** Full filesystem rediscovery (scan every project dir for *new* sessions)
@@ -44,12 +52,17 @@ export const MAX_ARG_PREVIEW_LENGTH = 60;
 export const INLINE_ARGS_MAX_KEYS = 2;
 export const JSONL_MAX_BYTES = 16384;
 
-/** ── Usage cache refresh (ws-server-owned) ─────────────
- *  ws-server polls the ccstatusline cache file mtime on this interval and
- *  fires a refresh spawn if the cache is older than USAGE_REFRESH_THRESHOLD_MS.
- *  Owning refresh cadence here (vs. the HTTP route) makes the GET handler
- *  pure and removes a TOCTOU race between concurrent requests. */
+/** ── Usage cache refresh (startBackgroundTasks-owned) ─────────────
+ *  The startBackgroundTasks usage poll loop checks the ccstatusline cache file
+ *  mtime on this interval and fires a refresh spawn if the cache is older than
+ *  USAGE_REFRESH_THRESHOLD_MS. Owning refresh cadence there (vs. the HTTP
+ *  route) makes the GET handler pure and removes a TOCTOU race between
+ *  concurrent requests. */
 export const USAGE_REFRESH_INTERVAL_MS = 30 * 1000;
 /** Spawn ccstatusline when the cache is older than this. Matches ccstatusline's
  *  own internal CACHE_MAX_AGE (180s) so a refresh actually round-trips to the API. */
 export const USAGE_REFRESH_THRESHOLD_MS = 180 * 1000;
+/** ccstatusline writes fresh usage data here every ~3 minutes. Lives in config
+ *  (not the spawn helper) so pure cache readers like src/app/api/usage/route.ts
+ *  can import the path without pulling in node:child_process. */
+export const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");

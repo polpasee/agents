@@ -7,6 +7,20 @@ export type ReplaySlice = Pick<AgentStore,
   | "replaySeek" | "replaySetSpeed" | "replayExit" | "replayTick"
 >;
 
+/** Graph-state reset applied whenever replay rebuilds from scratch
+ *  (load / seek / exit). */
+function graphReset(prevTopologyVersion: number): Partial<AgentStore> {
+  return {
+    agents: new Map(),
+    edges: [],
+    activity: [],
+    nextActivityId: 0,
+    topologyVersion: prevTopologyVersion + 1,
+    teams: new Map(),
+    errorDetails: new Map(),
+  };
+}
+
 export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = (set, get) => ({
   replay: {
     active: false,
@@ -24,16 +38,10 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
       ? session.events[session.events.length - 1].timestamp
       : session.startTime;
     set({
-      agents: new Map(),
-      edges: [],
-      activity: [],
-      nextActivityId: 0,
-      topologyVersion: get().topologyVersion + 1,
-      teams: new Map(),
+      ...graphReset(get().topologyVersion),
       selectedAgentId: null,
       selectedTeamId: null,
       selectedWorkflowId: null,
-      errorDetails: new Map(),
       replay: {
         active: true,
         session,
@@ -69,13 +77,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
     // Clamp to [startTime, endTime] — out-of-range seeks leave UI at nonsensical times
     const clamped = Math.max(replay.startTime, Math.min(timestamp, replay.endTime));
     set({
-      agents: new Map(),
-      edges: [],
-      activity: [],
-      nextActivityId: 0,
-      topologyVersion: get().topologyVersion + 1,
-      teams: new Map(),
-      errorDetails: new Map(),
+      ...graphReset(get().topologyVersion),
       replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
     });
     get().replayTick(clamped);
@@ -88,13 +90,7 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
 
   replayExit: () => {
     set({
-      agents: new Map(),
-      edges: [],
-      activity: [],
-      nextActivityId: 0,
-      topologyVersion: get().topologyVersion + 1,
-      teams: new Map(),
-      errorDetails: new Map(),
+      ...graphReset(get().topologyVersion),
       replay: {
         active: false,
         session: null,

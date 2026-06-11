@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import * as os from "node:os";
-import * as path from "node:path";
+// PROJECTS_DIR (scripts/lib/config.ts) — the durable record of every
+// Claude Code session; the scanner tolerates a missing dir.
+import { PROJECTS_DIR } from "../../../../scripts/lib/config";
 import { scanCostHistory } from "../../../../scripts/lib/cost-history";
-
-/** Mirrors the WS-server's PROJECTS_DIR — the durable record of every
- *  Claude Code session. Kept hard-coded (not env-driven) to match the
- *  ws-server convention; the scanner tolerates a missing dir. */
-const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
 export const dynamic = "force-dynamic";
 

@@ -6,9 +6,10 @@
 // spawn the binary with a minimal stdin payload — the cache write is the
 // useful side effect.
 //
-// This module is imported by both `scripts/ws-server.ts` (the long-running
-// poll loop that owns refresh cadence) and `src/app/api/usage/route.ts`
-// (which used to spawn directly but now just reads the cache).
+// This module is imported only by the startBackgroundTasks usage poll loop
+// (the long-running loop that owns refresh cadence). `src/app/api/usage/
+// route.ts` reads the cache path from scripts/lib/config instead, keeping
+// this spawn helper out of the pure cache-reader route's import graph.
 //
 // Sprint 1 hardening retained: pinned local binary resolution and a strictly
 // filtered env so a compromised ccstatusline cannot exfiltrate ambient secrets.
@@ -16,11 +17,8 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import * as os from "node:os";
 import { createRequire } from "node:module";
-
-/** ccstatusline writes fresh data here every ~3 minutes. */
-export const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");
+import { CCSTATUSLINE_CACHE } from "./config";
 
 /** Resolve the pinned, locally-installed ccstatusline binary path. */
 function resolveCcstatuslineBin(): string {

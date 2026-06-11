@@ -87,6 +87,13 @@ export function SessionComparison({ leftSession, rightSession, agents, onExit }:
 }
 
 function Panel({ metrics, other, label }: { metrics: SessionMetrics; other: SessionMetrics; label: string }) {
+  const rows = [
+    { label: "Agents", value: metrics.agentCount.toString(), color: deltaColor(metrics.agentCount, other.agentCount, false), delta: formatDelta(metrics.agentCount, other.agentCount, (n) => n.toString()) },
+    { label: "Tokens", value: formatNumber(metrics.totalTokens), color: deltaColor(metrics.totalTokens, other.totalTokens), delta: formatDelta(metrics.totalTokens, other.totalTokens, formatNumber) },
+    { label: "Cost", value: formatCost(metrics.totalCost), color: deltaColor(metrics.totalCost, other.totalCost), delta: formatDelta(metrics.totalCost, other.totalCost, formatCost) },
+    { label: "Duration", value: formatDuration(metrics.totalDuration), color: deltaColor(metrics.totalDuration, other.totalDuration), delta: formatDelta(metrics.totalDuration, other.totalDuration, formatDuration) },
+  ];
+
   return (
     <div className="flex-1 p-4 overflow-auto" style={{ minWidth: 0 }}>
       <div className="mb-4">
@@ -97,10 +104,9 @@ function Panel({ metrics, other, label }: { metrics: SessionMetrics; other: Sess
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-4 p-3 rounded" style={{ background: "var(--color-bg)", border: `1px solid ${UI.primary}22` }}>
-        <MetricRow label="Agents" value={metrics.agentCount.toString()} valueColor={deltaColor(metrics.agentCount, other.agentCount, false)} delta={formatDelta(metrics.agentCount, other.agentCount, (n) => n.toString())} deltaColor={deltaColor(metrics.agentCount, other.agentCount, false)} />
-        <MetricRow label="Tokens" value={formatNumber(metrics.totalTokens)} valueColor={deltaColor(metrics.totalTokens, other.totalTokens)} delta={formatDelta(metrics.totalTokens, other.totalTokens, formatNumber)} deltaColor={deltaColor(metrics.totalTokens, other.totalTokens)} />
-        <MetricRow label="Cost" value={formatCost(metrics.totalCost)} valueColor={deltaColor(metrics.totalCost, other.totalCost)} delta={formatDelta(metrics.totalCost, other.totalCost, (n) => formatCost(n))} deltaColor={deltaColor(metrics.totalCost, other.totalCost)} />
-        <MetricRow label="Duration" value={formatDuration(metrics.totalDuration)} valueColor={deltaColor(metrics.totalDuration, other.totalDuration)} delta={formatDelta(metrics.totalDuration, other.totalDuration, formatDuration)} deltaColor={deltaColor(metrics.totalDuration, other.totalDuration)} />
+        {rows.map((row) => (
+          <MetricRow key={row.label} {...row} />
+        ))}
       </div>
 
       <div className="text-xs font-mono mb-2" style={{ color: UI.text.muted }}>AGENTS ({metrics.agents.length})</div>
@@ -116,13 +122,13 @@ function Panel({ metrics, other, label }: { metrics: SessionMetrics; other: Sess
   );
 }
 
-function MetricRow({ label, value, valueColor, delta, deltaColor: dColor }: { label: string; value: string; valueColor: string; delta: string; deltaColor: string }) {
+function MetricRow({ label, value, color, delta }: { label: string; value: string; color: string; delta: string }) {
   return (
     <div>
       <div className="text-xs" style={{ color: UI.text.muted }}>{label}</div>
       <div className="flex items-baseline gap-2">
-        <span className="text-sm font-bold font-mono" style={{ color: valueColor }}>{value}</span>
-        <span className="text-xs font-mono" style={{ color: dColor, opacity: 0.8 }}>{delta}</span>
+        <span className="text-sm font-bold font-mono" style={{ color }}>{value}</span>
+        <span className="text-xs font-mono" style={{ color, opacity: 0.8 }}>{delta}</span>
       </div>
     </div>
   );

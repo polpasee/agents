@@ -1,9 +1,10 @@
 "use client";
 
 import { useAgentStore } from "@/lib/store";
+import { teamMembers } from "@/lib/store/helpers";
 import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
-import { formatNumber, formatDuration } from "@/lib/utils";
-import { calculateCost, formatCost } from "@/lib/costs";
+import { formatNumber, formatDuration, truncateId } from "@/lib/utils";
+import { formatCost } from "@/lib/costs";
 
 export function TeamPanel() {
   const teams = useAgentStore((s) => s.teams);
@@ -11,6 +12,7 @@ export function TeamPanel() {
   const selectedTeamId = useAgentStore((s) => s.selectedTeamId);
   const selectTeam = useAgentStore((s) => s.selectTeam);
   const selectAgent = useAgentStore((s) => s.selectAgent);
+  const getTeamStats = useAgentStore((s) => s.getTeamStats);
 
   if (teams.size === 0) return null;
 
@@ -36,107 +38,99 @@ export function TeamPanel() {
         {teamList.map((team) => {
           const isSelected = team.id === selectedTeamId;
           const statusColor = TEAM_STATUS_COLORS[team.status];
-          const members = team.memberIds
-            .map((id) => agents.get(id))
-            .filter(Boolean);
+          // members/leader are only needed for the expanded row rendering;
+          // aggregate stats come from the store selector.
+          const members = teamMembers(team.memberIds, agents);
           const leader = team.leaderId ? agents.get(team.leaderId) : null;
-
-          let totalTokens = 0;
-          let totalCostValue = 0;
-          let completedCount = 0;
-          let errorCount = 0;
-          let activeCount = 0;
-          for (const m of members) {
-            if (!m) continue;
-            totalTokens += m.inputTokens + m.outputTokens;
-            totalCostValue += calculateCost(m).total;
-            if (m.status === "completed") completedCount++;
-            else if (m.status === "error") errorCount++;
-            else if (m.status === "running" || m.status === "idle") activeCount++;
-          }
+          const stats = getTeamStats(team.id);
 
           const elapsed = Date.now() - team.startTime;
 
           return (
-            <button
+            <div
               key={team.id}
-              type="button"
-              className="rounded-md p-2 cursor-pointer transition-colors text-left w-full"
-              onClick={() => selectTeam(isSelected ? null : team.id)}
+              className="rounded-md p-2 transition-colors"
               style={{
                 background: isSelected ? `${UI.primary}11` : "transparent",
                 border: `1px solid ${isSelected ? `${UI.primary}44` : "var(--color-border)"}`,
               }}
             >
-              {/* Team header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <div
-                    className="w-2 h-2 rounded-full"
-                    style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
-                  />
-                  <span className="text-sm font-bold font-mono" style={{ color: UI.primary }}>
-                    {team.name}
+              <button
+                type="button"
+                className="cursor-pointer text-left w-full"
+                onClick={() => selectTeam(isSelected ? null : team.id)}
+              >
+                {/* Team header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
+                    />
+                    <span className="text-sm font-bold font-mono" style={{ color: UI.primary }}>
+                      {team.name}
+                    </span>
+                  </div>
+                  <span className="text-xs capitalize" style={{ color: statusColor }}>
+                    {team.status}
                   </span>
                 </div>
-                <span className="text-xs capitalize" style={{ color: statusColor }}>
-                  {team.status}
-                </span>
-              </div>
 
-              {/* Task */}
-              <div className="text-xs mt-1 truncate" style={{ color: UI.text.muted }}>
-                {team.task}
-              </div>
+                {/* Task */}
+                <div className="text-xs mt-1 truncate" style={{ color: UI.text.muted }}>
+                  {team.task}
+                </div>
 
-              {/* Stats row */}
-              <div className="flex gap-3 mt-1.5 text-xs">
-                <span style={{ color: UI.text.dimmed }}>
-                  Members: <span style={{ color: UI.text.secondary }}>{members.length}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Active: <span style={{ color: STATUS_COLORS.running }}>{activeCount}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Done: <span style={{ color: STATUS_COLORS.completed }}>{completedCount}</span>
-                </span>
-                {errorCount > 0 && (
+                {/* Stats row */}
+                <div className="flex gap-3 mt-1.5 text-xs">
                   <span style={{ color: UI.text.dimmed }}>
-                    Errors: <span style={{ color: UI.error }}>{errorCount}</span>
+                    Members: <span style={{ color: UI.text.secondary }}>{stats.memberCount}</span>
                   </span>
-                )}
-              </div>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Active: <span style={{ color: STATUS_COLORS.running }}>{stats.activeCount}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Done: <span style={{ color: STATUS_COLORS.completed }}>{stats.completedCount}</span>
+                  </span>
+                  {stats.errorCount > 0 && (
+                    <span style={{ color: UI.text.dimmed }}>
+                      Errors: <span style={{ color: UI.error }}>{stats.errorCount}</span>
+                    </span>
+                  )}
+                </div>
 
-              {/* Tokens + Cost + Duration */}
-              <div className="flex gap-3 mt-1 text-xs">
-                <span style={{ color: UI.text.dimmed }}>
-                  Tokens: <span style={{ color: UI.primary }}>{formatNumber(totalTokens)}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Cost: <span style={{ color: UI.primary }}>{formatCost(totalCostValue)}</span>
-                </span>
-                <span style={{ color: UI.text.dimmed }}>
-                  Time: <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
-                </span>
-              </div>
+                {/* Tokens + Cost + Duration */}
+                <div className="flex gap-3 mt-1 text-xs">
+                  <span style={{ color: UI.text.dimmed }}>
+                    Tokens: <span style={{ color: UI.primary }}>{formatNumber(stats.totalTokens)}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Cost: <span style={{ color: UI.primary }}>{formatCost(stats.totalCost)}</span>
+                  </span>
+                  <span style={{ color: UI.text.dimmed }}>
+                    Time: <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
+                  </span>
+                </div>
+              </button>
 
-              {/* Member list (expanded when selected) */}
+              {/* Member list (expanded when selected); sibling of the card button
+                  because interactive content may not nest inside a <button> */}
               {isSelected && (
                 <div className="mt-2 space-y-1">
                   {leader && (
                     <div className="flex items-center gap-1 text-xs">
                       <span style={{ color: UI.text.dimmed }}>Lead:</span>
                       <button
-                        onClick={(e) => { e.stopPropagation(); selectAgent(leader.id); }}
+                        onClick={() => selectAgent(leader.id)}
                         className="hover:underline"
                         style={{ color: AGENT_COLORS[leader.agentType] }}
                       >
-                        {AGENT_LABELS[leader.agentType]}:{leader.id.slice(0, 8)}
+                        {AGENT_LABELS[leader.agentType]}:{truncateId(leader.id)}
                       </button>
                     </div>
                   )}
                   {members.map((m) => {
-                    if (!m || m.id === team.leaderId) return null;
+                    if (m.id === team.leaderId) return null;
                     const color = AGENT_COLORS[m.agentType];
                     return (
                       <div key={m.id} className="flex items-center gap-1.5 text-xs">
@@ -145,11 +139,11 @@ export function TeamPanel() {
                           style={{ background: color }}
                         />
                         <button
-                          onClick={(e) => { e.stopPropagation(); selectAgent(m.id); }}
+                          onClick={() => selectAgent(m.id)}
                           className="hover:underline truncate"
                           style={{ color }}
                         >
-                          {AGENT_LABELS[m.agentType]}:{m.id.slice(0, 8)}
+                          {AGENT_LABELS[m.agentType]}:{truncateId(m.id)}
                         </button>
                         <span className="capitalize" style={{ color: STATUS_COLORS[m.status] }}>
                           {m.status}
@@ -159,7 +153,7 @@ export function TeamPanel() {
                   })}
                 </div>
               )}
-            </button>
+            </div>
           );
         })}
       </div>

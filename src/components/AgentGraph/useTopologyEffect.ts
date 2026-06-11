@@ -1,15 +1,14 @@
 import { useEffect } from "react";
 import { select } from "d3-selection";
 import { zoom } from "d3-zoom";
-import { drag } from "d3-drag";
 import { forceSimulation, forceLink, forceManyBody, forceX, forceY, forceCollide } from "d3-force";
-import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
-import { renderNodeVisuals, updateLinkVisuals, bezierPath, agentDepth, depthFactor } from "@/lib/d3";
+import { renderNodeVisuals, updateLinkVisuals, linkPath, clusterHullPath, clusterLabelAnchor, agentDepth, depthFactor } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
+import { simulationDrag } from "./simulationDrag";
 
 interface Options {
   filteredAgents: AgentState[];
@@ -207,25 +206,6 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       renderNodeVisuals(select(this), d.agent, selectedAgentId, d.depth);
     });
 
-    // Drag behavior
-    nodeSelection.call(
-      drag<SVGGElement, SimNode>()
-        .on("start", (event) => {
-          if (!event.active) simulation.alphaTarget(0.3).restart();
-          event.subject.fx = event.subject.x;
-          event.subject.fy = event.subject.y;
-        })
-        .on("drag", (event) => {
-          event.subject.fx = event.x;
-          event.subject.fy = event.y;
-        })
-        .on("end", (event) => {
-          if (!event.active) simulation.alphaTarget(0);
-          event.subject.fx = null;
-          event.subject.fy = null;
-        })
-    );
-
     // Force simulation — use low alpha when restoring positions
     const linkGlow = linkGroup.selectAll<SVGPathElement, SimLink>("path.glow");
     const linkLine = linkGroup.selectAll<SVGPathElement, SimLink>("path.main");
@@ -304,14 +284,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       ))
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
-        linkGlow.attr("d", (d) => bezierPath(
-          (d.source as SimNode).x!, (d.source as SimNode).y!,
-          (d.target as SimNode).x!, (d.target as SimNode).y!
-        ));
-        linkLine.attr("d", (d) => bezierPath(
-          (d.source as SimNode).x!, (d.source as SimNode).y!,
-          (d.target as SimNode).x!, (d.target as SimNode).y!
-        ));
+        // Glow/main pairs share datum objects (same `links` array), so compute
+        // each path once on the glow pass and reuse the cached value for main.
+        linkGlow.attr("d", (d) => (d.pathD = linkPath(d)));
+        linkLine.attr("d", (d) => d.pathD ?? "");
         nodeSelection.attr("transform", (d) => `translate(${d.x}, ${d.y})`);
 
         // Update tool node positions
@@ -363,31 +339,8 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           const leader = teamNodes.find((n) => n.agent.agentType === "team-lead");
           const clusterColor = leader ? agentColor(leader.agent) : UI.primary;
 
-          let d = "";
-          if (points.length === 2) {
-            const cx = (points[0][0] + points[1][0]) / 2;
-            const cy = (points[0][1] + points[1][1]) / 2;
-            const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
-            const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
-            // Ellipse as SVG path
-            d = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
-          } else {
-            const hull = polygonHull(points);
-            if (hull) {
-              const centroid = polygonCentroid(hull);
-              const expanded = hull.map(([x, y]) => {
-                const dx = x - centroid[0];
-                const dy = y - centroid[1];
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const pad = GRAPH.collideRadius;
-                return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
-              });
-              d = `M${expanded.map((p) => p.join(",")).join("L")}Z`;
-            }
-          }
-
           g.select<SVGPathElement>("path.cluster-shape")
-            .attr("d", d)
+            .attr("d", clusterHullPath(points))
             .attr("fill", `${clusterColor}08`)
             .attr("stroke", clusterColor)
             .attr("stroke-width", isSelectedTeam ? 1.5 : 1)
@@ -397,15 +350,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
           const label = g.select<SVGTextElement>("text.cluster-label");
           if (team) {
-            // Avoid Math.min(...spread) — fold to stay stack-safe with
-            // arbitrarily many cluster points.
-            let avgY = Infinity;
-            for (const p of points) if (p[1] < avgY) avgY = p[1];
-            if (avgY === Infinity) avgY = 0;
-            const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
+            const anchor = clusterLabelAnchor(points);
             label
-              .attr("x", avgX)
-              .attr("y", avgY - GRAPH.collideRadius - 8)
+              .attr("x", anchor.x)
+              .attr("y", anchor.y)
               .attr("fill", clusterColor)
               .attr("opacity", isSelectedTeam ? 0.8 : 0.4)
               .text(team.name);
@@ -437,30 +385,8 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           const isSelectedWorkflow = runId === selectedWorkflowId;
           const wfColor = WORKFLOW_COLOR;
 
-          let d = "";
-          if (points.length === 2) {
-            const cx = (points[0][0] + points[1][0]) / 2;
-            const cy = (points[0][1] + points[1][1]) / 2;
-            const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
-            const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
-            d = `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
-          } else {
-            const hull = polygonHull(points);
-            if (hull) {
-              const centroid = polygonCentroid(hull);
-              const expanded = hull.map(([x, y]) => {
-                const dx = x - centroid[0];
-                const dy = y - centroid[1];
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const pad = GRAPH.collideRadius;
-                return [x + (dx / dist) * pad, y + (dy / dist) * pad] as [number, number];
-              });
-              d = `M${expanded.map((p) => p.join(",")).join("L")}Z`;
-            }
-          }
-
           g.select<SVGPathElement>("path.wf-cluster-shape")
-            .attr("d", d)
+            .attr("d", clusterHullPath(points))
             .attr("fill", `${wfColor}08`)
             .attr("stroke", wfColor)
             .attr("stroke-width", isSelectedWorkflow ? 2 : 1)
@@ -469,13 +395,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
           const label = g.select<SVGTextElement>("text.wf-cluster-label");
           if (run) {
-            let minY = Infinity;
-            for (const p of points) if (p[1] < minY) minY = p[1];
-            if (minY === Infinity) minY = 0;
-            const avgX = points.reduce((s, p) => s + p[0], 0) / points.length;
+            const anchor = clusterLabelAnchor(points);
             label
-              .attr("x", avgX)
-              .attr("y", minY - GRAPH.collideRadius - 8)
+              .attr("x", anchor.x)
+              .attr("y", anchor.y)
               .attr("fill", wfColor)
               .attr("opacity", isSelectedWorkflow ? 0.9 : 0.5)
               .text(`⚙ ${run.name}`);
@@ -526,6 +449,9 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             });
         });
       });
+
+    // Drag behavior (shared with tool nodes)
+    nodeSelection.call(simulationDrag(simulation));
 
     refs.simulationRef.current = simulation;
     return () => { simulation.stop(); };

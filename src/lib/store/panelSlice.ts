@@ -2,6 +2,7 @@ import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import type { LogEntry, FileModification, MetricSample, Annotation } from "../types";
 import { METRIC_HISTORY_MAX } from "../config";
+import { saveLocalStorage } from "./helpers";
 
 export type PanelSlice = Pick<AgentStore,
   | "logEntries" | "logLoading" | "logViewerAgentId"
@@ -44,10 +45,7 @@ export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (s
   budgetThreshold: null,
 
   setBudgetThreshold: (amount) => {
-    if (typeof window !== "undefined") {
-      if (amount !== null) localStorage.setItem("budgetThreshold", String(amount));
-      else localStorage.removeItem("budgetThreshold");
-    }
+    saveLocalStorage("budgetThreshold", amount); // null removes the key
     set({ budgetThreshold: amount });
   },
 

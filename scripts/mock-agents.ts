@@ -1,10 +1,10 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import * as os from "node:os";
 
 /** Mock-agents seeds JSONL files into PROJECTS_DIR so the discovery poller
  *  picks them up via the real code path. */
-const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
+import { PROJECTS_DIR } from "./lib/config";
+
 const MOCK_PREFIX = "-mock-agents-demo";
 const MOCK_DIR = path.join(PROJECTS_DIR, MOCK_PREFIX);
 

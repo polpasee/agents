@@ -6,7 +6,7 @@ import {
   viewers,
 } from "../../../../scripts/lib/agent-state";
 import { annotations } from "../../../../scripts/lib/annotation-store";
-import { PROTOCOL_VERSION, type ServerEvent } from "../../../../src/lib/types";
+import { PROTOCOL_VERSION, type ServerEvent } from "@/lib/types";
 import type { SSEClient } from "../../../../scripts/lib/sse-broadcast";
 import { isAllowedRequestOrigin } from "../../../../scripts/lib/origin-check";
 

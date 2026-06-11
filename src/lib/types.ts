@@ -20,17 +20,11 @@
 /** Current protocol version. Bump on any backwards-incompatible change. */
 export const PROTOCOL_VERSION = 1;
 
-export type AgentStatus = "running" | "waiting" | "idle" | "completed" | "error";
+export const AGENT_STATUSES = ["running", "waiting", "idle", "completed", "error"] as const;
+export type AgentStatus = typeof AGENT_STATUSES[number];
 
-export type AgentType =
-  | "main"
-  | "explore"
-  | "plan"
-  | "build"
-  | "review"
-  | "test"
-  | "team-lead"
-  | "generic";
+export const AGENT_TYPES = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"] as const;
+export type AgentType = typeof AGENT_TYPES[number];
 
 export type TeamStatus = "forming" | "active" | "completed" | "error";
 
@@ -96,8 +90,6 @@ export type ServerEvent =
   | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[]; workflows?: WorkflowRunState[]; protocolVersion?: number }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
   | { type: "state:remove"; agentId: string }
-  | { type: "log:response"; agentId: string; entries: LogEntry[] }
-  | { type: "log:error"; agentId: string; error: string }
   | { type: "annotation:sync"; annotations: Annotation[] }
   | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" }
   | { type: "workflow:update"; workflow: WorkflowRunState }
@@ -301,16 +293,6 @@ export interface FileModification {
   operation: "create" | "edit" | "delete";
   diff?: string;
   timestamp: number;
-}
-
-// ── F10: Export Report ───────────────────────────────
-export interface ReportData {
-  generatedAt: number;
-  duration: number;
-  agents: AgentState[];
-  teams: TeamState[];
-  totalCost: number;
-  errors: { agentId: string; message: string }[];
 }
 
 // ── F11: Theme ───────────────────────────────────────

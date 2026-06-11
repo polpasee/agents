@@ -1,3 +1,4 @@
+import { AGENT_STATUSES, AGENT_TYPES } from "./types";
 import type { AgentEvent, ServerEvent, AgentStatus, AgentType, WorkflowRunState } from "./types";
 
 function isAnnotationShape(v: unknown): boolean {
@@ -5,9 +6,6 @@ function isAnnotationShape(v: unknown): boolean {
   const ann = v as Record<string, unknown>;
   return typeof ann.id === "string" && typeof ann.targetId === "string";
 }
-
-const AGENT_STATUSES: readonly AgentStatus[] = ["running", "waiting", "idle", "completed", "error"];
-const AGENT_TYPES: readonly AgentType[] = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"];
 
 function isAgentStatus(v: unknown): v is AgentStatus {
   return typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v);

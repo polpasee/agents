@@ -240,7 +240,6 @@ describe("processEntry: lazy model learning", () => {
         message: { role: "assistant", model: "claude-opus-4-7", content: [] },
       },
       "a1",
-      "a1",
     );
 
     expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
@@ -315,7 +314,6 @@ describe("processEntry: lazy model learning", () => {
         message: { role: "assistant", model: "claude-opus-4-7", content: [] },
       },
       "a1",
-      "a1",
     );
 
     expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
@@ -352,7 +350,6 @@ describe("processEntry: defensive serialization", () => {
           },
         },
         "a1",
-        "a1",
       ),
     ).not.toThrow();
 
@@ -369,7 +366,6 @@ describe("processEntry: defensive serialization", () => {
     expect(() =>
       processEntry(
         { timestamp: "not-a-real-date", message: null as unknown as Record<string, unknown> },
-        "a1",
         "a1",
       ),
     ).not.toThrow();
@@ -472,7 +468,6 @@ describe("spawn index", () => {
           content: [{ type: "tool_use", id: "toolu_x", name: "Agent", input: { prompt: "go" } }],
         },
       },
-      "a1",
       "a1",
     );
 

@@ -6,15 +6,14 @@ import type { AgentGraphHandle } from "@/components/AgentGraph";
 
 /** Register global keyboard shortcuts for graph navigation (Esc, F, Arrow keys). */
 export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle | null>) {
-  const selectAgent = useAgentStore((s) => s.selectAgent);
-  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
-  const agents = useAgentStore((s) => s.agents);
-  const toggleTranscript = useAgentStore((s) => s.toggleTranscript);
-  const toggleFileAttention = useAgentStore((s) => s.toggleFileAttention);
-
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+
+      // Read store state at keypress time so the listener never needs
+      // re-registration on store mutations.
+      const { selectAgent, selectedAgentId, agents, toggleTranscript, toggleFileAttention } =
+        useAgentStore.getState();
 
       switch (e.key) {
         case "Escape":
@@ -49,5 +48,5 @@ export function useKeyboardShortcuts(graphRef: React.RefObject<AgentGraphHandle 
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectAgent, selectedAgentId, agents, graphRef, toggleTranscript, toggleFileAttention]);
+  }, [graphRef]);
 }

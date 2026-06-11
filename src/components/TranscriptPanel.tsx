@@ -93,7 +93,7 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
               break;
             case "agent:complete":
               agentId = event.agentId;
-              color = "#00ff88";
+              color = UI.success;
               content = `Completed${event.summary ? `: ${event.summary.slice(0, 100)}` : ""}`;
               break;
             case "agent:tokens":

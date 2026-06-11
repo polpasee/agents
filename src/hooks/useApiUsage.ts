@@ -18,7 +18,6 @@ export interface ApiUsage {
   weeklyPercent: number | null;
   blockResetAt: string | null;
   weeklyResetAt: string | null;
-  plan: string | null;
   ageMs?: number | null;
   stale?: boolean;
 }
@@ -26,6 +25,31 @@ export interface ApiUsage {
 export interface ApiUsageState {
   data: ApiUsage | null;
   error: boolean;
+}
+
+/**
+ * Derive the usage-bar values (percent defaults + ms-until-reset) from a
+ * usage snapshot. Pure render-time helper — computes Date.now() at call
+ * time so reset countdowns stay live across re-renders; do not cache the
+ * result in state.
+ */
+export function deriveUsageBars(apiUsage: ApiUsage | null): {
+  blockPercent: number;
+  weeklyPercent: number;
+  blockResetMs: number;
+  weeklyResetMs: number;
+} {
+  const now = Date.now();
+  return {
+    blockPercent: apiUsage?.blockPercent ?? 0,
+    weeklyPercent: apiUsage?.weeklyPercent ?? 0,
+    blockResetMs: apiUsage?.blockResetAt
+      ? new Date(apiUsage.blockResetAt).getTime() - now
+      : 0,
+    weeklyResetMs: apiUsage?.weeklyResetAt
+      ? new Date(apiUsage.weeklyResetAt).getTime() - now
+      : 0,
+  };
 }
 
 const POLL_MS = 30_000;

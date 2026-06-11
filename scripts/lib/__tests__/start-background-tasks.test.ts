@@ -29,10 +29,9 @@ vi.mock("../webhooks", () => ({
   loadWebhookConfig: vi.fn(() => { state.webhookLoaded += 1; }),
 }));
 
-import {
-  startBackgroundTasks,
-  _backgroundStarted,
-} from "../agent-state";
+import { startBackgroundTasks } from "../background-tasks";
+
+const flagHolder = globalThis as { __backgroundTasksStarted?: boolean };
 
 describe("startBackgroundTasks", () => {
   beforeEach(() => {
@@ -40,16 +39,14 @@ describe("startBackgroundTasks", () => {
     state.discoveryShouldReject = false;
     state.webhookLoaded = 0;
     // Reset the HMR-stable started flag by reaching into globalThis.
-    const g = globalThis as { __agentMonitorState?: { started: boolean } };
-    if (g.__agentMonitorState) g.__agentMonitorState.started = false;
+    flagHolder.__backgroundTasksStarted = false;
 
     vi.useFakeTimers();
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    const g = globalThis as { __agentMonitorState?: { started: boolean } };
-    if (g.__agentMonitorState) g.__agentMonitorState.started = false;
+    flagHolder.__backgroundTasksStarted = false;
   });
 
   it("invokes discovery exactly once on the first cycle (no duplicate cold-boot run)", async () => {
@@ -61,7 +58,7 @@ describe("startBackgroundTasks", () => {
     await Promise.resolve();
 
     expect(state.discoveryCalls).toBe(1);
-    expect(_backgroundStarted()).toBe(true);
+    expect(flagHolder.__backgroundTasksStarted).toBe(true);
   });
 
   it("leaves started flag false if a dynamic import / setup throws before pollLoop", async () => {
@@ -74,7 +71,7 @@ describe("startBackgroundTasks", () => {
     loadSpy.mockImplementationOnce(() => { throw new Error("boom"); });
 
     await expect(startBackgroundTasks()).rejects.toThrow("boom");
-    expect(_backgroundStarted()).toBe(false);
+    expect(flagHolder.__backgroundTasksStarted).toBe(false);
   });
 
   it("is a no-op when already started", async () => {

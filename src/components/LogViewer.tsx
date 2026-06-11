@@ -54,7 +54,7 @@ export function LogViewer() {
       case "user":
         return "#00f5ff";
       case "assistant":
-        return "#00ff88";
+        return UI.success;
       case "system":
         return "#6b7280";
       default:

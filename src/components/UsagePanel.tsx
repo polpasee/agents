@@ -2,30 +2,10 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
-import { UI, BUDGET_COLORS } from "@/lib/colors";
-import { formatNumber, formatDuration, totalTokens } from "@/lib/utils";
+import { UI, BUDGET_COLORS, getBarColor } from "@/lib/colors";
+import { formatNumber, formatDuration, formatResetTime, totalTokens } from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
-import { useApiUsage } from "@/hooks/useApiUsage";
-
-function getBarColor(percent: number): string {
-  if (percent > 85) return BUDGET_COLORS.critical;
-  if (percent > 60) return BUDGET_COLORS.warning;
-  return BUDGET_COLORS.ok;
-}
-
-/** Format ms as "Xd Xhr" / "Xhr Xm" / "Xm" for reset timers (matches Claude Code status line) */
-function formatResetTime(ms: number): string {
-  const totalMin = Math.floor(ms / 60000);
-  const hours = Math.floor(totalMin / 60);
-  const minutes = totalMin % 60;
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24);
-    const remHours = hours % 24;
-    return `${days}d ${remHours}hr`;
-  }
-  if (hours > 0) return `${hours}hr ${minutes}m`;
-  return `${minutes}m`;
-}
+import { useApiUsage, deriveUsageBars } from "@/hooks/useApiUsage";
 
 function formatAge(ms: number): string {
   const min = Math.floor(ms / 60000);
@@ -102,15 +82,8 @@ export function UsagePanel() {
   const barColor = getBarColor(stats.contextPercent);
   const elapsed = stats.earliest < Infinity ? Date.now() - stats.earliest : 0;
 
-  const now = Date.now();
-  const blockPercent = apiUsage?.blockPercent ?? 0;
-  const weeklyPercent = apiUsage?.weeklyPercent ?? 0;
-  const blockResetMs = apiUsage?.blockResetAt
-    ? new Date(apiUsage.blockResetAt).getTime() - now
-    : 0;
-  const weeklyResetMs = apiUsage?.weeklyResetAt
-    ? new Date(apiUsage.weeklyResetAt).getTime() - now
-    : 0;
+  const { blockPercent, weeklyPercent, blockResetMs, weeklyResetMs } =
+    deriveUsageBars(apiUsage);
 
   return (
     <div

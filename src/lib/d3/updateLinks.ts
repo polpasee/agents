@@ -18,11 +18,28 @@ export interface SimLink extends SimulationLinkDatum<SimNode> {
   source: string | SimNode;
   target: string | SimNode;
   edgeType?: "parent" | "message" | "blocking" | "tool";
+  /** Cached path from the last linkPath() call — lets glow/main pairs share one computation */
+  pathD?: string;
 }
 
 /* ── Straight line path between two points ───────────────── */
 export function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
   return `M${sx},${sy} L${tx},${ty}`;
+}
+
+/**
+ * Path for a link whose endpoints have been resolved to SimNodes by
+ * forceLink. Prefers fx/fy so it works in both force mode (the simulation
+ * copies fx into x each tick) and the static tree/radial/hierarchical
+ * layouts (which set only fx/fy, leaving x/y stale).
+ */
+export function linkPath(d: SimLink): string {
+  const s = d.source as SimNode;
+  const t = d.target as SimNode;
+  return bezierPath(
+    (s.fx ?? s.x) ?? 0, (s.fy ?? s.y) ?? 0,
+    (t.fx ?? t.x) ?? 0, (t.fy ?? t.y) ?? 0,
+  );
 }
 
 /**

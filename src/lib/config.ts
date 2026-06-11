@@ -64,6 +64,10 @@ export const COST_PROJECTION_WINDOW_MS = 60_000;
 export const COST_WARNING_PERCENT = 80;
 export const COST_CRITICAL_PERCENT = 95;
 
+/** Usage-bar thresholds (rate-limit/context %) — distinct from the cost-budget thresholds above. */
+export const USAGE_WARNING_PERCENT = 60;
+export const USAGE_CRITICAL_PERCENT = 85;
+
 /** Heatmap overlay configuration */
 export const HEATMAP = {
   legendWidth: 150,
@@ -71,9 +75,6 @@ export const HEATMAP = {
   legendPadding: 16,
   colors: ["#00ff88", "#eab308", "#ff4444"] as [string, string, string],
 } as const;
-
-/** Idle agent timeout — agents idle longer than this are hidden from the graph */
-export const IDLE_TIMEOUT_MS = 60_000;
 
 /** Replay tick interval — how often the replay clock advances */
 export const REPLAY_TICK_MS = 50;

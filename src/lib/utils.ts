@@ -13,6 +13,18 @@ export function getTokenPercent(agent: AgentState): number {
     : 0;
 }
 
+/** Earliest `startTime` across agents, or `fallback` when there are none.
+ *  Avoids `Math.min(...arr)` — argument-list spread blows the stack at
+ *  ~80k+ items. Fold instead so this scales linearly without limit. */
+export function earliestStartTime(
+  agents: Iterable<Pick<AgentState, "startTime">>,
+  fallback: number
+): number {
+  let earliest = Infinity;
+  for (const a of agents) if (a.startTime < earliest) earliest = a.startTime;
+  return earliest === Infinity ? fallback : earliest;
+}
+
 /** Format a number with k/M suffixes for compact display. */
 export function formatNumber(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -25,6 +37,20 @@ export function formatDuration(ms: number): string {
   const minutes = Math.floor(ms / 60000);
   const seconds = Math.floor((ms % 60000) / 1000);
   return `${minutes}m ${seconds}s`;
+}
+
+/** Format ms as "Xd Xhr" / "Xhr Xm" / "Xm" for reset timers (matches Claude Code status line) */
+export function formatResetTime(ms: number): string {
+  const totalMin = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMin / 60);
+  const minutes = totalMin % 60;
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return `${days}d ${remHours}hr`;
+  }
+  if (hours > 0) return `${hours}hr ${minutes}m`;
+  return `${minutes}m`;
 }
 
 /** Truncate an ID string to the given length for display. */
