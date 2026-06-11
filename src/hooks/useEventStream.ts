@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { STREAM_BATCH_INTERVAL_MS, STREAM_BATCH_MAX_SIZE } from "@/lib/config";
-import { PROTOCOL_VERSION } from "@/lib/types";
+import { PROTOCOL_VERSION, type AgentEvent } from "@/lib/types";
 import { isValidServerEvent } from "@/lib/validation";
 
 /**
@@ -17,7 +17,7 @@ export function useEventStream() {
   useEffect(() => {
     let destroyed = false;
     let batchTimer: ReturnType<typeof setTimeout> | null = null;
-    let eventBuffer: Array<{ event: import("@/lib/types").AgentEvent; timestamp: number }> = [];
+    let eventBuffer: Array<{ event: AgentEvent; timestamp: number }> = [];
     let protocolWarned = false;
 
     function flushEventBuffer() {
@@ -36,7 +36,7 @@ export function useEventStream() {
       }
     }
 
-    function enqueueEvent(event: import("@/lib/types").AgentEvent, timestamp: number) {
+    function enqueueEvent(event: AgentEvent, timestamp: number) {
       eventBuffer.push({ event, timestamp });
       if (eventBuffer.length >= STREAM_BATCH_MAX_SIZE) {
         if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }

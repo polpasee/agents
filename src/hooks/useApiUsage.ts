@@ -18,7 +18,6 @@ export interface ApiUsage {
   weeklyPercent: number | null;
   blockResetAt: string | null;
   weeklyResetAt: string | null;
-  plan: string | null;
   ageMs?: number | null;
   stale?: boolean;
 }
