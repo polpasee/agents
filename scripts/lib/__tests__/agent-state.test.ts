@@ -478,6 +478,23 @@ describe("spawn index", () => {
 
     expect(resolveSpawnOwner("toolu_x")).toBe("a1");
   });
+
+  it("keeps the first owner when the same tool_use id is harvested again (first write wins)", () => {
+    // Forked/resumed sessions replay the original transcript's spawn lines
+    // verbatim; a later harvest must not steal ownership from the agent that
+    // actually issued the call.
+    const entryWith = (id: string) => ({
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", id, name: "Agent", input: {} }],
+      },
+    });
+
+    harvestSpawnToolUses(entryWith("toolu_dup"), "owner-A");
+    harvestSpawnToolUses(entryWith("toolu_dup"), "owner-B");
+
+    expect(resolveSpawnOwner("toolu_dup")).toBe("owner-A");
+  });
 });
 
 describe("reparentAgent", () => {
@@ -525,6 +542,79 @@ describe("reparentAgent", () => {
   it("is a no-op for unknown agents", () => {
     expect(() => reparentAgent("ghost", "parent")).not.toThrow();
     expect(edges).toHaveLength(0);
+  });
+
+  it("refuses a re-parent that would close a parentId cycle (no state change, no broadcast)", () => {
+    reg("sess");
+    reg("B", "sess");
+    reg("A", "B"); // A.parentId === "B"
+
+    const edgesBefore = edges.map((e) => ({ ...e }));
+    const sent: string[] = [];
+    viewers.add({ send: (data: string) => sent.push(data) });
+
+    // Would make B a child of its own descendant — must be refused.
+    reparentAgent("B", "A");
+
+    expect(agents.get("B")?.parentId).toBe("sess");
+    expect(edges).toEqual(edgesBefore);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("preserves typed edges from the new parent and still adds the untyped anchor", () => {
+    reg("sess");
+    reg("OLD", "sess");
+    reg("NEW", "sess");
+    reg("child", "OLD");
+    // A typed (blocking) edge from the new parent exists before the re-parent.
+    edges.push({ source: "NEW", target: "child", edgeType: "blocking" });
+
+    reparentAgent("child", "NEW");
+
+    // The typed edge survives, and it must NOT suppress the untyped anchor.
+    expect(edges).toContainEqual({ source: "NEW", target: "child", edgeType: "blocking" });
+    expect(edges).toContainEqual({ source: "NEW", target: "child" });
+    // The old untyped parent anchor is gone.
+    expect(edges.some((e) => !e.edgeType && e.source === "OLD" && e.target === "child")).toBe(false);
+  });
+});
+
+describe("registerAgent: resurrection restores child edges", () => {
+  beforeEach(() => {
+    agents.clear();
+    edges.length = 0;
+    viewers.clear();
+  });
+
+  it("re-adds the untyped parent edge for children that survived a purge", () => {
+    // Child C registered with parentId "S"...
+    registerAgent({
+      agentId: "C",
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: "generic",
+      parentId: "S",
+      task: "child",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+    // ...then S was purged: the purge spliced its edges, but C (still fresh)
+    // kept parentId = "S" in the agents map.
+    edges.length = 0;
+
+    registerAgent({
+      agentId: "S",
+      sessionId: "sess",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    expect(edges).toContainEqual({ source: "S", target: "C" });
   });
 });
 

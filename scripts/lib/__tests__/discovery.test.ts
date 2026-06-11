@@ -327,6 +327,51 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
   });
 });
 
+describe("selectStaleAgentIds — transitive shield through quiet middle spawners", () => {
+  it("shields the whole ancestor chain while a deep descendant is still active", () => {
+    // main ← mid ← leaf: the mid spawner is blocked on the Agent tool and has
+    // been silent beyond BOTH thresholds, so nothing shields main except the
+    // transitive walk from the still-active leaf.
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const fresh = -1_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["mid", { parentId: "main", status: "idle", startTime: now + old }],
+      ["leaf", { parentId: "mid", status: "running", startTime: now + fresh }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["mid", now + old], // beyond the 60s sub-agent threshold AND the main threshold
+      ["leaf", now + fresh],
+    ]);
+
+    const result = selectStaleAgentIds(agents, mtimes, now);
+    expect(result).not.toContain("main");
+    expect(result).not.toContain("mid");
+    expect(result).toEqual([]);
+  });
+
+  it("releases the chain once the deep descendant goes quiet too (control)", () => {
+    const now = Date.now();
+    const old = -STALE_THRESHOLD_MS - 60_000;
+    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+      ["main", { status: "idle", startTime: now + old }],
+      ["mid", { parentId: "main", status: "idle", startTime: now + old }],
+      ["leaf", { parentId: "mid", status: "idle", startTime: now + old }],
+    ]);
+    const mtimes = new Map([
+      ["main", now + old],
+      ["mid", now + old],
+      ["leaf", now + old],
+    ]);
+
+    const result = selectStaleAgentIds(agents, mtimes, now);
+    expect(result).toContain("mid");
+    expect(result).toContain("leaf");
+  });
+});
+
 describe("selectLosingMains", () => {
   type MainShape = { parentId?: string; startTime: number; metadata?: Record<string, unknown> };
   const mkMain = (projectDir: string, startTime = 0): MainShape => ({
@@ -719,5 +764,115 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "late-child",
     );
     expect(rebroadcast?.event?.parentId).toBe("parent");
+  });
+
+  it("never reads compact- transcripts: no readNewLines call, no spawn-index pollution", async () => {
+    const sess = "55555555-5555-5555-5555-555555555555";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [],
+      subagents: [
+        // A fresh compact transcript containing a replayed Agent spawn line.
+        { id: "compact-x", lines: [spawnLine("toolu_C")] },
+        { id: "normal", meta: { agentType: "explore", description: "real sub" } },
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    // The gated file is never opened, so its replayed spawn id never lands.
+    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    expect(readPaths).not.toContain(agentJsonlPath("compact-x"));
+    expect(spawnIndex.has("toolu_C")).toBe(false);
+    expect(agents.has("compact-x")).toBe(false);
+    // Session freshness/backfill and sibling discovery are unaffected.
+    expect(agents.has(sess)).toBe(true);
+    expect(agents.get("normal")?.parentId).toBe(sess);
+  });
+
+  it("tombstone gates reads until a newer write, then replays the backlog", async () => {
+    const sess = "66666666-6666-6666-6666-666666666666";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [],
+      subagents: [{ id: "X", lines: [spawnLine("toolu_X")], meta: { description: "tombstoned" } }],
+    });
+    const NOW = Date.now();
+    removedAgentIds.set("X", NOW);
+
+    // Scan 1: the file's mtime predates the tombstone — must stay unread.
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: NOW - 1_000, size: 100 });
+    await discoverActiveSessions("/projects");
+
+    const firstScanReads = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    expect(firstScanReads).not.toContain(agentJsonlPath("X"));
+    expect(agents.has("X")).toBe(false);
+    expect(spawnIndex.has("toolu_X")).toBe(false);
+
+    // A write lands after removal: mtime now exceeds the tombstone.
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: NOW + 5_000, size: 200 });
+    await discoverActiveSessions("/projects");
+
+    expect(vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]))).toContain(agentJsonlPath("X"));
+    expect(agents.has("X")).toBe(true);
+    expect(removedAgentIds.has("X")).toBe(false);
+    // The unread backlog replayed: its spawn line reached the index and the
+    // buffered entry was processed into the re-registered agent's tool calls.
+    expect(spawnIndex.get("toolu_X")).toBe("X");
+    expect(agents.get("X")?.toolCalls.length).toBeGreaterThan(0);
+  });
+
+  it("heals a child that registered before its meta file appeared (late-meta race)", async () => {
+    const sess = "77777777-7777-7777-7777-777777777777";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [spawnLine("toolu_A")],
+      subagents: [
+        { id: "spawner", lines: [spawnLine("toolu_B")], meta: { description: "spawner", toolUseId: "toolu_A" } },
+        { id: "c1" }, // JSONL listed, meta.json not flushed yet
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    // Scan 1: no toolUseId visible — anchored to the session, no retry queued.
+    expect(agents.get("c1")?.parentId).toBe(sess);
+    expect(pendingReparents.size).toBe(0);
+
+    // The meta file lands before scan 2, pointing at the live spawner.
+    subagentListing.push("agent-c1.meta.json");
+    metaContents.set(
+      path.join(subagentsDir(), "agent-c1.meta.json"),
+      JSON.stringify({ description: "child", toolUseId: "toolu_B" }),
+    );
+
+    await discoverActiveSessions("/projects");
+
+    // Healed via pendingReparents + the post-scan retry.
+    expect(agents.get("c1")?.parentId).toBe("spawner");
+    expect(pendingReparents.has("c1")).toBe(false);
+    expect(edges).toContainEqual({ source: "spawner", target: "c1" });
+    expect(edges.some((e) => !e.edgeType && e.source === sess && e.target === "c1")).toBe(false);
+  });
+
+  it("does not queue a retry when meta.toolUseId points at the child itself", async () => {
+    const sess = "88888888-8888-8888-8888-888888888888";
+    buildFixture({
+      sessionId: sess,
+      sessionLines: [],
+      subagents: [
+        // The child's OWN transcript carries the tool_use id its meta names,
+        // so the spawn index resolves the id to the child itself.
+        { id: "selfie", lines: [spawnLine("toolu_S")], meta: { description: "self", toolUseId: "toolu_S" } },
+      ],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(spawnIndex.get("toolu_S")).toBe("selfie");
+    expect(agents.get("selfie")?.parentId).toBe(sess);
+    // A self-pointing id can never resolve to a usable parent — no retry.
+    expect(pendingReparents.has("selfie")).toBe(false);
+    expect(pendingReparents.size).toBe(0);
   });
 });

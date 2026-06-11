@@ -17,7 +17,9 @@ import {
   parseAgentType,
   harvestSpawnToolUses,
   resolveSpawnOwner,
+  resolveLiveSpawner,
   dropSpawnEntriesFor,
+  pendingReparents,
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
@@ -191,16 +193,25 @@ export function selectStaleAgentIds(
   agentLastModified: Map<string, number>,
   now: number,
 ): string[] {
+  // A fresh or actively-working child shields its WHOLE ancestor chain, not
+  // just its direct parent: a nested spawner blocked on the Agent tool goes
+  // silent for the entire child run, and purging it would orphan every
+  // descendant (and erase the spawn-index entries needed to re-anchor them).
   const freshParentIds = new Set<string>();
   for (const [childId, child] of agents) {
     if (!child.parentId) continue;
     const childLastMod = agentLastModified.get(childId) || child.startTime;
-    if (now - childLastMod <= STALE_THRESHOLD_MS) {
-      freshParentIds.add(child.parentId);
-    }
-    // Protect main only while a child is actively running or waiting.
-    if (child.status === "running" || child.status === "waiting") {
-      freshParentIds.add(child.parentId);
+    const shields =
+      now - childLastMod <= STALE_THRESHOLD_MS ||
+      child.status === "running" ||
+      child.status === "waiting";
+    if (!shields) continue;
+    let cursorId: string | undefined = child.parentId;
+    const seen = new Set<string>([childId]);
+    while (cursorId !== undefined && !seen.has(cursorId)) {
+      freshParentIds.add(cursorId);
+      seen.add(cursorId);
+      cursorId = agents.get(cursorId)?.parentId;
     }
   }
   const stale: string[] = [];
@@ -209,7 +220,7 @@ export function selectStaleAgentIds(
     const lastMod = agentLastModified.get(agentId) || agent.startTime;
     const threshold = agent.parentId ? SUBAGENT_STALE_THRESHOLD_MS : STALE_THRESHOLD_MS;
     if (now - lastMod <= threshold) continue;
-    if (!agent.parentId && freshParentIds.has(agentId)) continue;
+    if (freshParentIds.has(agentId)) continue;
     stale.push(agentId);
   }
   return stale;
@@ -237,9 +248,10 @@ interface BufferedSubagentFile {
  * Children registered against the sessionId fallback whose meta carried a
  * toolUseId the spawn index could not resolve yet (the spawner's JSONL line
  * was not flushed when its file was read). Retried after every scan; entries
- * drop on resolution or when the agent is purged. Exported for testing.
+ * drop on resolution or when the agent is purged. Lives in the HMR-safe
+ * singleton next to spawnIndex; re-exported here for testing.
  */
-export const pendingReparents = new Map<string, string>();
+export { pendingReparents };
 
 /**
  * Late parent resolution: if the spawn index now knows a pending child's
@@ -252,8 +264,8 @@ function retryPendingReparents(): void {
       pendingReparents.delete(agentId);
       continue;
     }
-    const owner = resolveSpawnOwner(toolUseId);
-    if (owner === undefined || owner === agentId || !agents.has(owner)) continue;
+    const owner = resolveLiveSpawner(toolUseId, agentId);
+    if (owner === undefined) continue;
     if (owner !== agent.parentId) reparentAgent(agentId, owner);
     pendingReparents.delete(agentId);
   }
@@ -414,17 +426,31 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         const age = Date.now() - stat.mtimeMs;
         if (age > DISCOVERY_THRESHOLD_MS) continue;
 
-        const parsed: Record<string, unknown>[] = [];
-        for (const line of readNewLines(filePath)) {
-          try {
-            parsed.push(JSON.parse(line));
-          } catch { /* skip */ }
-        }
-
         const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
         const agentId = agentIdMatch ? agentIdMatch[1] : undefined;
-        if (agentId) {
-          for (const entry of parsed) harvestSpawnToolUses(entry, agentId);
+
+        // Gate reads exactly like the old single-pass loop: compact-/mcp__/
+        // non-agent transcripts are never opened (their replayed content must
+        // not reach the spawn index), and a tombstoned agent's backlog stays
+        // unread — offsets only advance for lines Phase B will process, so
+        // the backlog replays if the agent resurrects. The file is still
+        // buffered: its stat drives session backfill/freshness in Phase B,
+        // which always ran before these gates.
+        const parsed: Record<string, unknown>[] = [];
+        if (
+          agentId !== undefined &&
+          !agentId.startsWith("compact-") &&
+          !agentId.startsWith("mcp__")
+        ) {
+          const removedAt = removedAgentIds.get(agentId);
+          if (removedAt === undefined || stat.mtimeMs > removedAt) {
+            for (const line of readNewLines(filePath)) {
+              try {
+                parsed.push(JSON.parse(line));
+              } catch { /* skip */ }
+            }
+            for (const entry of parsed) harvestSpawnToolUses(entry, agentId);
+          }
         }
 
         buffered.push({ filePath, stat, parsed, agentId, agentType: "generic", description: "" });
@@ -468,8 +494,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       const batchParent = new Map<string, string>();
       for (const file of buffered) {
         if (!file.agentId || !file.toolUseId) continue;
-        const owner = resolveSpawnOwner(file.toolUseId);
-        if (owner !== undefined && owner !== file.agentId && batchIds.has(owner)) {
+        const owner = resolveLiveSpawner(file.toolUseId, file.agentId, (id) => batchIds.has(id));
+        if (owner !== undefined) {
           batchParent.set(file.agentId, owner);
         }
       }
@@ -556,10 +582,12 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           // unresolved (or the owner isn't registered) and queue a retry.
           let parentId = sessionId;
           if (file.toolUseId !== undefined) {
-            const owner = resolveSpawnOwner(file.toolUseId);
-            if (owner !== undefined && agents.has(owner)) {
+            const owner = resolveLiveSpawner(file.toolUseId, agentId);
+            if (owner !== undefined) {
               parentId = owner;
-            } else {
+            } else if (resolveSpawnOwner(file.toolUseId) !== agentId) {
+              // Queue a retry unless the id (corruptly) points at the agent
+              // itself — that could never resolve to a usable parent.
               pendingReparents.set(agentId, file.toolUseId);
             }
           }
@@ -580,6 +608,18 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             effort: readEffortLevelCached(projectDir, settingsCache),
             is1MContext: readIs1MContextCached(projectDir, settingsCache),
           });
+        } else if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
+          // Heal the late-meta race: a child whose meta.json appeared a tick
+          // after its JSONL registered on the session fallback with no retry
+          // queued. Queue one now that the toolUseId is visible; the retry
+          // after Step 2 applies it once the spawner is live.
+          const existing = agents.get(agentId);
+          if (existing && existing.parentId === sessionId) {
+            const owner = resolveSpawnOwner(file.toolUseId);
+            if (owner !== agentId && owner !== sessionId) {
+              pendingReparents.set(agentId, file.toolUseId);
+            }
+          }
         }
 
         for (const entry of file.parsed) {
