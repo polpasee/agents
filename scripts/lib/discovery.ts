@@ -21,12 +21,14 @@ import {
   dropSpawnEntriesFor,
   pendingReparents,
   broadcast,
+  workflows,
+  upsertWorkflow,
+  removeWorkflow,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
 import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
 import { scanWorkflows } from "./workflow-scan";
-import { workflows, upsertWorkflow, removeWorkflow } from "./agent-state";
 
 // ---------------------------------------------------------------------------
 // Per-pass settings.json cache — avoids re-reading the same file for every
@@ -77,6 +79,36 @@ function readIs1MContextCached(projectDir: string, cache: SettingsCache): boolea
     if (typeof model === "string") return /\[1m\]/i.test(model);
   }
   return undefined;
+}
+
+/**
+ * Main-session registration shared by Step 1 discovery and the Phase B
+ * parent backfill: clears the tombstone, records the file path, and
+ * registers the session as a "main" agent. The tombstone gates differ per
+ * call site and stay with the callers.
+ */
+function registerMainAgent(
+  sessionId: string,
+  filePath: string,
+  projectDir: string,
+  fallbackStartMs: number,
+  settingsCache: SettingsCache,
+): void {
+  removedAgentIds.delete(sessionId);
+  const info = extractTaskFromJSONL(filePath);
+  agentFilePaths.set(sessionId, filePath);
+  registerAgent({
+    agentId: sessionId,
+    sessionId,
+    projectDir,
+    agentType: "main",
+    task: info.task,
+    slug: info.slug,
+    model: info.model,
+    startTime: info.startTime || fallbackStartMs,
+    effort: readEffortLevelCached(projectDir, settingsCache),
+    is1MContext: readIs1MContextCached(projectDir, settingsCache),
+  });
 }
 
 // Content-hash cache: avoids re-broadcasting workflow runs that haven't changed.
@@ -283,6 +315,14 @@ export function isEphemeralProjectDir(projectDir: string): boolean {
   return EPHEMERAL_PROJECT_RE.test(projectDir);
 }
 
+// compact-/mcp__ transcripts are tool noise, never real sub-agents. The Phase A
+// read gate, the Phase B meta-read gate, and the Phase B registration skip must
+// all agree on this predicate for the read-gating/tombstone semantics to hold
+// (see the gating comment in Phase A).
+function isIgnoredSubagentId(agentId: string): boolean {
+  return agentId.startsWith("compact-") || agentId.startsWith("mcp__");
+}
+
 export async function discoverActiveSessions(projectsDir: string): Promise<void> {
   const settingsCache: SettingsCache = new Map();
 
@@ -342,29 +382,14 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       if (!agents.has(sessionId)) {
         const removedAt = removedAgentIds.get(sessionId);
         if (removedAt !== undefined && stat.mtimeMs <= removedAt) continue;
-        removedAgentIds.delete(sessionId);
-
-        const info = extractTaskFromJSONL(filePath);
-        agentFilePaths.set(sessionId, filePath);
-        registerAgent({
-          agentId: sessionId,
-          sessionId,
-          projectDir,
-          agentType: "main",
-          task: info.task,
-          slug: info.slug,
-          model: info.model,
-          startTime: info.startTime || stat.mtimeMs,
-          effort: readEffortLevelCached(projectDir, settingsCache),
-          is1MContext: readIs1MContextCached(projectDir, settingsCache),
-        });
+        registerMainAgent(sessionId, filePath, projectDir, stat.mtimeMs, settingsCache);
       }
 
       const newLines = readNewLines(filePath);
       for (const line of newLines) {
         try {
           const entry = JSON.parse(line);
-          processEntry(entry, sessionId, sessionId);
+          processEntry(entry, sessionId);
         } catch { /* skip */ }
       }
 
@@ -437,11 +462,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         // buffered: its stat drives session backfill/freshness in Phase B,
         // which always ran before these gates.
         const parsed: Record<string, unknown>[] = [];
-        if (
-          agentId !== undefined &&
-          !agentId.startsWith("compact-") &&
-          !agentId.startsWith("mcp__")
-        ) {
+        if (agentId !== undefined && !isIgnoredSubagentId(agentId)) {
           const removedAt = removedAgentIds.get(agentId);
           if (removedAt === undefined || stat.mtimeMs > removedAt) {
             for (const line of readNewLines(filePath)) {
@@ -461,7 +482,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       // order registrations parent-before-child within this batch.
       for (const file of buffered) {
         const { agentId } = file;
-        if (!agentId || agentId.startsWith("compact-") || agentId.startsWith("mcp__")) continue;
+        if (!agentId || isIgnoredSubagentId(agentId)) continue;
         const metaFile = `agent-${agentId}.meta.json`;
         if (!metaFiles.includes(metaFile)) continue;
         try {
@@ -532,21 +553,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
               parentStat.mtimeMs <= removedAt &&
               stat.mtimeMs <= removedAt
             ) continue;
-            removedAgentIds.delete(sessionId);
-            const info = extractTaskFromJSONL(parentJsonl);
-            agentFilePaths.set(sessionId, parentJsonl);
-            registerAgent({
-              agentId: sessionId,
-              sessionId,
-              projectDir,
-              agentType: "main",
-              task: info.task,
-              slug: info.slug,
-              model: info.model,
-              startTime: info.startTime || parentStat.mtimeMs,
-              effort: readEffortLevelCached(projectDir, settingsCache),
-              is1MContext: readIs1MContextCached(projectDir, settingsCache),
-            });
+            registerMainAgent(sessionId, parentJsonl, projectDir, parentStat.mtimeMs, settingsCache);
             // Seed lastModified from the fresher of parent mtime or child mtime
             // so the main stays marked alive while the sub is active.
             updateAgentStatus(sessionId, Math.max(parentStat.mtimeMs, stat.mtimeMs));
@@ -560,8 +567,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         if (!file.agentId) continue;
         const agentId = file.agentId;
 
-        if (agentId.startsWith("compact-")) continue;
-        if (agentId.startsWith("mcp__")) continue;
+        if (isIgnoredSubagentId(agentId)) continue;
 
         let agentType = file.agentType;
         // If no meta file, try to infer type from description
@@ -623,7 +629,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         }
 
         for (const entry of file.parsed) {
-          processEntry(entry, agentId, sessionId);
+          processEntry(entry, agentId);
         }
 
         updateAgentStatus(agentId, stat.mtimeMs);
@@ -740,8 +746,7 @@ export async function refreshTrackedAgents(): Promise<void> {
     const newLines = readNewLines(filePath);
     for (const line of newLines) {
       try {
-        // processEntry ignores its sessionId arg; pass agentId for both.
-        processEntry(JSON.parse(line), agentId, agentId);
+        processEntry(JSON.parse(line), agentId);
       } catch { /* skip malformed lines */ }
     }
 

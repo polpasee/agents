@@ -29,10 +29,8 @@ vi.mock("../webhooks", () => ({
   loadWebhookConfig: vi.fn(() => { state.webhookLoaded += 1; }),
 }));
 
-import {
-  startBackgroundTasks,
-  _backgroundStarted,
-} from "../agent-state";
+import { startBackgroundTasks } from "../background-tasks";
+import { _backgroundStarted } from "../agent-state";
 
 describe("startBackgroundTasks", () => {
   beforeEach(() => {
