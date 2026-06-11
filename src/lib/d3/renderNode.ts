@@ -14,54 +14,6 @@ export function hexPath(r: number): string {
   return `M${points.join("L")}Z`;
 }
 
-/* ── Wrap tool text into multi-line array for activity circle ── */
-export function wrapToolText(tool: string, args: string | undefined, maxLines: number, maxChars: number): string[] {
-  // Truncate tool name to fit within maxChars
-  const toolLabel = tool.toUpperCase() + ":";
-  const firstLine = toolLabel.length > maxChars
-    ? toolLabel.slice(0, maxChars - 2) + ".."
-    : toolLabel;
-  const lines: string[] = [firstLine];
-  if (!args) return lines;
-
-  // Word-wrap: split into words, fill lines without breaking words
-  const words = args.split(/(\s+|(?<=[:,/])|(?=\/))/);
-  let currentLine = "";
-
-  for (const word of words) {
-    if (lines.length >= maxLines) break;
-    const trimmed = word.replace(/^\s+/, "");
-    if (!trimmed) {
-      if (currentLine) currentLine += " ";
-      continue;
-    }
-
-    if (currentLine.length + trimmed.length <= maxChars) {
-      currentLine += trimmed;
-    } else {
-      if (currentLine) {
-        lines.push(currentLine);
-        if (lines.length >= maxLines) break;
-      }
-      // If a single word exceeds maxChars, truncate it
-      currentLine = trimmed.length > maxChars
-        ? trimmed.slice(0, maxChars - 4) + "...."
-        : trimmed;
-    }
-  }
-
-  if (currentLine && lines.length < maxLines) {
-    lines.push(currentLine);
-  }
-
-  // Truncate last line with ellipsis if we ran out of space
-  if (lines.length >= maxLines && lines[lines.length - 1].length > maxChars) {
-    lines[lines.length - 1] = lines[lines.length - 1].slice(0, maxChars - 4) + "....";
-  }
-
-  return lines.slice(0, maxLines);
-}
-
 /* ── Render the visual elements inside a node <g> ──────── */
 export function renderNodeVisuals(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -10,16 +10,11 @@ interface LayoutNode {
   agent: { parentId?: string };
 }
 
-interface LayoutLink {
-  source: string | LayoutNode;
-  target: string | LayoutNode;
-}
-
 /**
- * Build a d3.hierarchy from flat nodes + edges.
+ * Build a d3.hierarchy from flat nodes (parent links come from agent.parentId).
  * If there are multiple roots (no parentId), a virtual root is created.
  */
-function buildHierarchy(nodes: LayoutNode[], _edges: LayoutLink[]) {
+function buildHierarchy(nodes: LayoutNode[]) {
   const nodeMap = new Map<string, LayoutNode>();
   for (const n of nodes) nodeMap.set(n.id, n);
 
@@ -84,7 +79,6 @@ type HierNodeData = ReturnType<typeof buildHierarchy> extends HierarchyNode<infe
  * tree traversal are not duplicated.
  *
  * @param nodes  - flat list of layout nodes (mutated: fx/fy are set)
- * @param edges  - edges (used only by buildHierarchy)
  * @param width  - canvas width
  * @param height - canvas height
  * @param sizer  - returns [treeWidth, treeHeight] passed to d3.tree().size()
@@ -92,7 +86,6 @@ type HierNodeData = ReturnType<typeof buildHierarchy> extends HierarchyNode<infe
  */
 function applyTreeBasedLayout(
   nodes: LayoutNode[],
-  edges: LayoutLink[],
   width: number,
   height: number,
   sizer: (width: number, height: number) => [number, number],
@@ -105,7 +98,7 @@ function applyTreeBasedLayout(
     return;
   }
 
-  const hier = buildHierarchy(nodes, edges);
+  const hier = buildHierarchy(nodes);
   const treeLayout = tree<HierNodeData>().size(sizer(width, height));
   treeLayout(hier);
 
@@ -121,13 +114,11 @@ function applyTreeBasedLayout(
 /** Top-down tree layout using d3.tree(). */
 export function applyTreeLayout(
   nodes: LayoutNode[],
-  edges: LayoutLink[],
   width: number,
   height: number
 ): void {
   applyTreeBasedLayout(
     nodes,
-    edges,
     width,
     height,
     (w, h) => [w * 0.8, h * 0.7],
@@ -138,14 +129,12 @@ export function applyTreeLayout(
 /** Radial layout: d3.tree() with polar coordinate projection. */
 export function applyRadialLayout(
   nodes: LayoutNode[],
-  edges: LayoutLink[],
   width: number,
   height: number
 ): void {
   const radius = Math.min(width, height) * 0.35;
   applyTreeBasedLayout(
     nodes,
-    edges,
     width,
     height,
     () => [2 * Math.PI, radius],
@@ -163,13 +152,11 @@ export function applyRadialLayout(
 /** Hierarchical layout: left-to-right layered. */
 export function applyHierarchicalLayout(
   nodes: LayoutNode[],
-  edges: LayoutLink[],
   width: number,
   height: number
 ): void {
   applyTreeBasedLayout(
     nodes,
-    edges,
     width,
     height,
     (w, h) => [h * 0.8, w * 0.7],

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { select } from "d3-selection";
 import type { Selection } from "d3-selection";
-import { UI, agentColor } from "@/lib/colors";
+import { agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
 import {
   renderNodeVisuals,
@@ -136,8 +136,5 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
         });
       }
     }
-    // UI is unused here but referenced in the original file via the import; the
-    // node-visual helpers in `@/lib/d3` consume it internally.
-    void UI;
   }, [refs, agents, selectedAgentId, heatmapEnabled, heatmapMetric]);
 }

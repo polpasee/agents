@@ -1,4 +1,4 @@
-export { renderNodeVisuals, hexPath, wrapToolText } from "./renderNode";
+export { renderNodeVisuals, hexPath } from "./renderNode";
 export { agentDepth, depthFactor } from "./depth";
 export { updateLinkVisuals, bezierPath } from "./updateLinks";
 export type { SimNode, SimLink } from "./updateLinks";

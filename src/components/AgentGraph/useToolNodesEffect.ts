@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { select } from "d3-selection";
-import { drag } from "d3-drag";
 import type { ForceLink } from "d3-force";
 import { UI, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
@@ -8,6 +7,7 @@ import type { SimNode, SimLink } from "@/lib/d3";
 import { endpointId } from "@/lib/d3/endpointId";
 import type { AgentState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
+import { simulationDrag } from "./simulationDrag";
 
 interface Options {
   agents: Map<string, AgentState>;
@@ -135,9 +135,6 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
           (enter) => {
             const g = enter.append("g").attr("class", "tool-node").attr("cursor", "pointer");
 
-            // TODO: implement renderToolNode(g, d) here for custom tool node appearance
-            // The function receives the <g> selection and the SimNode (d.toolCall has tool name + timestamp)
-            // Default rendering below — feel free to replace with your own style:
             g.each(function (d) {
               const color = agentColor(d.agent);
               // Tool nodes only emit for running|idle parents; dim the idle
@@ -162,23 +159,7 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
             });
 
             // Tool nodes are draggable just like agent nodes
-            g.call(
-              drag<SVGGElement, SimNode>()
-                .on("start", (event) => {
-                  if (!event.active) simulation.alphaTarget(0.3).restart();
-                  event.subject.fx = event.subject.x;
-                  event.subject.fy = event.subject.y;
-                })
-                .on("drag", (event) => {
-                  event.subject.fx = event.x;
-                  event.subject.fy = event.y;
-                })
-                .on("end", (event) => {
-                  if (!event.active) simulation.alphaTarget(0);
-                  event.subject.fx = null;
-                  event.subject.fy = null;
-                })
-            );
+            g.call(simulationDrag(simulation));
             return g;
           },
           (update) => update,

@@ -4,7 +4,6 @@ import type { Selection } from "d3-selection";
 import type { AgentState, HeatmapMetric } from "../types";
 import { GRAPH, HEATMAP, getNodeRadius } from "../config";
 import { depthFactor } from "./depth";
-import { HEATMAP_COLORS } from "../colors";
 import { AGENT_LABELS } from "../colors";
 
 /** Create a green→yellow→red color scale */

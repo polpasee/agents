@@ -15,7 +15,7 @@ interface Options {
  * Switches between force layout and the static tree/radial/hierarchical
  * layouts. Re-runs whenever layout mode or topology changes.
  *
- * Reads:  simulationRef, containerRef, svgRef, nodesRef, linksRef, graphLayout
+ * Reads:  simulationRef, containerRef, svgRef, nodesRef, graphLayout
  * Writes: node fx/fy + g.node transforms + link path d attributes
  */
 export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
@@ -26,7 +26,6 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
     const container = refs.containerRef.current;
     const svg = refs.svgRef.current;
     const nodes = refs.nodesRef.current;
-    const links = refs.linksRef.current;
     if (!simulation || !container || !svg || nodes.length === 0) return;
 
     const { width, height } = container.getBoundingClientRect();
@@ -46,7 +45,7 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
         : graphLayout === "radial"
           ? applyRadialLayout
           : applyHierarchicalLayout;
-      layoutFn(nodes, links, width, height);
+      layoutFn(nodes, width, height);
 
       // Update SVG positions directly
       const d3svg = select(svg);
@@ -54,20 +53,14 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
         .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
       const linkGroup = d3svg.select<SVGGElement>("g.links");
       if (!linkGroup.empty()) {
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow")
-          .attr("d", (d) => bezierPath(
-            ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
-            ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
-            ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
-            ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
-          ));
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.main")
-          .attr("d", (d) => bezierPath(
-            ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
-            ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
-            ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
-            ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
-          ));
+        const linkD = (d: SimLink) => bezierPath(
+          ((d.source as SimNode).fx ?? (d.source as SimNode).x) ?? 0,
+          ((d.source as SimNode).fy ?? (d.source as SimNode).y) ?? 0,
+          ((d.target as SimNode).fx ?? (d.target as SimNode).x) ?? 0,
+          ((d.target as SimNode).fy ?? (d.target as SimNode).y) ?? 0,
+        );
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow").attr("d", linkD);
+        linkGroup.selectAll<SVGPathElement, SimLink>("path.main").attr("d", linkD);
       }
     }
   }, [refs, graphLayout, topologyVersion]);
