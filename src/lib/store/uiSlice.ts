@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
-import { loadLocalStorage } from "./helpers";
+import { loadLocalStorage, saveLocalStorage } from "./helpers";
 import type { ThemeMode, GraphLayout, ComparisonState, HeatmapMetric } from "../types";
 import { resolveSessionId } from "../sessions";
 
@@ -26,10 +26,7 @@ export type UISlice = Pick<AgentStore,
 const SESSION_FILTER_KEY = "selectedSessionIds";
 
 function persistSessionFilter(ids: Set<string>) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(SESSION_FILTER_KEY, JSON.stringify([...ids]));
-  } catch { /* quota / privacy mode — silently skip, in-memory state is still correct */ }
+  saveLocalStorage(SESSION_FILTER_KEY, [...ids]);
 }
 
 export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, get) => ({
@@ -143,9 +140,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
 
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
-    if (typeof window !== "undefined") {
-      localStorage.setItem("theme", next);
-    }
+    saveLocalStorage("theme", next);
     set({ theme: next });
   },
 
@@ -169,9 +164,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
 
   toggleSoundMute: () => {
     const next = !get().soundMuted;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("soundMuted", JSON.stringify(next));
-    }
+    saveLocalStorage("soundMuted", next);
     set({ soundMuted: next });
   },
 

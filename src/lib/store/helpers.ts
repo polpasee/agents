@@ -1,8 +1,8 @@
 import type { ActivityEntry, AgentEvent, AgentState, ErrorDetail, TeamState, TeamStatus } from "../types";
 
 /** Derive team status from member statuses */
-export function computeTeamStatus(memberIds: string[], agents: Map<string, AgentState>, fallback: TeamStatus): TeamStatus {
-  const members = memberIds.map(id => agents.get(id)).filter(Boolean) as AgentState[];
+function computeTeamStatus(memberIds: string[], agents: Map<string, AgentState>, fallback: TeamStatus): TeamStatus {
+  const members = memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
   if (members.some(a => a.status === "error")) return "error";
   if (members.every(a => a.status === "completed")) return "completed";
   if (members.some(a => a.status === "running" || a.status === "idle")) return "active";
@@ -104,4 +104,18 @@ export function loadLocalStorage<T>(key: string, fallback: T): T {
     if (val === null) return fallback;
     try { return JSON.parse(val); } catch { return val as T; }
   } catch { return fallback; }
+}
+
+/**
+ * Counterpart to loadLocalStorage: guarded, throw-safe write. Strings are
+ * stored raw (loadLocalStorage's parse-fallback reads them back as-is);
+ * `null` removes the key. Quota / privacy-mode failures are silently
+ * ignored so the caller's in-memory state update still proceeds.
+ */
+export function saveLocalStorage(key: string, value: unknown): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+  } catch { /* quota / privacy mode — silently skip */ }
 }

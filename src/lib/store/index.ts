@@ -5,8 +5,6 @@ import { createUISlice } from "./uiSlice";
 import { createReplaySlice } from "./replaySlice";
 import { createPanelSlice } from "./panelSlice";
 
-export type { AgentStore };
-
 export const useAgentStore = create<AgentStore>((...a) => ({
   ...createAgentSlice(...a),
   ...createUISlice(...a),

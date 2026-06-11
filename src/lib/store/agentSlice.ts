@@ -8,7 +8,7 @@ import { ACTIVITY_MAX_ENTRIES, RECORDING_MAX_EVENTS } from "../config";
 import { calculateCost } from "../costs";
 import { isValidAgentEvent } from "../validation";
 import type { AgentStore } from "./types";
-import { isDuplicateActivity } from "./helpers";
+import { isDuplicateActivity, saveLocalStorage } from "./helpers";
 import { releaseAgentColor } from "../colors";
 import { resolveSessionId } from "../sessions";
 import {
@@ -48,7 +48,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     const { agents, teams } = get();
     const team = teams.get(teamId);
     if (!team) return { totalTokens: 0, totalCost: 0, memberCount: 0, completedCount: 0, errorCount: 0, activeCount: 0 };
-    const members = team.memberIds.map(id => agents.get(id)).filter(Boolean) as AgentState[];
+    const members = team.memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
     let totalTokens = 0;
     let totalCost = 0;
     let completedCount = 0;
@@ -229,9 +229,7 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     const next = { ...agentTypeBudgets };
     if (limit === null) delete next[type];
     else next[type] = limit;
-    if (typeof window !== "undefined") {
-      localStorage.setItem("agentTypeBudgets", JSON.stringify(next));
-    }
+    saveLocalStorage("agentTypeBudgets", next);
     set({ agentTypeBudgets: next });
   },
 });
