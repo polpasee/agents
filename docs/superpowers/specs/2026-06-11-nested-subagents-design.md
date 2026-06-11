@@ -88,12 +88,17 @@ Replace the one-level parent restore with a walk up the full ancestor chain
 (queue + cycle guard), so a visible depth-N agent restores every filtered-out
 ancestor up to its root anchor.
 
-## Out of scope (follow-ups)
+## Follow-ups (resolved)
 
 - Depth-scaled rendering polish: per-depth link distance, charge strength, and
-  node radius (`config.ts`, `useTopologyEffect.ts`, `renderNode.ts`). Nested
-  chains render correctly today, just with uniform spacing.
-- Depth-aware stale thresholds in `selectStaleAgentIds`.
+  node radius — implemented as `agentDepth`/`depthFactor` (`GRAPH.depthScale`
+  with a `GRAPH.depthScaleMin` floor; depth 1 renders exactly as before).
+- Depth-aware stale thresholds in `selectStaleAgentIds`: **decided against**.
+  The transitive ancestor shield (a fresh/active descendant protects its whole
+  chain) already covers the only depth-sensitive failure mode — a spawner going
+  silent while its descendants work. An idle sub-agent with no active
+  descendants should purge at the flat sub-agent threshold regardless of
+  depth, so per-depth thresholds would be speculative config.
 
 ## Testing
 

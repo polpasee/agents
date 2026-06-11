@@ -23,7 +23,7 @@ import {
   broadcast,
 } from "./agent-state";
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
-import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
+import { THINKING_EFFORTS, type AgentState, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
 import { scanWorkflows } from "./workflow-scan";
 import { workflows, upsertWorkflow, removeWorkflow } from "./agent-state";
@@ -641,6 +641,39 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 }
 
 /**
+ * Shared per-agent purge cleanup used by both eviction loops in pruneState():
+ * drops the agent from every tracking map and the spawn-index / pending-
+ * reparent bookkeeping, tombstones its id, splices its edges, and removes it
+ * from its team. Returns the pre-delete agent so callers can run their
+ * divergent tails (broadcast warn wording, workflow removal for mains).
+ */
+function purgeAgent(agentId: string): AgentState | undefined {
+  const agent = agents.get(agentId);
+  agents.delete(agentId);
+  agentLastModified.delete(agentId);
+  agentFilePaths.delete(agentId);
+  dropSpawnEntriesFor(agentId);
+  pendingReparents.delete(agentId);
+  removedAgentIds.set(agentId, Date.now());
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (edges[i].source === agentId || edges[i].target === agentId) {
+      edges.splice(i, 1);
+    }
+  }
+  // Remove agent from its team; delete team if empty
+  if (agent?.teamId) {
+    const team = teams.get(agent.teamId);
+    if (team) {
+      team.memberIds = team.memberIds.filter((id) => id !== agentId);
+      if (team.memberIds.length === 0) {
+        teams.delete(agent.teamId);
+      }
+    }
+  }
+  return agent;
+}
+
+/**
  * In-memory + bookkeeping maintenance shared by the full scan and the cheap
  * per-tick refresh: dedup competing mains, purge stale agents, expire the
  * removed-id tombstones, and clean up file offsets. Does no directory walking,
@@ -653,27 +686,7 @@ function pruneState(): void {
   // never reach tier-1 completion — they disappear wholesale instead.
   const losingIds = selectLosingMains(agents, agentLastModified, Date.now());
   for (const agentId of losingIds) {
-    const agent = agents.get(agentId);
-    agents.delete(agentId);
-    agentLastModified.delete(agentId);
-    agentFilePaths.delete(agentId);
-    dropSpawnEntriesFor(agentId);
-    pendingReparents.delete(agentId);
-    removedAgentIds.set(agentId, Date.now());
-    for (let i = edges.length - 1; i >= 0; i--) {
-      if (edges[i].source === agentId || edges[i].target === agentId) {
-        edges.splice(i, 1);
-      }
-    }
-    if (agent?.teamId) {
-      const team = teams.get(agent.teamId);
-      if (team) {
-        team.memberIds = team.memberIds.filter((id) => id !== agentId);
-        if (team.memberIds.length === 0) {
-          teams.delete(agent.teamId);
-        }
-      }
-    }
+    const agent = purgeAgent(agentId);
     try {
       broadcast({ type: "state:remove", agentId });
     } catch (err) {
@@ -689,28 +702,7 @@ function pruneState(): void {
 
   const staleIds = selectStaleAgentIds(agents, agentLastModified, Date.now());
   for (const agentId of staleIds) {
-    const agent = agents.get(agentId);
-    agents.delete(agentId);
-    agentLastModified.delete(agentId);
-    agentFilePaths.delete(agentId);
-    dropSpawnEntriesFor(agentId);
-    pendingReparents.delete(agentId);
-    removedAgentIds.set(agentId, Date.now());
-    for (let i = edges.length - 1; i >= 0; i--) {
-      if (edges[i].source === agentId || edges[i].target === agentId) {
-        edges.splice(i, 1);
-      }
-    }
-    // Remove agent from its team; delete team if empty
-    if (agent?.teamId) {
-      const team = teams.get(agent.teamId);
-      if (team) {
-        team.memberIds = team.memberIds.filter(id => id !== agentId);
-        if (team.memberIds.length === 0) {
-          teams.delete(agent.teamId);
-        }
-      }
-    }
+    const agent = purgeAgent(agentId);
     try {
       broadcast({ type: "state:remove", agentId });
     } catch (err) {

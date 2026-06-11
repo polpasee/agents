@@ -1,6 +1,7 @@
 import type { Selection } from "d3-selection";
 import { AGENT_LABELS, agentColor } from "@/lib/colors";
 import { GRAPH } from "@/lib/config";
+import { depthFactor } from "./depth";
 import type { AgentState } from "@/lib/types";
 
 /* ── Hexagonal path generator (flat-top hexagon) ────────── */
@@ -67,6 +68,7 @@ export function renderNodeVisuals(
   g: Selection<SVGGElement, any, any, any>,
   agent: AgentState,
   selectedAgentId: string | null,
+  depth?: number,
 ) {
   const color = agentColor(agent);
   // Plugin-namespaced agent names ("voltagent-core-dev:backend-developer")
@@ -97,7 +99,8 @@ export function renderNodeVisuals(
   const isDimmed = isFinished || (isSubAgent && agent.status === "idle");
 
   // Effective radius & scale (used by backplate, body hex, and label sizing).
-  const r = isSubAgent ? GRAPH.subAgentNodeRadius : GRAPH.nodeRadius;
+  // Nested sub-agents shrink per nesting level; depth 1 / undefined is a no-op.
+  const r = isSubAgent ? GRAPH.subAgentNodeRadius * depthFactor(depth ?? 1) : GRAPH.nodeRadius;
   const scale = r / GRAPH.nodeRadius;
 
   // Opaque backplate keeps links occluded when the rest of the node dims —

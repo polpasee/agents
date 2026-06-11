@@ -64,7 +64,7 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
         const metricValue = computeMetricValue(latest, heatmapMetric, heatmapNorms);
         renderHeatmapNode(g, latest, metricValue, heatmapScale, d.id === selectedAgentId);
       } else {
-        renderNodeVisuals(g, latest, selectedAgentId);
+        renderNodeVisuals(g, latest, selectedAgentId, d.depth);
       }
     });
 

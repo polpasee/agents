@@ -7,6 +7,7 @@ import { polygonHull, polygonCentroid } from "d3-polygon";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
 import { renderNodeVisuals, updateLinkVisuals, bezierPath } from "@/lib/d3";
+import { agentDepth, depthFactor } from "@/lib/d3/depth";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
@@ -63,6 +64,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       return {
         id: a.id,
         agent: a,
+        depth: agentDepth(a.id, agents),
         ...(prev ? { x: prev.x, y: prev.y } : {}),
       };
     });
@@ -203,7 +205,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     // Render initial node visuals
     nodeSelection.each(function (d) {
-      renderNodeVisuals(select(this), d.agent, selectedAgentId);
+      renderNodeVisuals(select(this), d.agent, selectedAgentId, d.depth);
     });
 
     // Drag behavior
@@ -280,14 +282,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force("link", forceLink<SimNode, SimLink>(links).id((d) => d.id).distance((d) => {
         if (d.edgeType === "tool") return GRAPH.toolLinkDistance;
-        if (d.edgeType === "parent") return GRAPH.subAgentLinkDistance;
+        // Parent links shrink with the child's nesting depth (depth 1 is a no-op)
+        if (d.edgeType === "parent") return GRAPH.subAgentLinkDistance * depthFactor((d.target as SimNode).depth ?? 1);
         return GRAPH.linkDistance;
       }))
       .force("charge", forceManyBody<SimNode>()
         .distanceMax(GRAPH.chargeDistanceMax)
         .strength((d) => {
           if (d.toolCall) return GRAPH.chargeStrengthTool;
-          if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent;
+          if (d.agent.parentId) return GRAPH.chargeStrengthSubAgent * depthFactor(d.depth ?? 1);
           return GRAPH.chargeStrengthMain;
         }))
       .force("x", forceX<SimNode>(width / 2).strength((d) => d.toolCall ? 0 : GRAPH.centerStrength))

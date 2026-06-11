@@ -8,6 +8,8 @@ import { endpointId } from "./endpointId";
 export interface SimNode extends SimulationNodeDatum {
   id: string;
   agent: AgentState;
+  /** Nesting depth (0 = main agent, 1 = direct sub-agent, …); computed at node-build time */
+  depth?: number;
   /** Present only on tool-call nodes; undefined on agent nodes */
   toolCall?: { tool: string; timestamp: number; parentAgentId: string };
 }

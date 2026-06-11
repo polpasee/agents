@@ -86,7 +86,7 @@ import {
   spawnIndex,
   viewers,
 } from "../agent-state";
-import { STALE_THRESHOLD_MS } from "../config";
+import { STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS } from "../config";
 
 // The unmocked module — used by the nested-subagent fixtures to restore real
 // implementations onto the vi.fn wrappers after each resetAllMocks(). State
@@ -874,5 +874,45 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
     // A self-pointing id can never resolve to a usable parent — no retry.
     expect(pendingReparents.has("selfie")).toBe(false);
     expect(pendingReparents.size).toBe(0);
+  });
+});
+
+describe("pruneState — dedup purge cleans spawn bookkeeping", () => {
+  it("drops the losing main's spawnIndex entries and its descendant's pendingReparents entry", async () => {
+    agents.clear();
+    edges.length = 0;
+    teams.clear();
+    agentLastModified.clear();
+    removedAgentIds.clear();
+    agentFilePaths.clear();
+    spawnIndex.clear();
+    pendingReparents.clear();
+    viewers.clear();
+
+    const NOW = Date.now();
+    const register = actualAgentState.registerAgent;
+    const base = { projectDir: "-Users-x-proj", task: "t", slug: "s", model: "m", startTime: NOW };
+    register({ ...base, agentId: "winner", sessionId: "winner", agentType: "main" });
+    register({ ...base, agentId: "loser", sessionId: "loser", agentType: "main" });
+    register({ ...base, agentId: "loser-child", sessionId: "loser", agentType: "generic", parentId: "loser" });
+    agentLastModified.set("winner", NOW);
+    // Quiet past the running threshold (dedup-evictable) but well inside the
+    // 10-minute stale window — and its fresh child shields it from the stale
+    // path anyway — so only the dedup loop can evict it.
+    agentLastModified.set("loser", NOW - STATUS_RUNNING_THRESHOLD_MS - 60_000);
+    agentLastModified.set("loser-child", NOW);
+
+    // Spawn bookkeeping owned by the evicted subtree.
+    spawnIndex.set("toolu_loser", "loser");
+    pendingReparents.set("loser-child", "toolu_unresolved");
+
+    // No tracked files — refreshTrackedAgents just runs the maintenance pass.
+    await refreshTrackedAgents();
+
+    expect(agents.has("loser")).toBe(false);
+    expect(agents.has("loser-child")).toBe(false);
+    expect(agents.has("winner")).toBe(true);
+    expect(spawnIndex.has("toolu_loser")).toBe(false);
+    expect(pendingReparents.has("loser-child")).toBe(false);
   });
 });
