@@ -87,7 +87,7 @@ import {
   viewers,
   broadcast,
 } from "../agent-state";
-import { STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS } from "../config";
+import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS } from "../config";
 
 // The unmocked module — used by the nested-subagent fixtures to restore real
 // implementations onto the vi.fn wrappers after each resetAllMocks(). State
@@ -1047,9 +1047,11 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     await discoverActiveSessions("/projects");
 
     expect(agents.has("compact-123")).toBe(false);
-    // The gated transcript is never opened, same as flat compact- files.
+    // The gated transcript is never opened, same as flat compact- files —
+    // while the legit sibling in the same run dir IS read.
     const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
     expect(readPaths).not.toContain(path.join(runDirPath("wf_x"), "agent-compact-123.jsonl"));
+    expect(readPaths).toContain(path.join(runDirPath("wf_x"), "agent-real.jsonl"));
     expect(agents.get("real")?.parentId).toBe(sess);
   });
 
@@ -1066,6 +1068,136 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     // The descent only enters run *directories*; loose files define its boundary.
     expect(agents.has("loose")).toBe(false);
     expect(agents.has("in-run")).toBe(true);
+  });
+
+  it("applies the discovery age gate to transcripts inside run dirs", async () => {
+    const sess = "aaaa6666-6666-6666-6666-666666666666";
+    buildFixture({
+      sessionId: sess,
+      runs: {
+        wf_x: [
+          { name: "agent-stale.jsonl", meta: { agentType: "workflow-subagent" } },
+          { name: "agent-fresh.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
+    });
+    const stalePath = path.join(runDirPath("wf_x"), "agent-stale.jsonl");
+    mockStat.mockImplementation(async (p: unknown) => ({
+      isDirectory: () => false,
+      mtimeMs: String(p) === stalePath
+        ? Date.now() - DISCOVERY_THRESHOLD_MS - 60_000
+        : Date.now() - 1_000,
+      size: 100,
+    }));
+
+    await discoverActiveSessions("/projects");
+
+    // The stale transcript never registers and is never opened — nested
+    // candidates flow through Phase A's age gate exactly like flat ones.
+    expect(agents.has("stale")).toBe(false);
+    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    expect(readPaths).not.toContain(stalePath);
+    expect(agents.get("fresh")?.parentId).toBe(sess);
+  });
+
+  it("isolates a failing run dir: flat agents and sibling runs still register", async () => {
+    const sess = "aaaa7777-7777-7777-7777-777777777777";
+    buildFixture({
+      sessionId: sess,
+      flat: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
+      runs: {
+        wf_bad: [{ name: "agent-bad.jsonl", meta: { agentType: "workflow-subagent" } }],
+        wf_good: [{ name: "agent-good.jsonl", meta: { agentType: "workflow-subagent" } }],
+      },
+    });
+    const base = mockReaddir.getMockImplementation()!;
+    mockReaddir.mockImplementation(async (...args: unknown[]) => {
+      if (String(args[0]) === runDirPath("wf_bad")) {
+        throw Object.assign(new Error("EIO"), { code: "EIO" });
+      }
+      return base(...args);
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.has("bad")).toBe(false);
+    expect(agents.get("flat1")?.parentId).toBe(sess);
+    expect(agents.get("good")?.parentId).toBe(sess);
+  });
+
+  it("warns and continues when workflows/ is unreadable (non-ENOENT)", async () => {
+    const sess = "aaaa8888-8888-8888-8888-888888888888";
+    buildFixture({
+      sessionId: sess,
+      flat: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
+      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+    });
+    const base = mockReaddir.getMockImplementation()!;
+    mockReaddir.mockImplementation(async (...args: unknown[]) => {
+      if (String(args[0]) === workflowsDir()) {
+        throw Object.assign(new Error("EACCES"), { code: "EACCES" });
+      }
+      return base(...args);
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await discoverActiveSessions("/projects");
+
+    // A persistent failure here silently reproduces the original bug —
+    // it must leave a breadcrumb, while flat discovery carries on.
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(workflowsDir()), expect.anything());
+    expect(agents.has("n1")).toBe(false);
+    expect(agents.get("flat1")?.parentId).toBe(sess);
+    warnSpy.mockRestore();
+  });
+
+  it("skips silently when workflows/ vanished (ENOENT race)", async () => {
+    const sess = "aaaa9999-9999-9999-9999-999999999999";
+    buildFixture({
+      sessionId: sess,
+      flat: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
+      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+    });
+    const base = mockReaddir.getMockImplementation()!;
+    mockReaddir.mockImplementation(async (...args: unknown[]) => {
+      if (String(args[0]) === workflowsDir()) {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      }
+      return base(...args);
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await discoverActiveSessions("/projects");
+
+    const warnedWorkflows = warnSpy.mock.calls.some((c) => String(c[0]).includes(workflowsDir()));
+    expect(warnedWorkflows).toBe(false);
+    expect(agents.get("flat1")?.parentId).toBe(sess);
+    warnSpy.mockRestore();
+  });
+
+  it("keeps the parent session alive via a fresh journal.jsonl alone", async () => {
+    const sess = "aaaa0000-0000-0000-0000-000000000000";
+    buildFixture({
+      sessionId: sess,
+      runs: { wf_x: [{ name: "journal.jsonl" }] },
+    });
+    // The main's JSONL went quiet (long-running workflow); the run journal is
+    // the only fresh file. The session must still backfill and stay fresh.
+    const FRESH = Date.now() - 1_000;
+    const STALE = Date.now() - DISCOVERY_THRESHOLD_MS - 60_000;
+    const journalPath = path.join(runDirPath("wf_x"), "journal.jsonl");
+    mockStat.mockImplementation(async (p: unknown) => ({
+      isDirectory: () => false,
+      mtimeMs: String(p) === journalPath ? FRESH : STALE,
+      size: 100,
+    }));
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.has(sess)).toBe(true);
+    expect(agentLastModified.get(sess)).toBe(FRESH);
+    // The journal itself never becomes an agent.
+    expect([...agents.keys()]).toEqual([sess]);
   });
 });
 

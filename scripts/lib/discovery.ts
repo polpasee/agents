@@ -432,9 +432,10 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
 
       // Candidates carry their directory: Task/Agent sub-agents sit flat in
       // subagents/, Workflow-tool sub-agents one level deeper at
-      // subagents/workflows/<runId>/. The descent is targeted (run dirs
-      // only, never recursive) so unknown future layouts stay un-ingested
-      // and the stat-per-entry hazard above doesn't come back.
+      // subagents/workflows/<runId>/. The descent is fixed at those two
+      // levels — a deeper workflows/<runId>/sub/ layout would NOT be picked
+      // up — so unknown future layouts stay un-ingested and the
+      // stat-per-entry hazard above doesn't come back.
       const candidates = files
         .filter((f) => f.endsWith(".jsonl"))
         .map((name) => ({ dir: subagentsDir, name }));
@@ -447,7 +448,15 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         let runEntries: Dirent[] = [];
         try {
           runEntries = await fsp.readdir(workflowsDir, { withFileTypes: true });
-        } catch { /* skip */ }
+        } catch (err) {
+          // ENOENT/ENOTDIR are routine races (run cleanup between readdirs);
+          // anything else persisting here would silently re-lose workflow
+          // agents — the exact bug this descent exists to fix.
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code !== "ENOENT" && code !== "ENOTDIR") {
+            console.warn(`Failed to read workflows dir ${workflowsDir}:`, err);
+          }
+        }
         for (const runEntry of runEntries) {
           if (!runEntry.isDirectory()) continue;
           const runDir = path.join(workflowsDir, runEntry.name);
@@ -514,8 +523,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       for (const file of buffered) {
         const { agentId } = file;
         if (!agentId || isIgnoredSubagentId(agentId)) continue;
-        // Resolve the meta against the transcript's own directory — a nested
-        // agent's meta.json lives beside it in the run dir, not in subagents/.
+        // Resolve the meta against the transcript's own directory — an agent
+        // in a run dir keeps its meta.json beside it, not in subagents/.
         const metaPath = path.join(path.dirname(file.filePath), `agent-${agentId}.meta.json`);
         if (!metaPaths.has(metaPath)) continue;
         try {
