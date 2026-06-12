@@ -430,8 +430,39 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         continue;
       }
 
-      const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-      const metaFiles = new Set(files.filter((f) => f.endsWith(".meta.json")));
+      // Candidates carry their directory: Task/Agent sub-agents sit flat in
+      // subagents/, Workflow-tool sub-agents one level deeper at
+      // subagents/workflows/<runId>/. The descent is targeted (run dirs
+      // only, never recursive) so unknown future layouts stay un-ingested
+      // and the stat-per-entry hazard above doesn't come back.
+      const candidates = files
+        .filter((f) => f.endsWith(".jsonl"))
+        .map((name) => ({ dir: subagentsDir, name }));
+      const metaPaths = new Set(
+        files.filter((f) => f.endsWith(".meta.json")).map((f) => path.join(subagentsDir, f)),
+      );
+
+      if (files.includes("workflows")) {
+        const workflowsDir = path.join(subagentsDir, "workflows");
+        let runEntries: Dirent[] = [];
+        try {
+          runEntries = await fsp.readdir(workflowsDir, { withFileTypes: true });
+        } catch { /* skip */ }
+        for (const runEntry of runEntries) {
+          if (!runEntry.isDirectory()) continue;
+          const runDir = path.join(workflowsDir, runEntry.name);
+          let runFiles: string[];
+          try {
+            runFiles = await fsp.readdir(runDir);
+          } catch {
+            continue;
+          }
+          for (const name of runFiles) {
+            if (name.endsWith(".jsonl")) candidates.push({ dir: runDir, name });
+            else if (name.endsWith(".meta.json")) metaPaths.add(path.join(runDir, name));
+          }
+        }
+      }
 
       // ── Phase A: read + harvest ────────────────────
       // Stat and read each fresh JSONL exactly once, buffering parsed entries
@@ -439,8 +470,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       // the spawn index complete before any registration below resolves
       // parents — readdir can list a child before its spawner.
       const buffered: BufferedSubagentFile[] = [];
-      for (const jsonlFile of jsonlFiles) {
-        const filePath = path.join(subagentsDir, jsonlFile);
+      for (const { dir, name } of candidates) {
+        const filePath = path.join(dir, name);
 
         let stat: Stats;
         try {
@@ -451,7 +482,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         const age = Date.now() - stat.mtimeMs;
         if (age > DISCOVERY_THRESHOLD_MS) continue;
 
-        const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
+        const agentIdMatch = name.match(/^agent-(.+)\.jsonl$/);
         const agentId = agentIdMatch ? agentIdMatch[1] : undefined;
 
         // Gate reads exactly like the old single-pass loop: compact-/mcp__/
@@ -483,12 +514,12 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       for (const file of buffered) {
         const { agentId } = file;
         if (!agentId || isIgnoredSubagentId(agentId)) continue;
-        const metaFile = `agent-${agentId}.meta.json`;
-        if (!metaFiles.has(metaFile)) continue;
+        // Resolve the meta against the transcript's own directory — a nested
+        // agent's meta.json lives beside it in the run dir, not in subagents/.
+        const metaPath = path.join(path.dirname(file.filePath), `agent-${agentId}.meta.json`);
+        if (!metaPaths.has(metaPath)) continue;
         try {
-          const meta = JSON.parse(
-            fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
-          );
+          const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
           file.agentType = parseAgentType(meta.agentType);
           if (typeof meta.agentType === "string" && meta.agentType.length > 0) {
             file.displayType = meta.agentType;
@@ -500,7 +531,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             file.toolUseId = meta.toolUseId;
           }
         } catch (err) {
-          console.warn(`Failed to read meta file ${metaFile}:`, err);
+          console.warn(`Failed to read meta file ${metaPath}:`, err);
         }
       }
 

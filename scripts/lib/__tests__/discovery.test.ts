@@ -877,6 +877,198 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
   });
 });
 
+describe("discoverActiveSessions — workflow sub-agent discovery", () => {
+  const FIX_PROJECT = "-Users-erdos-Github-agents";
+  const FIX_PROJECT_PATH = path.join("/projects", FIX_PROJECT);
+
+  let sessionId: string;
+  let pendingLines: Map<string, string[]>;
+  let metaContents: Map<string, string>;
+
+  const sessionJsonlPath = () => path.join(FIX_PROJECT_PATH, `${sessionId}.jsonl`);
+  const subagentsDir = () => path.join(FIX_PROJECT_PATH, sessionId, "subagents");
+  const workflowsDir = () => path.join(subagentsDir(), "workflows");
+  const runDirPath = (runId: string) => path.join(workflowsDir(), runId);
+
+  /**
+   * Like the nested-suite fixture, but models the Workflow tool's on-disk
+   * layout: flat sub-agents in subagents/ plus run dirs one level deeper at
+   * subagents/workflows/<runId>/ holding agent-*.jsonl transcripts.
+   */
+  function buildFixture(opts: {
+    sessionId: string;
+    flat?: Array<{ id: string; meta?: Record<string, unknown> }>;
+    runs?: Record<string, Array<{ name: string; meta?: Record<string, unknown> }>>;
+    /** Non-directory entries listed directly inside subagents/workflows/. */
+    looseWorkflowFiles?: string[];
+  }): void {
+    sessionId = opts.sessionId;
+    pendingLines = new Map([[sessionJsonlPath(), []]]);
+    metaContents = new Map();
+
+    const subListing: string[] = [];
+    for (const sub of opts.flat ?? []) {
+      subListing.push(`agent-${sub.id}.jsonl`);
+      pendingLines.set(path.join(subagentsDir(), `agent-${sub.id}.jsonl`), []);
+      if (sub.meta) {
+        subListing.push(`agent-${sub.id}.meta.json`);
+        metaContents.set(path.join(subagentsDir(), `agent-${sub.id}.meta.json`), JSON.stringify(sub.meta));
+      }
+    }
+
+    const wfEntries: unknown[] = [];
+    const runListings = new Map<string, string[]>();
+    if (opts.runs || opts.looseWorkflowFiles) {
+      subListing.push("workflows");
+      for (const [runId, runFiles] of Object.entries(opts.runs ?? {})) {
+        wfEntries.push(dirent(runId, true));
+        const names: string[] = [];
+        for (const f of runFiles) {
+          names.push(f.name);
+          pendingLines.set(path.join(runDirPath(runId), f.name), []);
+          if (f.meta) {
+            const metaName = f.name.replace(/\.jsonl$/, ".meta.json");
+            names.push(metaName);
+            metaContents.set(path.join(runDirPath(runId), metaName), JSON.stringify(f.meta));
+          }
+        }
+        runListings.set(runDirPath(runId), names);
+      }
+      for (const loose of opts.looseWorkflowFiles ?? []) {
+        wfEntries.push(dirent(loose, false));
+      }
+    }
+
+    mockAccess.mockResolvedValue(undefined);
+    mockReaddir.mockImplementation(async (p: unknown) => {
+      const dir = String(p);
+      if (dir === "/projects") return [dirent(FIX_PROJECT, true)];
+      if (dir === FIX_PROJECT_PATH) return [dirent(`${sessionId}.jsonl`, false), dirent(sessionId, true)];
+      if (dir === subagentsDir()) return [...subListing];
+      if (dir === workflowsDir()) return wfEntries;
+      const run = runListings.get(dir);
+      if (run) return [...run];
+      return [];
+    });
+    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: Date.now() - 1_000, size: 100 });
+    vi.mocked(readNewLines).mockImplementation((p: string) => {
+      const lines = pendingLines.get(p) ?? [];
+      pendingLines.set(p, []);
+      return lines;
+    });
+    vi.mocked(fs.readFileSync).mockImplementation(((p: unknown) => {
+      const content = metaContents.get(String(p));
+      if (content === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      return content;
+    }) as typeof fs.readFileSync);
+  }
+
+  beforeEach(() => {
+    // The file-level resetAllMocks() wiped implementations; restore the real
+    // agent-state behaviour so scans mutate the actual state maps.
+    vi.mocked(registerAgent).mockImplementation(actualAgentState.registerAgent);
+    vi.mocked(updateAgentStatus).mockImplementation(actualAgentState.updateAgentStatus);
+    vi.mocked(processEntry).mockImplementation(actualAgentState.processEntry);
+    vi.mocked(parseAgentType).mockImplementation(actualAgentState.parseAgentType);
+    vi.mocked(reparentAgent).mockImplementation(actualAgentState.reparentAgent);
+    vi.mocked(scanWorkflows).mockResolvedValue([]);
+    vi.mocked(extractTaskFromJSONL).mockReturnValue({
+      task: "test task",
+      slug: "test-slug",
+      model: "claude-sonnet-4-20250514",
+      startTime: Date.now(),
+    });
+  });
+
+  it("registers a nested workflow sub-agent anchored to the session", async () => {
+    const sess = "aaaa1111-1111-1111-1111-111111111111";
+    buildFixture({
+      sessionId: sess,
+      runs: { wf_x: [{ name: "agent-a1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+    });
+
+    await discoverActiveSessions("/projects");
+
+    const agent = agents.get("a1");
+    expect(agent?.parentId).toBe(sess);
+    expect(agent?.agentType).toBe("generic");
+    expect(agent?.displayType).toBe("workflow-subagent");
+    expect(agentFilePaths.get("a1")).toBe(path.join(runDirPath("wf_x"), "agent-a1.jsonl"));
+    expect(pendingReparents.size).toBe(0);
+  });
+
+  it("discovers flat and nested sub-agents in the same session", async () => {
+    const sess = "aaaa2222-2222-2222-2222-222222222222";
+    buildFixture({
+      sessionId: sess,
+      flat: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
+      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("flat1")?.parentId).toBe(sess);
+    expect(agents.get("flat1")?.agentType).toBe("explore");
+    expect(agents.get("n1")?.parentId).toBe(sess);
+    expect(agents.get("n1")?.displayType).toBe("workflow-subagent");
+  });
+
+  it("does not register journal.jsonl in a run dir as an agent", async () => {
+    const sess = "aaaa3333-3333-3333-3333-333333333333";
+    buildFixture({
+      sessionId: sess,
+      runs: {
+        wf_x: [
+          { name: "journal.jsonl" },
+          { name: "agent-a1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.has("a1")).toBe(true);
+    // Only the session main and the one workflow agent registered.
+    expect([...agents.keys()].sort()).toEqual([sess, "a1"].sort());
+  });
+
+  it("keeps ignoring compact- transcripts inside run dirs", async () => {
+    const sess = "aaaa4444-4444-4444-4444-444444444444";
+    buildFixture({
+      sessionId: sess,
+      runs: {
+        wf_x: [
+          { name: "agent-compact-123.jsonl" },
+          { name: "agent-real.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
+    });
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.has("compact-123")).toBe(false);
+    // The gated transcript is never opened, same as flat compact- files.
+    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    expect(readPaths).not.toContain(path.join(runDirPath("wf_x"), "agent-compact-123.jsonl"));
+    expect(agents.get("real")?.parentId).toBe(sess);
+  });
+
+  it("does not pick up files directly inside subagents/workflows/", async () => {
+    const sess = "aaaa5555-5555-5555-5555-555555555555";
+    buildFixture({
+      sessionId: sess,
+      runs: { wf_x: [{ name: "agent-in-run.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      looseWorkflowFiles: ["agent-loose.jsonl"],
+    });
+
+    await discoverActiveSessions("/projects");
+
+    // The descent only enters run *directories*; loose files define its boundary.
+    expect(agents.has("loose")).toBe(false);
+    expect(agents.has("in-run")).toBe(true);
+  });
+});
+
 describe("pruneState — dedup purge cleans spawn bookkeeping", () => {
   it("drops the losing main's spawnIndex entries and its descendant's pendingReparents entry", async () => {
     const NOW = Date.now();
