@@ -21,6 +21,7 @@ import {
   dropSpawnEntriesFor,
   pendingReparents,
   broadcast,
+  broadcastRegisterFor,
   workflows,
   upsertWorkflow,
   removeWorkflow,
@@ -683,10 +684,10 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           // Same race, type/description side: workflow metas carry no
           // toolUseId, so the branch above never fires for them and a child
           // registered before its meta flushed would stay "generic" forever.
-          // Fill only fields still at their no-meta defaults — never
-          // overwrite real values — then re-broadcast registration from
-          // stored state (the same mid-session agent:register shape
-          // reparentAgent emits) so connected dashboards pick the fix up.
+          // Fill only fields still at their no-meta defaults, and only when
+          // the value actually changes — an unchanged meta must not
+          // re-broadcast every pass. Healed fields go out through the shared
+          // mid-session register re-broadcast (same path as re-parents).
           if (existing) {
             let healed = false;
             if (existing.displayType === undefined && file.displayType !== undefined) {
@@ -697,30 +698,16 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
               existing.agentType = agentType;
               healed = true;
             }
-            if (file.description && (!existing.task || existing.task === "Session")) {
+            if (
+              file.description &&
+              file.description !== existing.task &&
+              (!existing.task || existing.task === "Session")
+            ) {
               existing.task = file.description;
               healed = true;
             }
             if (healed) {
-              broadcast({
-                type: "state:update",
-                event: {
-                  type: "agent:register",
-                  agentId: existing.id,
-                  agentType: existing.agentType,
-                  displayType: existing.displayType,
-                  task: existing.task,
-                  sessionId: existing.sessionId,
-                  slug: existing.slug,
-                  model: existing.model,
-                  teamId: existing.teamId,
-                  parentId: existing.parentId,
-                  metadata: existing.metadata,
-                  effort: existing.effort,
-                  is1MContext: existing.is1MContext,
-                },
-                timestamp: Date.now(),
-              });
+              broadcastRegisterFor(existing, Date.now());
             }
           }
         }

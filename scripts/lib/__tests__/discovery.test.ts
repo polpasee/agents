@@ -47,6 +47,7 @@ vi.mock("../agent-state", async (importOriginal) => {
     processEntry: vi.fn(),
     parseAgentType: vi.fn().mockReturnValue("generic"),
     broadcast: vi.fn(),
+    broadcastRegisterFor: vi.fn(),
     upsertWorkflow: vi.fn(),
     removeWorkflow: vi.fn(),
     reparentAgent: vi.fn(),
@@ -86,6 +87,7 @@ import {
   spawnIndex,
   viewers,
   broadcast,
+  broadcastRegisterFor,
 } from "../agent-state";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS } from "../config";
 
@@ -1173,17 +1175,16 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     await discoverActiveSessions("/projects");
 
     expect(agents.get("a1")?.displayType).toBe("workflow-subagent");
-    // The heal reached the broadcast layer as a refreshed registration.
-    expect(vi.mocked(broadcast)).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "state:update",
-        event: expect.objectContaining({
-          type: "agent:register",
-          agentId: "a1",
-          displayType: "workflow-subagent",
-        }),
-      }),
+    // The heal went out through the shared mid-session register re-broadcast.
+    expect(vi.mocked(broadcastRegisterFor)).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "a1", displayType: "workflow-subagent" }),
+      expect.any(Number),
     );
+
+    // Tick 3, same meta: nothing changes, so the heal must not re-broadcast.
+    vi.mocked(broadcastRegisterFor).mockClear();
+    await discoverActiveSessions("/projects");
+    expect(vi.mocked(broadcastRegisterFor)).not.toHaveBeenCalled();
   });
 });
 

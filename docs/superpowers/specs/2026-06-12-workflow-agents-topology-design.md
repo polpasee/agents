@@ -87,9 +87,18 @@ All changes in `scripts/lib/discovery.ts`, Step 2 of `discoverActiveSessions`.
 
 ### Frontend
 
-No changes. Nodes arrive via the normal `agent:register` / `state:sync` path; the hull
-overlay join starts matching once `wf_*.json` exists for the run (see Explicitly
-Excluded for the cases where that is late or never).
+No changes to node intake. Nodes arrive via the normal `agent:register` / `state:sync`
+path; the hull overlay join starts matching once `wf_*.json` exists for the run (see
+Explicitly Excluded for the cases where that is late or never).
+
+## Accepted Deltas
+
+- Frontend merge-policy carve-out (`applyRegister`, `eventHandlers.ts`): `task` was
+  strict keep-first; a live `agent:register` may now replace the `"Session"`
+  registration placeholder with a real task. This is a visible change on connected
+  dashboards — required so the discovery late-meta heal's description can propagate
+  without a reload (`"Session"` is `registerAgent`'s no-task fallback, never a real
+  description).
 
 ## Testing
 
@@ -130,3 +139,6 @@ Gates: full `vitest` suite + `tsc --noEmit` clean.
 - Worktree-split restart edge: a monitor restart during an in-flight worktree run can
   orphan nested agents — the session backfill stats `projectPath/<sessionId>.jsonl` in
   the wrong munged project dir.
+- Late-meta heal does not cover `teamId`/`teamName`: team wiring runs only at first
+  registration. Pre-existing race for flat team agents; unreachable for workflow
+  metas, which carry no team fields.

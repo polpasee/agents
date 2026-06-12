@@ -91,7 +91,7 @@ export function applyRegister(
         agentType:   event.agentType || existing.agentType,    // coarse type can be corrected on refresh
         parentId:    event.parentId || existing.parentId,      // re-parent broadcast for nested sub-agents
         // keepFirst: once set, never replaced.
-        task:        existing.task || event.task,              // first task description wins
+        task:        existing.task && existing.task !== "Session" ? existing.task : event.task, // first real task wins; "Session" is the registration placeholder, replaceable by a late-meta heal
         slug:        existing.slug || event.slug,              // stable identifier once assigned
         displayType: existing.displayType || event.displayType, // display label set on first register
         metadata:    existing.metadata || event.metadata,      // arbitrary bag; keep original contents
