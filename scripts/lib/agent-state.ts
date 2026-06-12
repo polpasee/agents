@@ -281,9 +281,9 @@ export function registerAgent(opts: {
 }
 
 // Single builder for mid-session agent:register re-broadcasts (model
-// change, re-parent), deriving the event from stored state so a new
-// AgentState field only needs adding here.
-function broadcastRegisterFor(agent: AgentState, timestamp: number): void {
+// change, re-parent, discovery's late-meta heal), deriving the event from
+// stored state so a new AgentState field only needs adding here.
+export function broadcastRegisterFor(agent: AgentState, timestamp: number): void {
   broadcast({
     type: "state:update",
     event: {

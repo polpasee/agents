@@ -21,6 +21,7 @@ import {
   dropSpawnEntriesFor,
   pendingReparents,
   broadcast,
+  broadcastRegisterFor,
   workflows,
   upsertWorkflow,
   removeWorkflow,
@@ -265,6 +266,8 @@ export function selectStaleAgentIds(
  */
 interface BufferedSubagentFile {
   filePath: string;
+  /** Directory holding the transcript and its meta.json (flat or run dir). */
+  dir: string;
   stat: Stats;
   parsed: Record<string, unknown>[];
   agentId?: string;
@@ -430,8 +433,56 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         continue;
       }
 
-      const jsonlFiles = files.filter((f) => f.endsWith(".jsonl"));
-      const metaFiles = new Set(files.filter((f) => f.endsWith(".meta.json")));
+      // Candidates carry their directory: Task/Agent sub-agents sit flat in
+      // subagents/, Workflow-tool sub-agents one level deeper at
+      // subagents/workflows/<runId>/. The descent is fixed at those two
+      // levels — a deeper workflows/<runId>/sub/ layout would NOT be picked
+      // up — so unknown future layouts stay un-ingested and the
+      // stat-per-entry hazard above doesn't come back. (subagents/workflows/
+      // holds transcripts; despite the shared leaf name it is a different
+      // directory from <session>/workflows/, the wf_*.json run state read by
+      // workflow-scan.ts.)
+      const listings: Array<{ dir: string; names: string[] }> = [
+        { dir: subagentsDir, names: files },
+      ];
+
+      if (files.includes("workflows")) {
+        const workflowsDir = path.join(subagentsDir, "workflows");
+        // At both descent levels: ENOENT/ENOTDIR are routine races (run
+        // cleanup between readdirs) and skip silently; anything else
+        // persisting would silently re-lose workflow agents — the exact bug
+        // this descent exists to fix — so it leaves a breadcrumb.
+        let runEntries: Dirent[] = [];
+        try {
+          runEntries = await fsp.readdir(workflowsDir, { withFileTypes: true });
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code !== "ENOENT" && code !== "ENOTDIR") {
+            console.warn(`Failed to read workflows dir ${workflowsDir}:`, err);
+          }
+        }
+        for (const runEntry of runEntries) {
+          if (!runEntry.isDirectory()) continue;
+          const runDir = path.join(workflowsDir, runEntry.name);
+          try {
+            listings.push({ dir: runDir, names: await fsp.readdir(runDir) });
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== "ENOENT" && code !== "ENOTDIR") {
+              console.warn(`Failed to read workflow run dir ${runDir}:`, err);
+            }
+          }
+        }
+      }
+
+      const candidates: Array<{ dir: string; name: string }> = [];
+      const metaPaths = new Set<string>();
+      for (const { dir, names } of listings) {
+        for (const name of names) {
+          if (name.endsWith(".jsonl")) candidates.push({ dir, name });
+          else if (name.endsWith(".meta.json")) metaPaths.add(path.join(dir, name));
+        }
+      }
 
       // ── Phase A: read + harvest ────────────────────
       // Stat and read each fresh JSONL exactly once, buffering parsed entries
@@ -439,8 +490,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       // the spawn index complete before any registration below resolves
       // parents — readdir can list a child before its spawner.
       const buffered: BufferedSubagentFile[] = [];
-      for (const jsonlFile of jsonlFiles) {
-        const filePath = path.join(subagentsDir, jsonlFile);
+      for (const { dir, name } of candidates) {
+        const filePath = path.join(dir, name);
 
         let stat: Stats;
         try {
@@ -451,7 +502,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         const age = Date.now() - stat.mtimeMs;
         if (age > DISCOVERY_THRESHOLD_MS) continue;
 
-        const agentIdMatch = jsonlFile.match(/^agent-(.+)\.jsonl$/);
+        const agentIdMatch = name.match(/^agent-(.+)\.jsonl$/);
         const agentId = agentIdMatch ? agentIdMatch[1] : undefined;
 
         // Gate reads exactly like the old single-pass loop: compact-/mcp__/
@@ -474,7 +525,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           }
         }
 
-        buffered.push({ filePath, stat, parsed, agentId, agentType: "generic", description: "" });
+        buffered.push({ filePath, dir, stat, parsed, agentId, agentType: "generic", description: "" });
       }
 
       // ── Phase B: register + process ────────────────
@@ -483,12 +534,12 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       for (const file of buffered) {
         const { agentId } = file;
         if (!agentId || isIgnoredSubagentId(agentId)) continue;
-        const metaFile = `agent-${agentId}.meta.json`;
-        if (!metaFiles.has(metaFile)) continue;
+        // Resolve the meta against the transcript's own directory — an agent
+        // in a run dir keeps its meta.json beside it, not in subagents/.
+        const metaPath = path.join(file.dir, `agent-${agentId}.meta.json`);
+        if (!metaPaths.has(metaPath)) continue;
         try {
-          const meta = JSON.parse(
-            fs.readFileSync(path.join(subagentsDir, metaFile), "utf-8")
-          );
+          const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
           file.agentType = parseAgentType(meta.agentType);
           if (typeof meta.agentType === "string" && meta.agentType.length > 0) {
             file.displayType = meta.agentType;
@@ -500,7 +551,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             file.toolUseId = meta.toolUseId;
           }
         } catch (err) {
-          console.warn(`Failed to read meta file ${metaFile}:`, err);
+          console.warn(`Failed to read meta file ${metaPath}:`, err);
         }
       }
 
@@ -614,16 +665,49 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             effort: readEffortLevelCached(projectDir, settingsCache),
             is1MContext: readIs1MContextCached(projectDir, settingsCache),
           });
-        } else if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
-          // Heal the late-meta race: a child whose meta.json appeared a tick
-          // after its JSONL registered on the session fallback with no retry
-          // queued. Queue one now that the toolUseId is visible; the retry
-          // after Step 2 applies it once the spawner is live.
+        } else {
           const existing = agents.get(agentId);
-          if (existing && existing.parentId === sessionId) {
-            const owner = resolveSpawnOwner(file.toolUseId);
-            if (owner !== agentId && owner !== sessionId) {
-              pendingReparents.set(agentId, file.toolUseId);
+
+          if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
+            // Heal the late-meta race: a child whose meta.json appeared a tick
+            // after its JSONL registered on the session fallback with no retry
+            // queued. Queue one now that the toolUseId is visible; the retry
+            // after Step 2 applies it once the spawner is live.
+            if (existing && existing.parentId === sessionId) {
+              const owner = resolveSpawnOwner(file.toolUseId);
+              if (owner !== agentId && owner !== sessionId) {
+                pendingReparents.set(agentId, file.toolUseId);
+              }
+            }
+          }
+
+          // Same race, type/description side: workflow metas carry no
+          // toolUseId, so the branch above never fires for them and a child
+          // registered before its meta flushed would stay "generic" forever.
+          // Fill only fields still at their no-meta defaults, and only when
+          // the value actually changes — an unchanged meta must not
+          // re-broadcast every pass. Healed fields go out through the shared
+          // mid-session register re-broadcast (same path as re-parents).
+          if (existing) {
+            let healed = false;
+            if (existing.displayType === undefined && file.displayType !== undefined) {
+              existing.displayType = file.displayType;
+              healed = true;
+            }
+            if (existing.agentType === "generic" && agentType !== "generic") {
+              existing.agentType = agentType;
+              healed = true;
+            }
+            if (
+              file.description &&
+              file.description !== existing.task &&
+              (!existing.task || existing.task === "Session")
+            ) {
+              existing.task = file.description;
+              healed = true;
+            }
+            if (healed) {
+              broadcastRegisterFor(existing, Date.now());
             }
           }
         }

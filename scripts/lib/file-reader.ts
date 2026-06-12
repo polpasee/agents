@@ -26,7 +26,15 @@ export function readNewLines(filePath: string): string[] {
   if (stat.size <= offset) return [];
 
   const bytesToRead = Math.min(stat.size - offset, READ_MAX_BYTES);
-  const fd = fs.openSync(normalized, "r");
+  let fd: number;
+  try {
+    fd = fs.openSync(normalized, "r");
+  } catch (err) {
+    // File vanished between stat and open — degrade to "no new lines"
+    // instead of throwing out of the caller's discovery loop.
+    console.warn(`Failed to open ${normalized}:`, err);
+    return [];
+  }
   let buf: Buffer;
   try {
     buf = Buffer.alloc(bytesToRead);

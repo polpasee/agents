@@ -136,6 +136,13 @@ describe("task field (keep-first)", () => {
     const result = reRegister(makeExisting({ task: "" }), { task: "new-task" });
     expect(result.task).toBe("new-task");
   });
+
+  it('replaces the "Session" registration placeholder with the event task', () => {
+    // Carve-out for the discovery late-meta heal: "Session" is registerAgent's
+    // no-task fallback, not a real description, so a refresh may replace it.
+    const result = reRegister(makeExisting({ task: "Session" }), { task: "real task from meta" });
+    expect(result.task).toBe("real task from meta");
+  });
 });
 
 // ── slug: keep-first ──────────────────────────────────────────────────────────
