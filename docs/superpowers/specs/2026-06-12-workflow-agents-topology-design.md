@@ -30,7 +30,9 @@ Confirmed-but-downstream facts (no code change needed for this fix):
   is panel/hull-only and never registers agents. The hull overlay
   (`useTopologyEffect.ts:233-259`) joins `run.agents[].agentId` against live sim nodes —
   on-disk agentIds in `wf_*.json` match the nested transcript filenames exactly, so the
-  hull grouping lights up automatically once the agents register.
+  hull grouping can light up once the agents register **and** `wf_*.json` exists for
+  the run. That second condition is not a given — see the hull-timing and worktree
+  caveats under Explicitly Excluded.
 
 ## Goal
 
@@ -69,8 +71,10 @@ All changes in `scripts/lib/discovery.ts`, Step 2 of `discoverActiveSessions`.
   same `dir` as the transcript (today it joins against `subagentsDir`; the set of meta
   names becomes a set of full paths or per-dir sets — implementer's choice, smallest diff
   wins).
-- Read failures on `workflows/` or a run dir are skipped silently, matching the existing
-  per-directory `try/catch → continue` idiom.
+- Read failures on `workflows/` or a run dir: ENOENT/ENOTDIR (routine races — run
+  cleanup between readdirs) skip silently; any other code at either descent level logs
+  a `console.warn` breadcrumb before skipping, because a persistent EACCES/EIO there
+  would silently re-lose workflow agents — the exact bug this change fixes.
 
 ### Registration (unchanged behavior, by construction)
 
@@ -84,7 +88,8 @@ All changes in `scripts/lib/discovery.ts`, Step 2 of `discoverActiveSessions`.
 ### Frontend
 
 No changes. Nodes arrive via the normal `agent:register` / `state:sync` path; the hull
-overlay join starts matching as soon as `wf_*.json` exists for the run.
+overlay join starts matching once `wf_*.json` exists for the run (see Explicitly
+Excluded for the cases where that is late or never).
 
 ## Testing
 
@@ -111,3 +116,17 @@ Gates: full `vitest` suite + `tsc --noEmit` clean.
   dirs; pre-existing, orthogonal).
 - Node labels from `wf_*.json` `workflowProgress` labels (e.g. `skeptic:ui-store`) —
   would couple discovery to the panel pipeline; revisit if generic labels prove confusing.
+- Hull/panel timing for sequential-phase runs: `wf_*.json` lands at run completion,
+  while members are purged ~60s after going idle — so the window where ≥2 members are
+  still live for the hull join is narrow until the `journal.jsonl` follow-up above lands.
+- Hull/panel for worktree sessions: `wf_*.json` is written under the worktree-munged
+  project dir, which Step 1.5 never scans (no main JSONL lives there) — nodes register,
+  hull/panel don't.
+- Pre-existing `wfMtimeCache` purge gap: `purgeAgent` clears `wfContentCache` but not
+  `wfMtimeCache`, so a resurrected main misses unchanged completed runs.
+- Run-dir enumeration staleness gating — deliberately NOT added: a directory's mtime
+  doesn't change on file writes inside it, and resumed runs reuse their run dirs, so
+  naive mtime gating would break live tailing.
+- Worktree-split restart edge: a monitor restart during an in-flight worktree run can
+  orphan nested agents — the session backfill stats `projectPath/<sessionId>.jsonl` in
+  the wrong munged project dir.

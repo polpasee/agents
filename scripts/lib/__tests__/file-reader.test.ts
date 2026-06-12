@@ -47,6 +47,14 @@ describe("readNewLines", () => {
     expect(result).toEqual([]);
   });
 
+  it("returns empty array when the file vanishes between stat and open", () => {
+    mockStatSync.mockReturnValue({ size: 100 });
+    mockOpenSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    expect(readNewLines("/vanished-mid-read.jsonl")).toEqual([]);
+  });
+
   it("reads new lines from a file", () => {
     const content = '{"line":1}\n{"line":2}\n';
     setupFileRead(content);

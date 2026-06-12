@@ -265,6 +265,8 @@ export function selectStaleAgentIds(
  */
 interface BufferedSubagentFile {
   filePath: string;
+  /** Directory holding the transcript and its meta.json (flat or run dir). */
+  dir: string;
   stat: Stats;
   parsed: Record<string, unknown>[];
   agentId?: string;
@@ -435,23 +437,24 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       // subagents/workflows/<runId>/. The descent is fixed at those two
       // levels — a deeper workflows/<runId>/sub/ layout would NOT be picked
       // up — so unknown future layouts stay un-ingested and the
-      // stat-per-entry hazard above doesn't come back.
-      const candidates = files
-        .filter((f) => f.endsWith(".jsonl"))
-        .map((name) => ({ dir: subagentsDir, name }));
-      const metaPaths = new Set(
-        files.filter((f) => f.endsWith(".meta.json")).map((f) => path.join(subagentsDir, f)),
-      );
+      // stat-per-entry hazard above doesn't come back. (subagents/workflows/
+      // holds transcripts; despite the shared leaf name it is a different
+      // directory from <session>/workflows/, the wf_*.json run state read by
+      // workflow-scan.ts.)
+      const listings: Array<{ dir: string; names: string[] }> = [
+        { dir: subagentsDir, names: files },
+      ];
 
       if (files.includes("workflows")) {
         const workflowsDir = path.join(subagentsDir, "workflows");
+        // At both descent levels: ENOENT/ENOTDIR are routine races (run
+        // cleanup between readdirs) and skip silently; anything else
+        // persisting would silently re-lose workflow agents — the exact bug
+        // this descent exists to fix — so it leaves a breadcrumb.
         let runEntries: Dirent[] = [];
         try {
           runEntries = await fsp.readdir(workflowsDir, { withFileTypes: true });
         } catch (err) {
-          // ENOENT/ENOTDIR are routine races (run cleanup between readdirs);
-          // anything else persisting here would silently re-lose workflow
-          // agents — the exact bug this descent exists to fix.
           const code = (err as NodeJS.ErrnoException).code;
           if (code !== "ENOENT" && code !== "ENOTDIR") {
             console.warn(`Failed to read workflows dir ${workflowsDir}:`, err);
@@ -460,16 +463,23 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         for (const runEntry of runEntries) {
           if (!runEntry.isDirectory()) continue;
           const runDir = path.join(workflowsDir, runEntry.name);
-          let runFiles: string[];
           try {
-            runFiles = await fsp.readdir(runDir);
-          } catch {
-            continue;
+            listings.push({ dir: runDir, names: await fsp.readdir(runDir) });
+          } catch (err) {
+            const code = (err as NodeJS.ErrnoException).code;
+            if (code !== "ENOENT" && code !== "ENOTDIR") {
+              console.warn(`Failed to read workflow run dir ${runDir}:`, err);
+            }
           }
-          for (const name of runFiles) {
-            if (name.endsWith(".jsonl")) candidates.push({ dir: runDir, name });
-            else if (name.endsWith(".meta.json")) metaPaths.add(path.join(runDir, name));
-          }
+        }
+      }
+
+      const candidates: Array<{ dir: string; name: string }> = [];
+      const metaPaths = new Set<string>();
+      for (const { dir, names } of listings) {
+        for (const name of names) {
+          if (name.endsWith(".jsonl")) candidates.push({ dir, name });
+          else if (name.endsWith(".meta.json")) metaPaths.add(path.join(dir, name));
         }
       }
 
@@ -514,7 +524,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           }
         }
 
-        buffered.push({ filePath, stat, parsed, agentId, agentType: "generic", description: "" });
+        buffered.push({ filePath, dir, stat, parsed, agentId, agentType: "generic", description: "" });
       }
 
       // ── Phase B: register + process ────────────────
@@ -525,7 +535,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         if (!agentId || isIgnoredSubagentId(agentId)) continue;
         // Resolve the meta against the transcript's own directory — an agent
         // in a run dir keeps its meta.json beside it, not in subagents/.
-        const metaPath = path.join(path.dirname(file.filePath), `agent-${agentId}.meta.json`);
+        const metaPath = path.join(file.dir, `agent-${agentId}.meta.json`);
         if (!metaPaths.has(metaPath)) continue;
         try {
           const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
@@ -654,16 +664,63 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             effort: readEffortLevelCached(projectDir, settingsCache),
             is1MContext: readIs1MContextCached(projectDir, settingsCache),
           });
-        } else if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
-          // Heal the late-meta race: a child whose meta.json appeared a tick
-          // after its JSONL registered on the session fallback with no retry
-          // queued. Queue one now that the toolUseId is visible; the retry
-          // after Step 2 applies it once the spawner is live.
+        } else {
           const existing = agents.get(agentId);
-          if (existing && existing.parentId === sessionId) {
-            const owner = resolveSpawnOwner(file.toolUseId);
-            if (owner !== agentId && owner !== sessionId) {
-              pendingReparents.set(agentId, file.toolUseId);
+
+          if (file.toolUseId !== undefined && !pendingReparents.has(agentId)) {
+            // Heal the late-meta race: a child whose meta.json appeared a tick
+            // after its JSONL registered on the session fallback with no retry
+            // queued. Queue one now that the toolUseId is visible; the retry
+            // after Step 2 applies it once the spawner is live.
+            if (existing && existing.parentId === sessionId) {
+              const owner = resolveSpawnOwner(file.toolUseId);
+              if (owner !== agentId && owner !== sessionId) {
+                pendingReparents.set(agentId, file.toolUseId);
+              }
+            }
+          }
+
+          // Same race, type/description side: workflow metas carry no
+          // toolUseId, so the branch above never fires for them and a child
+          // registered before its meta flushed would stay "generic" forever.
+          // Fill only fields still at their no-meta defaults — never
+          // overwrite real values — then re-broadcast registration from
+          // stored state (the same mid-session agent:register shape
+          // reparentAgent emits) so connected dashboards pick the fix up.
+          if (existing) {
+            let healed = false;
+            if (existing.displayType === undefined && file.displayType !== undefined) {
+              existing.displayType = file.displayType;
+              healed = true;
+            }
+            if (existing.agentType === "generic" && agentType !== "generic") {
+              existing.agentType = agentType;
+              healed = true;
+            }
+            if (file.description && (!existing.task || existing.task === "Session")) {
+              existing.task = file.description;
+              healed = true;
+            }
+            if (healed) {
+              broadcast({
+                type: "state:update",
+                event: {
+                  type: "agent:register",
+                  agentId: existing.id,
+                  agentType: existing.agentType,
+                  displayType: existing.displayType,
+                  task: existing.task,
+                  sessionId: existing.sessionId,
+                  slug: existing.slug,
+                  model: existing.model,
+                  teamId: existing.teamId,
+                  parentId: existing.parentId,
+                  metadata: existing.metadata,
+                  effort: existing.effort,
+                  is1MContext: existing.is1MContext,
+                },
+                timestamp: Date.now(),
+              });
             }
           }
         }
