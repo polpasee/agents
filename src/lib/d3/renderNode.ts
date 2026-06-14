@@ -162,7 +162,7 @@ export function renderNodeVisuals(
     // The model family is the headline (bold); the effort tier sits under it
     // smaller and at normal weight so it reads as a secondary line.
     const modelFont = Math.max(centerFontMin, Math.round(centerFontBase * scale * 0.85));
-    const effortFont = Math.max(6, Math.round(modelFont * 0.72));
+    const effortFont = Math.max(6, Math.round(modelFont * 0.6));
     const gap = Math.max(1, Math.round(scale * 2));
     // Center the differently-sized pair on y=0: the gap sits between the two
     // lines and the whole block straddles the origin.
