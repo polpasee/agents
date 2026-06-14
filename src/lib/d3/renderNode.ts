@@ -29,7 +29,8 @@ export function renderNodeVisuals(
   // their real label (workflowLabel, e.g. "find:A-line-scan") verbatim via subLabel.
   const rawDisplay = agent.displayType || AGENT_LABELS[agent.agentType] || "AGENT";
   const typeLabel = rawDisplay.split(":").pop()!.toUpperCase();
-  const subLabel = workflowLabel || typeLabel;
+  const liveFallback = agent.workflowName ? agent.workflowName.toUpperCase() : typeLabel;
+  const subLabel = workflowLabel || liveFallback;
   const effortFromMeta = typeof agent.metadata?.effort === "string"
     ? agent.metadata.effort
     : undefined;

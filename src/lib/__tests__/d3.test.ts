@@ -134,6 +134,52 @@ describe("renderNodeVisuals workflow label", () => {
     // The type label (uppercased displayType) is rendered as the sub-label
     expect(texts.some((t) => t.textContent === "WORKFLOW-SUBAGENT")).toBe(true);
   });
+
+  it("(a) workflowLabel wins over workflowName when both are set", () => {
+    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    const agent = createMockAgent({
+      agentType: "generic",
+      parentId: "p1",
+      displayType: "workflow-subagent",
+      workflowName: "code-review-max",
+    });
+
+    renderNodeVisuals(g, agent, null, 1, "find:A-line-scan");
+
+    const texts = Array.from(g.node()!.querySelectorAll("text"));
+    expect(texts.some((t) => t.textContent === "find:A-line-scan")).toBe(true);
+    expect(texts.some((t) => t.textContent === "CODE-REVIEW-MAX")).toBe(false);
+  });
+
+  it("(b) workflowName uppercased is rendered when workflowLabel is absent", () => {
+    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    const agent = createMockAgent({
+      agentType: "generic",
+      parentId: "p1",
+      displayType: "workflow-subagent",
+      workflowName: "code-review-max",
+    });
+
+    renderNodeVisuals(g, agent, null, 1);
+
+    const texts = Array.from(g.node()!.querySelectorAll("text"));
+    expect(texts.some((t) => t.textContent === "CODE-REVIEW-MAX")).toBe(true);
+    expect(texts.some((t) => t.textContent === "WORKFLOW-SUBAGENT")).toBe(false);
+  });
+
+  it("(c) typeLabel is rendered when neither workflowLabel nor workflowName is set", () => {
+    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    const agent = createMockAgent({ agentType: "generic", parentId: "p1", displayType: "workflow-subagent" });
+
+    renderNodeVisuals(g, agent, null, 1);
+
+    const texts = Array.from(g.node()!.querySelectorAll("text"));
+    expect(texts.some((t) => t.textContent === "WORKFLOW-SUBAGENT")).toBe(true);
+    expect(texts.some((t) => t.textContent === "CODE-REVIEW-MAX")).toBe(false);
+  });
 });
 
 describe("renderNodeVisuals center model + effort", () => {

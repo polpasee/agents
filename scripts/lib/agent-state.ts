@@ -190,6 +190,7 @@ export function registerAgent(opts: {
   teamName?: string;
   effort?: ThinkingEffort;
   is1MContext?: boolean;
+  workflowName?: string;
 }) {
   // macOS resolves /tmp, /var, /etc through /private/* symlinks, so cwds there
   // are stored on disk as `-private-tmp` etc. Strip the cosmetic prefix from
@@ -220,6 +221,7 @@ export function registerAgent(opts: {
     metadata: { projectName, projectDir: opts.projectDir },
     effort: opts.effort,
     is1MContext: opts.is1MContext,
+    workflowName: opts.workflowName,
   };
 
   agents.set(opts.agentId, agent);

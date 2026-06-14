@@ -58,12 +58,13 @@ vi.mock("../agent-state", async (importOriginal) => {
 // it out so the readdir/stat mocks above only have to model agent discovery.
 vi.mock("../workflow-scan", () => ({
   scanWorkflows: vi.fn().mockResolvedValue([]),
+  scanWorkflowScripts: vi.fn().mockResolvedValue(new Map<string, string>()),
 }));
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { extractTaskFromJSONL, readNewLines } from "../file-reader";
-import { scanWorkflows } from "../workflow-scan";
+import { scanWorkflows, scanWorkflowScripts } from "../workflow-scan";
 import {
   discoverActiveSessions,
   refreshTrackedAgents,
@@ -721,6 +722,7 @@ function restoreAgentStateMocks(): void {
   vi.mocked(parseAgentType).mockImplementation(actualAgentState.parseAgentType);
   vi.mocked(reparentAgent).mockImplementation(actualAgentState.reparentAgent);
   vi.mocked(scanWorkflows).mockResolvedValue([]);
+  vi.mocked(scanWorkflowScripts).mockResolvedValue(new Map<string, string>());
   vi.mocked(extractTaskFromJSONL).mockReturnValue({
     task: "test task",
     slug: "test-slug",
@@ -1185,6 +1187,24 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     vi.mocked(broadcastRegisterFor).mockClear();
     await discoverActiveSessions("/projects");
     expect(vi.mocked(broadcastRegisterFor)).not.toHaveBeenCalled();
+  });
+
+  it("stamps workflowName from the run-script map onto a live workflow agent, and leaves flat sub-agents undefined", async () => {
+    const sess = "aaaacccc-cccc-cccc-cccc-cccccccccccc";
+    buildFixture({
+      sessionId: sess,
+      subagents: [{ id: "flat-sub", meta: { agentType: "explore", description: "flat" } }],
+      runs: { wf_04630933: [{ name: "agent-wf1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+    });
+    // Simulate the live case: no wf_*.json on disk, but the script file exists.
+    vi.mocked(scanWorkflowScripts).mockResolvedValue(
+      new Map([["wf_04630933", "code-review-max"]]),
+    );
+
+    await discoverActiveSessions("/projects");
+
+    expect(agents.get("wf1")?.workflowName).toBe("code-review-max");
+    expect(agents.get("flat-sub")?.workflowName).toBeUndefined();
   });
 });
 
