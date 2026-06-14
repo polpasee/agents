@@ -28,7 +28,7 @@ export function ActivityStream() {
       }}
     >
       <div
-        className="px-3 py-1.5 text-xs uppercase tracking-wider flex-shrink-0"
+        className="px-3 py-1.5 text-[11px] uppercase tracking-wider flex-shrink-0"
         style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
       >
         Activity Stream
@@ -41,7 +41,7 @@ export function ActivityStream() {
         className="flex-1 overflow-y-auto custom-scrollbar px-3 py-1 space-y-0.5"
       >
         {activity.length === 0 && (
-          <div className="text-sm text-center py-4" style={{ color: UI.text.empty }}>
+          <div className="text-xs text-center py-4" style={{ color: UI.text.empty }}>
             Waiting for agent activity...
           </div>
         )}
@@ -172,7 +172,7 @@ function ActivityLine({
   }
 
   return (
-    <div className="text-sm leading-relaxed animate-fade-in-up" style={{ color: UI.text.secondary }}>
+    <div className="text-xs leading-relaxed animate-fade-in-up" style={{ color: UI.text.secondary }}>
       <span style={{ color: UI.primary }}>{time}</span> {content}
     </div>
   );
