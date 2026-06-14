@@ -102,7 +102,7 @@ export function TimelineBar() {
               }}
             />
             <span
-              className="text-xs font-mono font-bold tracking-wider"
+              className="text-[11px] font-mono font-bold tracking-wider"
               style={{ color: connected ? UI.success : UI.error }}
             >
               LIVE
@@ -112,7 +112,7 @@ export function TimelineBar() {
           <div className="flex items-center gap-1">
             <button
               onClick={() => { setReviewMode(false); setScrubPosition(100); }}
-              className="text-xs font-mono px-1.5 py-0.5 rounded"
+              className="text-[11px] font-mono px-1.5 py-0.5 rounded"
               style={{ color: UI.primary, border: `1px solid ${UI.primary}44` }}
               aria-label="Resume live mode"
             >
@@ -120,7 +120,7 @@ export function TimelineBar() {
             </button>
           </div>
         )}
-        <span className="text-xs font-mono" style={{ color: UI.text.dimmed }}>
+        <span className="text-[11px] font-mono" style={{ color: UI.text.dimmed }}>
           {formatDuration(elapsed)}
         </span>
       </div>
@@ -185,7 +185,7 @@ export function TimelineBar() {
             <button
               key={s}
               onClick={() => { setPlaybackSpeed(s); replaySetSpeed(s); }}
-              className="px-1.5 py-0.5 rounded text-xs font-mono"
+              className="px-1.5 py-0.5 rounded text-[11px] font-mono"
               style={{
                 background: playbackSpeed === s ? `${UI.primary}22` : "transparent",
                 border: `1px solid ${playbackSpeed === s ? UI.primary : "var(--color-border)"}`,
@@ -203,16 +203,16 @@ export function TimelineBar() {
         {!reviewMode && (
           <button
             onClick={() => setReviewMode(true)}
-            className="text-xs font-mono px-1.5 py-0.5 rounded"
+            className="text-[11px] font-mono px-1.5 py-0.5 rounded"
             style={{ color: UI.text.muted, border: "1px solid var(--color-border)" }}
           >
             Review
           </button>
         )}
-        <span className="text-xs font-mono" style={{ color: UI.text.dimmed }}>
+        <span className="text-[11px] font-mono" style={{ color: UI.text.dimmed }}>
           {activeCount} active
         </span>
-        <span className="text-xs font-mono font-bold" style={{ color: UI.primary }}>
+        <span className="text-[11px] font-mono font-bold" style={{ color: UI.primary }}>
           {formatCost(totalCost.total)}
         </span>
       </div>
