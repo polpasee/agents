@@ -79,4 +79,30 @@ describe("AgentList", () => {
 
     expect(screen.getByText(/BUILD/)).toBeDefined();
   });
+
+  it("renders workflowName uppercased when agent has workflowName and no store label", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("live1", mockAgent({ id: "live1", workflowName: "code-review-max", task: "reviewing" }));
+
+    useAgentStore.setState({ agents, workflows: new Map() });
+    render(<AgentList />);
+
+    expect(screen.getByText(/CODE-REVIEW-MAX/)).toBeDefined();
+  });
+
+  it("real store label wins over workflowName in AgentList", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("wf2", mockAgent({ id: "wf2", workflowName: "code-review-max", task: "reviewing" }));
+
+    const run = mockWorkflowRun({
+      runId: "r2",
+      agents: [{ agentId: "wf2", label: "real-label", state: "running" }],
+    });
+
+    useAgentStore.setState({ agents, workflows: new Map([[run.runId, run]]) });
+    render(<AgentList />);
+
+    expect(screen.getByText(/real-label/)).toBeDefined();
+    expect(screen.queryByText(/CODE-REVIEW-MAX/)).toBeNull();
+  });
 });
