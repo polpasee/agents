@@ -209,6 +209,38 @@ describe("renderNodeVisuals center model + effort", () => {
   });
 });
 
+describe("renderNodeVisuals main-agent repo label", () => {
+  function render(agent: AgentState): SVGTextElement[] {
+    const svg = d3
+      .select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    renderNodeVisuals(g, agent, null);
+    return Array.from(g.node()!.querySelectorAll("text"));
+  }
+
+  it("renders the repo (last path segment of projectName) below the main hexagon", () => {
+    const texts = render(
+      createMockAgent({ agentType: "main", metadata: { projectName: "Users/erdos/Github/agents" } }),
+    );
+    const repoNode = texts.find((t) => t.textContent === "AGENTS");
+    expect(repoNode).toBeDefined();
+    // Below-hex label: positioned at labelY with letter-spacing, NOT a center line.
+    expect(repoNode!.getAttribute("dominant-baseline")).toBeNull();
+    expect(repoNode!.getAttribute("letter-spacing")).toBe("2px");
+  });
+
+  it("does not render a repo label for sub-agents", () => {
+    const texts = render(
+      createMockAgent({
+        agentType: "generic",
+        parentId: "p1",
+        metadata: { projectName: "Users/erdos/Github/agents" },
+      }),
+    );
+    expect(texts.some((t) => t.textContent === "AGENTS")).toBe(false);
+  });
+});
+
 describe("updateLinkVisuals", () => {
   it("is exported as a function", () => {
     expect(typeof updateLinkVisuals).toBe("function");
