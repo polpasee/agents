@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect, useMemo } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import { useEventStream } from "@/hooks/useEventStream";
 import { useReplay } from "@/hooks/useReplay";
 import { useSoundNotifications } from "@/hooks/useSoundNotifications";
@@ -15,8 +15,6 @@ import { TopologyUsageStatus } from "./TopologyUsageStatus";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { FileAttentionPanel } from "./FileAttentionPanel";
 import { TeamPanel } from "./TeamPanel";
-import { WorkflowPanel } from "./WorkflowPanel";
-import { WorkflowDetail } from "./WorkflowDetail";
 import { ActivityStream } from "./ActivityStream";
 import { ReplayBar } from "./ReplayBar";
 import { LogViewer } from "./LogViewer";
@@ -27,7 +25,7 @@ import { SessionComparison } from "./SessionComparison";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { useAgentStore } from "@/lib/store";
-import { UI, agentColor } from "@/lib/colors";
+import { UI } from "@/lib/colors";
 import { ErrorBoundary } from "./ErrorBoundary";
 
 export function Dashboard() {
@@ -98,40 +96,6 @@ export function Dashboard() {
     }
   }, [selectedAgentId]);
 
-  // Mobile main-agent badges: list every visible main agent and tally its
-  // sub-agents. We seed the walk from the FULL agents map (not filteredAgents)
-  // so a main's count reflects all its descendants regardless of session
-  // filtering — otherwise a partially-filtered session would render a
-  // misleading lower count.
-  const { mainAgents, subCounts } = useMemo(() => {
-    const mainAgents = filteredAgents.filter((a) => a.agentType === "main");
-    const mainIds = new Set(mainAgents.map((a) => a.id));
-    const subCounts = new Map<string, number>();
-    for (const agent of agents.values()) {
-      if (agent.agentType === "main") continue;
-      let cursor = agent;
-      const seen = new Set<string>();
-      let isCycle = false;
-      while (cursor.parentId) {
-        if (seen.has(cursor.id)) {
-          // True cycle — same node visited twice.
-          console.warn("[Dashboard] cycle detected in agent parent chain", agent.id);
-          isCycle = true;
-          break;
-        }
-        seen.add(cursor.id);
-        const parent = agents.get(cursor.parentId);
-        if (!parent) break; // parent purged — stop walk, not a cycle
-        cursor = parent;
-      }
-      if (isCycle) continue;
-      if (cursor.agentType === "main" && mainIds.has(cursor.id)) {
-        subCounts.set(cursor.id, (subCounts.get(cursor.id) ?? 0) + 1);
-      }
-    }
-    return { mainAgents, subCounts };
-  }, [filteredAgents, agents]);
-
   return (
     <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
       <ErrorBoundary>
@@ -147,34 +111,6 @@ export function Dashboard() {
         />
       ) : (
       <>
-      {/* Mobile main-agent badges */}
-      {mainAgents.length > 0 && (
-        <div className="mobile-toggle-btn items-center gap-2 px-2 py-1 overflow-x-auto" style={{ background: "var(--color-panel)", borderBottom: "1px solid var(--color-border)" }}>
-          {mainAgents.map((agent) => {
-            const color = agentColor(agent);
-            const projectName = agent.metadata?.projectName as string | undefined;
-            const sessionLabel = projectName || agent.sessionId || "Unnamed";
-            const subCount = subCounts.get(agent.id) ?? 0;
-            const isSelected = agent.id === selectedAgentId;
-            return (
-              <button
-                key={agent.id}
-                onClick={() => selectAgent(agent.id)}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono flex-shrink-0"
-                style={{
-                  background: isSelected ? `${color}22` : `${color}0d`,
-                  border: `1px solid ${isSelected ? color : `${color}44`}`,
-                  color,
-                }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: color, boxShadow: `0 0 4px ${color}` }} />
-                <span className="truncate">{sessionLabel}({subCount})</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* Mobile backdrop */}
       <div
         className={`mobile-backdrop ${mobileAgentList || mobileAgentDetail ? "visible" : ""}`}
@@ -223,9 +159,6 @@ export function Dashboard() {
       <ErrorBoundary>
         <TeamPanel />
       </ErrorBoundary>
-      <ErrorBoundary>
-        <WorkflowPanel />
-      </ErrorBoundary>
       {replayActive && (
         <ErrorBoundary>
           <ReplayBar />
@@ -244,7 +177,6 @@ export function Dashboard() {
       <ErrorDrillDown />
       <ExportModal />
       <DiffViewer />
-      <WorkflowDetail />
     </div>
   );
 }

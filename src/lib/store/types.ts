@@ -57,6 +57,8 @@ export interface AgentStore {
   setConnected: (connected: boolean) => void;
   selectAgent: (id: string | null) => void;
   toggleSession: (sessionId: string) => void; // F5
+  /** Filter the topology to exactly one session (used by the TopBar selector). */
+  selectOnlySession: (sessionId: string) => void;
   selectAllSessions: () => void; // F5
   /** Pick the most-recent main session into selectedSessionIds — runs once on boot. */
   autoSelectInitialSession: () => void;

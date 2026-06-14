@@ -2,23 +2,38 @@
 
 import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
+import { resolveSessionId } from "@/lib/sessions";
 import { UI } from "@/lib/colors";
 
 export function TopBar() {
   const connected = useAgentStore((s) => s.connected);
   const replayActive = useAgentStore((s) => s.replay.active);
   const agents = useAgentStore((s) => s.agents);
-  const selectedAgentId = useAgentStore((s) => s.selectedAgentId);
-  const selectAgent = useAgentStore((s) => s.selectAgent);
+  const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
+  const selectOnlySession = useAgentStore((s) => s.selectOnlySession);
+  const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
 
-  // Dropdown lists main agents (one per session). Sub-agents/tool nodes are
-  // navigated by clicking in the topology — the dropdown is for jumping
-  // between top-level sessions, especially useful on mobile.
-  const mainAgents = useMemo(() => {
+  // Dropdown lists main agents (one per session). Picking one filters the
+  // topology to that session; picking "All sessions" clears the filter. This is
+  // a view filter — it never opens the agent detail panel.
+  const sessions = useMemo(() => {
     return Array.from(agents.values())
       .filter((a) => a.agentType === "main")
-      .sort((a, b) => b.startTime - a.startTime);
+      .sort((a, b) => b.startTime - a.startTime)
+      .map((agent) => ({
+        sessionId: resolveSessionId(agent, agents),
+        label:
+          (agent.metadata?.projectName as string | undefined) ||
+          agent.sessionId ||
+          agent.id,
+      }));
   }, [agents]);
+
+  // Reflect the active filter only when it's a single session — multi-select
+  // (driven by the sidebar pills) has no single dropdown value, so fall back to
+  // the "All sessions" option rather than show a stale pick.
+  const currentValue =
+    selectedSessionIds.size === 1 ? [...selectedSessionIds][0] : "";
 
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"
@@ -58,12 +73,14 @@ export function TopBar() {
 
       </div>
 
-      {/* Right: Agent selector */}
+      {/* Right: Session filter */}
       <select
-        aria-label="Select agent"
-        value={selectedAgentId ?? ""}
-        onChange={(e) => selectAgent(e.target.value || null)}
-        disabled={mainAgents.length === 0}
+        aria-label="Filter sessions"
+        value={currentValue}
+        onChange={(e) =>
+          e.target.value ? selectOnlySession(e.target.value) : selectAllSessions()
+        }
+        disabled={sessions.length === 0}
         className="text-xs font-mono rounded px-2 py-1 outline-none max-w-[60vw]"
         style={{
           background: "var(--color-bg)",
@@ -72,17 +89,13 @@ export function TopBar() {
         }}
       >
         <option value="">
-          {mainAgents.length === 0 ? "No agents" : `All sessions (${mainAgents.length})`}
+          {sessions.length === 0 ? "No agents" : `All sessions (${sessions.length})`}
         </option>
-        {mainAgents.map((agent) => {
-          const projectName = agent.metadata?.projectName as string | undefined;
-          const label = projectName || agent.sessionId || agent.id;
-          return (
-            <option key={agent.id} value={agent.id}>
-              {label}
-            </option>
-          );
-        })}
+        {sessions.map((session) => (
+          <option key={session.sessionId} value={session.sessionId}>
+            {session.label}
+          </option>
+        ))}
       </select>
     </div>
   );

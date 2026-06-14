@@ -12,7 +12,7 @@ export type UISlice = Pick<AgentStore,
   | "heatmapEnabled" | "heatmapMetric"
   | "graphLayout" | "showExportModal" | "showLiveMetrics"
   | "theme" | "soundMuted" | "comparison"
-  | "selectAgent" | "selectTeam" | "selectWorkflow" | "toggleSession" | "selectAllSessions"
+  | "selectAgent" | "selectTeam" | "selectWorkflow" | "toggleSession" | "selectOnlySession" | "selectAllSessions"
   | "autoSelectInitialSession"
   | "setViewMode" | "toggleAgentType"
   | "toggleTranscript" | "toggleFileAttention"
@@ -45,6 +45,15 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
     const next = new Set(selectedSessionIds);
     if (next.has(sessionId)) next.delete(sessionId);
     else next.add(sessionId);
+    persistSessionFilter(next);
+    set({ selectedSessionIds: next, selectedAgentId: null, sessionFilterInitialized: true });
+  },
+
+  // Single-session pick from the TopBar selector. Like toggleSession but
+  // replaces the whole filter with just this id (and never opens the detail
+  // panel — selecting a session is a topology-filter action, not agent pick).
+  selectOnlySession: (sessionId) => {
+    const next = new Set<string>([sessionId]);
     persistSessionFilter(next);
     set({ selectedSessionIds: next, selectedAgentId: null, sessionFilterInitialized: true });
   },
