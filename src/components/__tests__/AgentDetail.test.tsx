@@ -68,6 +68,36 @@ describe("AgentDetail", () => {
     expect(screen.getByText("api-builder")).toBeDefined();
   });
 
+  it("shows workflowName verbatim as secondary when agent has workflowName and no store label", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("live2", mockAgent({ id: "live2", workflowName: "code-review-max", task: "t" }));
+
+    useAgentStore.setState({ agents, selectedAgentId: "live2", workflows: new Map() });
+    render(<AgentDetail />);
+
+    expect(screen.getByText("code-review-max")).toBeDefined();
+  });
+
+  it("real store label wins over workflowName in AgentDetail", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("wf3", mockAgent({ id: "wf3", workflowName: "code-review-max", task: "t" }));
+
+    const run = mockWorkflowRun({
+      runId: "r3",
+      agents: [{ agentId: "wf3", label: "real-label", state: "running" }],
+    });
+
+    useAgentStore.setState({
+      agents,
+      selectedAgentId: "wf3",
+      workflows: new Map([[run.runId, run]]),
+    });
+    render(<AgentDetail />);
+
+    expect(screen.getByText("real-label")).toBeDefined();
+    expect(screen.queryByText("code-review-max")).toBeNull();
+  });
+
   // F4 — body.entries from /api/logs/[agentId] must be Array-validated before
   // it lands in the store. A non-array (e.g. null) MUST be ignored.
   describe("handleViewLog body.entries validation", () => {

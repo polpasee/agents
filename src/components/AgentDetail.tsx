@@ -85,7 +85,7 @@ export function AgentDetail() {
   const color = AGENT_COLORS[agent.agentType];
   const statusColor = STATUS_COLORS[agent.status];
   const wfLabel = workflowLabels.get(agent.id);
-  const secondary = wfLabel ?? agent.displayType;
+  const secondary = wfLabel ?? agent.workflowName ?? agent.displayType;
   const totalTokens = agent.inputTokens + agent.outputTokens;
   const tokenPercent = getTokenPercent(agent);
   const elapsed = agent.duration ?? (Date.now() - agent.startTime);
