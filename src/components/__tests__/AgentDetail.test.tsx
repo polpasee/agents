@@ -54,6 +54,8 @@ describe("AgentDetail", () => {
 
     expect(screen.getByText("audit:dead-code")).toBeDefined();
     expect(screen.queryByText("workflow-subagent")).toBeNull();
+    // The primary bold agent-type label (AGENT_LABELS["build"]) is unchanged.
+    expect(screen.getByText("BUILD")).toBeDefined();
   });
 
   it("shows displayType unchanged for a non-workflow agent", () => {
