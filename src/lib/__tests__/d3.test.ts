@@ -136,6 +136,68 @@ describe("renderNodeVisuals workflow label", () => {
   });
 });
 
+describe("renderNodeVisuals center model + effort", () => {
+  function render(agent: AgentState): SVGTextElement[] {
+    const svg = d3
+      .select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    renderNodeVisuals(g, agent, null);
+    return Array.from(g.node()!.querySelectorAll("text"));
+  }
+
+  it("renders FABLE + uppercased effort as two center lines", () => {
+    const texts = render(createMockAgent({ model: "claude-fable-5", effort: "high" }));
+    expect(texts.some((t) => t.textContent === "FABLE")).toBe(true);
+    expect(texts.some((t) => t.textContent === "HIGH")).toBe(true);
+  });
+
+  it("renders OPUS + HIGH for an opus model with high effort", () => {
+    const texts = render(createMockAgent({ model: "claude-opus-4-8", effort: "high" }));
+    expect(texts.some((t) => t.textContent === "OPUS")).toBe(true);
+    expect(texts.some((t) => t.textContent === "HIGH")).toBe(true);
+  });
+
+  it("renders only the model name when no effort is set", () => {
+    const texts = render(createMockAgent({ model: "claude-opus-4-8" }));
+    expect(texts.some((t) => t.textContent === "OPUS")).toBe(true);
+    // No effort word anywhere (these would only appear if effort were set)
+    const effortWords = ["LOW", "MEDIUM", "HIGH", "XHIGH", "MAX", "AUTO"];
+    expect(texts.some((t) => effortWords.includes(t.textContent ?? ""))).toBe(false);
+  });
+
+  it("renders effort exactly once, in the center, even when the name line shows", () => {
+    // agentType !== "main" makes showName true; effort must NOT also appear below the hex.
+    const texts = render(
+      createMockAgent({ agentType: "generic", parentId: "p1", model: "claude-opus-4-8", effort: "medium" }),
+    );
+    const effortNodes = texts.filter((t) => t.textContent === "MEDIUM");
+    expect(effortNodes.length).toBe(1);
+    // Center lines set dominant-baseline="central"; the below-hex labels don't —
+    // so this pins the effort to the CENTER (guards de-dup AND relocation).
+    expect(effortNodes[0].getAttribute("dominant-baseline")).toBe("central");
+  });
+
+  it("renders the type initial + effort when the model family is unknown", () => {
+    // model doesn't match the claude-(fable|opus|sonnet|haiku) regex → modelName is null,
+    // so line 1 falls back to typeLabel.charAt(0) ("A" — AGENT_LABELS["generic"] is "AGENT")
+    // and line 2 is the effort.
+    const texts = render(
+      createMockAgent({ agentType: "generic", parentId: "p1", model: "gpt-4", effort: "high" }),
+    );
+    expect(texts.some((t) => t.textContent === "A")).toBe(true);
+    const effortNode = texts.find((t) => t.textContent === "HIGH");
+    expect(effortNode).toBeDefined();
+    // dominant-baseline="central" is unique to the center lines → pins line 2 to the center.
+    expect(effortNode!.getAttribute("dominant-baseline")).toBe("central");
+  });
+
+  it("sources the center effort line from metadata.effort when effort is unset", () => {
+    const texts = render(createMockAgent({ model: "claude-opus-4-8", metadata: { effort: "max" } }));
+    expect(texts.some((t) => t.textContent === "OPUS")).toBe(true);
+    expect(texts.some((t) => t.textContent === "MAX")).toBe(true);
+  });
+});
+
 describe("updateLinkVisuals", () => {
   it("is exported as a function", () => {
     expect(typeof updateLinkVisuals).toBe("function");
