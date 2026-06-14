@@ -105,6 +105,37 @@ describe("renderNodeVisuals depth scaling", () => {
   });
 });
 
+describe("renderNodeVisuals workflow label", () => {
+  it("renders the verbatim workflow label as the sub-label", () => {
+    const svg = d3
+      .select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    // agentType !== "main" makes showName true so the sub-label text is rendered
+    const agent = createMockAgent({ agentType: "generic", parentId: "p1", displayType: "workflow-subagent" });
+
+    renderNodeVisuals(g, agent, null, 1, "find:A-line-scan");
+
+    const texts = Array.from(g.node()!.querySelectorAll("text"));
+    const found = texts.some((t) => t.textContent === "find:A-line-scan");
+    expect(found).toBe(true);
+  });
+
+  it("falls back to the type label when no workflow label", () => {
+    const svg = d3
+      .select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const g = svg.append("g") as d3.Selection<SVGGElement, any, any, any>;
+    const agent = createMockAgent({ agentType: "generic", parentId: "p1", displayType: "workflow-subagent" });
+
+    renderNodeVisuals(g, agent, null, 1);
+
+    const texts = Array.from(g.node()!.querySelectorAll("text"));
+    const hasWorkflowLabel = texts.some((t) => t.textContent === "find:A-line-scan");
+    expect(hasWorkflowLabel).toBe(false);
+    // The type label (uppercased displayType) is rendered as the sub-label
+    expect(texts.some((t) => t.textContent === "WORKFLOW-SUBAGENT")).toBe(true);
+  });
+});
+
 describe("updateLinkVisuals", () => {
   it("is exported as a function", () => {
     expect(typeof updateLinkVisuals).toBe("function");

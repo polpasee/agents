@@ -66,6 +66,20 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         ...(prev ? { x: prev.x, y: prev.y } : {}),
       };
     });
+
+    // Workflow agents carry a human label (e.g. "find:A-line-scan"); surface it
+    // as the node's sub-label. Skip the workflow-scan fallback where label===agentId.
+    const agentIdToLabel = new Map<string, string>();
+    for (const run of workflows.values()) {
+      for (const ref of run.agents) {
+        if (ref.label && ref.label !== ref.agentId) agentIdToLabel.set(ref.agentId, ref.label);
+      }
+    }
+    for (const node of nodes) {
+      const wfLabel = agentIdToLabel.get(node.id);
+      if (wfLabel) node.workflowLabel = wfLabel;
+    }
+
     // Parent-child links
     const parentLinks: SimLink[] = filteredAgents
       .filter((a) => a.parentId && agentIds.has(a.parentId))
@@ -203,7 +217,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     // Render initial node visuals
     nodeSelection.each(function (d) {
-      renderNodeVisuals(select(this), d.agent, selectedAgentId, d.depth);
+      renderNodeVisuals(select(this), d.agent, selectedAgentId, d.depth, d.workflowLabel);
     });
 
     // Force simulation — use low alpha when restoring positions

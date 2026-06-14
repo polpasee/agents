@@ -21,12 +21,15 @@ export function renderNodeVisuals(
   agent: AgentState,
   selectedAgentId: string | null,
   depth?: number,
+  workflowLabel?: string,
 ) {
   const color = agentColor(agent);
   // Plugin-namespaced agent names ("voltagent-core-dev:backend-developer")
-  // get the prefix stripped — only the trailing segment reads under the hex.
+  // get the prefix stripped for the type label. Workflow nodes instead render
+  // their real label (workflowLabel, e.g. "find:A-line-scan") verbatim via subLabel.
   const rawDisplay = agent.displayType || AGENT_LABELS[agent.agentType] || "AGENT";
   const typeLabel = rawDisplay.split(":").pop()!.toUpperCase();
+  const subLabel = workflowLabel || typeLabel;
   const effortFromMeta = typeof agent.metadata?.effort === "string"
     ? agent.metadata.effort
     : undefined;
@@ -202,7 +205,7 @@ export function renderNodeVisuals(
       .attr("font-weight", "bold")
       .attr("letter-spacing", "2px")
       .style("pointer-events", "none")
-      .text(typeLabel);
+      .text(subLabel);
   }
 
   // Line 2: effort tier — sits at line-1 position when the name is hidden
