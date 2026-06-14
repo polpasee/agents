@@ -48,6 +48,7 @@ export type AgentEvent =
       metadata?: Record<string, unknown>;
       effort?: ThinkingEffort;
       is1MContext?: boolean;
+      workflowName?: string;
     }
   | {
       type: "agent:status";
@@ -127,6 +128,10 @@ export interface AgentState {
   /** True when the user has the 1M-context beta enabled (settings.json
    *  `model` field carries the `[1m]` suffix). */
   is1MContext?: boolean;
+  /** Workflow name (from the run-script filename) for agents in a live
+   *  workflow whose completion-time wf_*.json (and real per-agent label) is
+   *  not on disk yet. Rendered as a sub-label fallback under the real label. */
+  workflowName?: string;
 }
 
 export interface ToolCallEntry {

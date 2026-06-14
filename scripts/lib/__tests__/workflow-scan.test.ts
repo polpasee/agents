@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { parseWorkflowFile, scanWorkflows } from "../workflow-scan";
+import { parseWorkflowFile, scanWorkflows, scanWorkflowScripts } from "../workflow-scan";
 import { utimes } from "node:fs/promises";
 
 let tmpDir: string;
@@ -221,6 +221,62 @@ describe("parseWorkflowFile", () => {
     expect(result).not.toBeNull();
     // FULL_FIXTURE has 2 workflow_agent entries
     expect(result!.agentCount).toBe(2);
+  });
+});
+
+describe("scanWorkflowScripts", () => {
+  it("returns empty map when scripts dir does not exist", async () => {
+    const result = await scanWorkflowScripts(tmpDir, "no-such-session");
+    expect(result.size).toBe(0);
+  });
+
+  it("parses <name>-<runId>.js filename into runId -> name", async () => {
+    const sessionId = "sess-scripts";
+    const scriptsDir = path.join(tmpDir, sessionId, "workflows", "scripts");
+    await fs.mkdir(scriptsDir, { recursive: true });
+    await fs.writeFile(
+      path.join(scriptsDir, "code-review-max-capacityaxis-wf_04630933-619.js"),
+      "",
+    );
+
+    const result = await scanWorkflowScripts(tmpDir, sessionId);
+    expect(result.get("wf_04630933-619")).toBe("code-review-max-capacityaxis");
+  });
+
+  it("ignores non-.js files", async () => {
+    const sessionId = "sess-nojs";
+    const scriptsDir = path.join(tmpDir, sessionId, "workflows", "scripts");
+    await fs.mkdir(scriptsDir, { recursive: true });
+    await fs.writeFile(path.join(scriptsDir, "code-review-max-wf_abc123.ts"), "");
+    await fs.writeFile(path.join(scriptsDir, "code-review-max-wf_abc123.json"), "");
+
+    const result = await scanWorkflowScripts(tmpDir, sessionId);
+    expect(result.size).toBe(0);
+  });
+
+  it("ignores .js files that do not match the <name>-<runId> pattern", async () => {
+    const sessionId = "sess-nomatch";
+    const scriptsDir = path.join(tmpDir, sessionId, "workflows", "scripts");
+    await fs.mkdir(scriptsDir, { recursive: true });
+    // No wf_ segment
+    await fs.writeFile(path.join(scriptsDir, "helper.js"), "");
+    // runId segment not starting with wf_
+    await fs.writeFile(path.join(scriptsDir, "code-review-run123.js"), "");
+
+    const result = await scanWorkflowScripts(tmpDir, sessionId);
+    expect(result.size).toBe(0);
+  });
+
+  it("handles multiple script files mapping distinct runIds", async () => {
+    const sessionId = "sess-multi";
+    const scriptsDir = path.join(tmpDir, sessionId, "workflows", "scripts");
+    await fs.mkdir(scriptsDir, { recursive: true });
+    await fs.writeFile(path.join(scriptsDir, "flow-a-wf_111.js"), "");
+    await fs.writeFile(path.join(scriptsDir, "flow-b-wf_222.js"), "");
+
+    const result = await scanWorkflowScripts(tmpDir, sessionId);
+    expect(result.get("wf_111")).toBe("flow-a");
+    expect(result.get("wf_222")).toBe("flow-b");
   });
 });
 

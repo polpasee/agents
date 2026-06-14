@@ -29,7 +29,7 @@ import {
 import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
 import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
 import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
-import { scanWorkflows } from "./workflow-scan";
+import { scanWorkflows, scanWorkflowScripts } from "./workflow-scan";
 
 // ---------------------------------------------------------------------------
 // Per-pass settings.json cache — avoids re-reading the same file for every
@@ -433,6 +433,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         continue;
       }
 
+      let workflowScriptNames = new Map<string, string>();
+
       // Candidates carry their directory: Task/Agent sub-agents sit flat in
       // subagents/, Workflow-tool sub-agents one level deeper at
       // subagents/workflows/<runId>/. The descent is fixed at those two
@@ -447,6 +449,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       ];
 
       if (files.includes("workflows")) {
+        workflowScriptNames = await scanWorkflowScripts(projectPath, sessionId);
         const workflowsDir = path.join(subagentsDir, "workflows");
         // At both descent levels: ENOENT/ENOTDIR are routine races (run
         // cleanup between readdirs) and skip silently; anything else
@@ -649,6 +652,9 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             }
           }
 
+          const workflowName = path.basename(path.dirname(file.dir)) === "workflows"
+            ? workflowScriptNames.get(path.basename(file.dir))
+            : undefined;
           registerAgent({
             agentId,
             sessionId,
@@ -664,6 +670,7 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             teamName: file.teamName,
             effort: readEffortLevelCached(projectDir, settingsCache),
             is1MContext: readIs1MContextCached(projectDir, settingsCache),
+            workflowName,
           });
         } else {
           const existing = agents.get(agentId);

@@ -78,6 +78,24 @@ export function parseWorkflowFile(filePath: string, sessionId: string): Workflow
 }
 
 /**
+ * Map runId -> workflow name from the live run-script filenames under
+ * <projectPath>/<sessionId>/workflows/scripts/. Names are recoverable while a
+ * workflow runs (the completion-time wf_*.json is not). Filename-parse only —
+ * never executes the script. Missing dir -> empty map.
+ */
+export async function scanWorkflowScripts(projectPath: string, sessionId: string): Promise<Map<string, string>> {
+  const dir = path.join(projectPath, sessionId, "workflows", "scripts");
+  const map = new Map<string, string>();
+  let files: string[];
+  try { files = await fsp.readdir(dir); } catch { return map; }
+  for (const file of files) {
+    const m = file.match(/^(.+)-(wf_[A-Za-z0-9-]+)\.js$/);
+    if (m) map.set(m[2], m[1]);
+  }
+  return map;
+}
+
+/**
  * Read <projectPath>/<sessionId>/workflows/wf_*.json and parse each.
  * Drops null results from unparseable files.
  *

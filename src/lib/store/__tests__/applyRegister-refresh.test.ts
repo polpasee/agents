@@ -4,7 +4,7 @@
  * Each test targets exactly one field rule so that a future AgentState
  * addition will have an obvious gap to fill here.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createMutationContext } from "../eventHandlers";
 import { applyRegister } from "../eventHandlers";
 import type { AgentState, EdgeState } from "../../types";
@@ -58,6 +58,7 @@ function reRegister(
     metadata: Record<string, unknown>;
     effort: AgentState["effort"];
     is1MContext: boolean;
+    workflowName: string;
   }>,
 ): AgentState {
   const ctx = makeCtx(existing);
@@ -74,6 +75,7 @@ function reRegister(
       metadata: eventOverrides.metadata,
       effort: eventOverrides.effort,
       is1MContext: eventOverrides.is1MContext,
+      workflowName: eventOverrides.workflowName,
     },
     2000,
   );
@@ -285,6 +287,59 @@ describe("accumulated state fields are preserved on re-register", () => {
   it("contextWindow is preserved", () => {
     const result = reRegister(makeExisting({ contextWindow: 128000 }), {});
     expect(result.contextWindow).toBe(128000);
+  });
+});
+
+// ── workflowName: keep-first (heals from undefined if later event carries it) ─
+
+describe("workflowName field (keep-first)", () => {
+  it("new agent: workflowName from event is stored", () => {
+    const ctx = createMutationContext({
+      agents: new Map(),
+      edges: [],
+      errorDetails: new Map(),
+      teams: new Map(),
+      agentTypeBudgets: {},
+    });
+    applyRegister(
+      ctx,
+      { type: "agent:register", agentId: "a1", agentType: "build", task: "t", workflowName: "code-review-max" },
+      1000,
+    );
+    expect(ctx.newAgents!.get("a1")!.workflowName).toBe("code-review-max");
+  });
+
+  it("new agent: workflowName is undefined when event omits it", () => {
+    const ctx = createMutationContext({
+      agents: new Map(),
+      edges: [],
+      errorDetails: new Map(),
+      teams: new Map(),
+      agentTypeBudgets: {},
+    });
+    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 1000);
+    expect(ctx.newAgents!.get("a1")!.workflowName).toBeUndefined();
+  });
+
+  it("re-register: keeps existing workflowName (keepFirst)", () => {
+    const result = reRegister(
+      makeExisting({ workflowName: "existing-workflow" }),
+      { workflowName: "new-workflow" },
+    );
+    expect(result.workflowName).toBe("existing-workflow");
+  });
+
+  it("re-register: fills in workflowName from event when existing is undefined", () => {
+    const result = reRegister(
+      makeExisting({ workflowName: undefined }),
+      { workflowName: "code-review-max" },
+    );
+    expect(result.workflowName).toBe("code-review-max");
+  });
+
+  it("re-register: stays undefined when both existing and event omit it", () => {
+    const result = reRegister(makeExisting({ workflowName: undefined }), {});
+    expect(result.workflowName).toBeUndefined();
   });
 });
 
