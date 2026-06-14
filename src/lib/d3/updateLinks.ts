@@ -12,6 +12,9 @@ export interface SimNode extends SimulationNodeDatum {
   depth?: number;
   /** Present only on tool-call nodes; undefined on agent nodes */
   toolCall?: { tool: string; timestamp: number; parentAgentId: string };
+  /** Real workflow label (e.g. "find:A-line-scan") for nodes that belong to a
+   *  workflow run; rendered verbatim under the hex instead of the type label. */
+  workflowLabel?: string;
 }
 
 export interface SimLink extends SimulationLinkDatum<SimNode> {
