@@ -121,12 +121,11 @@ export interface AgentState {
   metadata?: Record<string, unknown>;
   waitingOn?: string; // F1: dependency tracking
   budgetExceeded?: boolean; // F3: token budget exceeded flag
-  /** Extended-thinking effort tier (low|medium|high|xhigh|max|auto). Shown
-   *  under the hexagon for main agents; sub-agents inherit visually if unset. */
+  /** Extended-thinking effort tier (low|medium|high|xhigh|max|auto). Rendered
+   *  as the second line in the hexagon center, stacked under the model family. */
   effort?: ThinkingEffort;
   /** True when the user has the 1M-context beta enabled (settings.json
-   *  `model` field carries the `[1m]` suffix). Renders as a "1M" line under
-   *  the model name in the hexagon center. */
+   *  `model` field carries the `[1m]` suffix). */
   is1MContext?: boolean;
 }
 

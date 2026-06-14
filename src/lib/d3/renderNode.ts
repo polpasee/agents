@@ -35,14 +35,14 @@ export function renderNodeVisuals(
     : undefined;
   const effort = agent.effort ?? effortFromMeta;
   const showName = agent.agentType !== "main";
-  // Hexagon center shows the model family ("Opus"/"Sonnet"/"Haiku") when
-  // known; falls back to the agent-type initial otherwise.
-  const modelMatch = agent.model?.match(/claude-(opus|sonnet|haiku)/i);
+  // Hexagon center shows the model family ("Fable"/"Opus"/"Sonnet"/"Haiku")
+  // when known; falls back to the agent-type initial otherwise.
+  const modelMatch = agent.model?.match(/claude-(fable|opus|sonnet|haiku)/i);
   const modelName = modelMatch ? modelMatch[1].toUpperCase() : null;
   const centerText = modelName ?? typeLabel.charAt(0);
-  // When the user has the 1M-context beta on, render a second smaller "1M"
-  // line under the model name so it's obvious at a glance.
-  const showContextLine = !!modelName && !!agent.is1MContext;
+  // When an effort tier is set, stack it as a second center line under the
+  // model name so the active thinking tier reads at a glance.
+  const showEffortLine = !!effort;
   const isSelected = agent.id === selectedAgentId;
   const isActive = agent.status === "running" || agent.status === "idle";
   const isRunning = agent.status === "running";
@@ -68,8 +68,11 @@ export function renderNodeVisuals(
   const work = isDimmed ? g.append("g").attr("opacity", 0.35) : g;
   // 24px base is right for a single letter; full model names need a smaller
   // base so "Sonnet" (6 chars × ~0.6em) clears the hexagon's interior width.
-  const centerFontBase = centerText.length <= 1 ? 24 : 14;
-  const centerFontMin = centerText.length <= 1 ? 13 : 8;
+  // Size off the longer of the two center lines so a wide effort word
+  // ("MEDIUM") shrinks like "SONNET" instead of overflowing the hexagon.
+  const centerLen = effort ? Math.max(centerText.length, effort.length) : centerText.length;
+  const centerFontBase = centerLen <= 1 ? 24 : 14;
+  const centerFontMin = centerLen <= 1 ? 13 : 8;
   const centerFont = Math.max(centerFontMin, Math.round(centerFontBase * scale));
   const labelY = Math.round(52 * scale);
   const labelFontSize = Math.max(8, Math.round(13 * scale));
@@ -153,10 +156,10 @@ export function renderNodeVisuals(
     }
   }
 
-  // Letter(s) inside node — single line by default, stacked model + "1M"
-  // when the 1M-context beta is enabled.
-  if (showContextLine) {
-    // Both lines share font size + color so "Opus / 1M" reads as one block.
+  // Letter(s) inside node — single line by default, stacked model + effort
+  // tier when an effort is set.
+  if (showEffortLine) {
+    // Both lines share font size + color so "OPUS / HIGH" reads as one block.
     const lineFont = Math.max(centerFontMin, Math.round(centerFontBase * scale * 0.85));
     const gap = Math.max(1, Math.round(scale * 2));
     // Symmetric offsets — equal font sizes mean the group's visual center
@@ -181,7 +184,7 @@ export function renderNodeVisuals(
       .attr("font-size", lineFont)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
-      .text("1M");
+      .text(effort!.toUpperCase());
   } else {
     work.append("text")
       .attr("text-anchor", "middle")
@@ -206,21 +209,6 @@ export function renderNodeVisuals(
       .attr("letter-spacing", "2px")
       .style("pointer-events", "none")
       .text(subLabel);
-  }
-
-  // Line 2: effort tier — sits at line-1 position when the name is hidden
-  if (effort) {
-    const effortY = showName ? labelY + Math.round(14 * scale) : labelY;
-    work.append("text")
-      .attr("text-anchor", "middle")
-      .attr("y", effortY)
-      .attr("fill", showName ? `${color}99` : color)
-      .attr("font-family", "monospace")
-      .attr("font-size", Math.max(6, Math.round(9 * scale)))
-      .attr("font-weight", showName ? "normal" : "bold")
-      .attr("letter-spacing", "2px")
-      .style("pointer-events", "none")
-      .text(effort.toUpperCase());
   }
 
 }
