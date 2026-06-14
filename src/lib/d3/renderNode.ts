@@ -214,4 +214,26 @@ export function renderNodeVisuals(
       .text(subLabel);
   }
 
+  // Below the hex for the MAIN agent (where sub-agents show their name):
+  // the session's repo — the last path segment of metadata.projectName,
+  // e.g. "Users/erdos/Github/agents" → "AGENTS".
+  if (agent.agentType === "main") {
+    const projectName = typeof agent.metadata?.projectName === "string"
+      ? agent.metadata.projectName
+      : undefined;
+    const repo = projectName?.split("/").filter(Boolean).pop();
+    if (repo) {
+      work.append("text")
+        .attr("text-anchor", "middle")
+        .attr("y", labelY)
+        .attr("fill", color)
+        .attr("font-family", "monospace")
+        .attr("font-size", labelFontSize)
+        .attr("font-weight", "bold")
+        .attr("letter-spacing", "2px")
+        .style("pointer-events", "none")
+        .text(repo.toUpperCase());
+    }
+  }
+
 }
