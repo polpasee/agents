@@ -222,13 +222,15 @@ export function renderNodeVisuals(
       ? agent.metadata.projectName
       : undefined;
     const repo = projectName?.split("/").filter(Boolean).pop();
+    // Smaller than the sub-agent name label so the repo reads as a quiet caption.
+    const repoFontSize = Math.max(7, Math.round(10 * scale));
     if (repo) {
       work.append("text")
         .attr("text-anchor", "middle")
         .attr("y", labelY)
         .attr("fill", color)
         .attr("font-family", "monospace")
-        .attr("font-size", labelFontSize)
+        .attr("font-size", repoFontSize)
         .attr("font-weight", "bold")
         .attr("letter-spacing", "2px")
         .style("pointer-events", "none")
