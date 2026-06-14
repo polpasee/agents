@@ -9,6 +9,7 @@ import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentState, EdgeState, TeamState, WorkflowRunState } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 import { simulationDrag } from "./simulationDrag";
+import { buildWorkflowLabelMap } from "@/lib/workflowLabels";
 
 interface Options {
   filteredAgents: AgentState[];
@@ -69,12 +70,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
 
     // Workflow agents carry a human label (e.g. "find:A-line-scan"); surface it
     // as the node's sub-label. Skip the workflow-scan fallback where label===agentId.
-    const agentIdToLabel = new Map<string, string>();
-    for (const run of workflows.values()) {
-      for (const ref of run.agents) {
-        if (ref.label && ref.label !== ref.agentId) agentIdToLabel.set(ref.agentId, ref.label);
-      }
-    }
+    const agentIdToLabel = buildWorkflowLabelMap(workflows);
     for (const node of nodes) {
       const wfLabel = agentIdToLabel.get(node.id);
       if (wfLabel) node.workflowLabel = wfLabel;

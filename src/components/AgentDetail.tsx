@@ -9,6 +9,7 @@ import { calculateCost, formatCost } from "@/lib/costs";
 import { calculateEfficiency } from "@/lib/efficiency";
 import type { AgentState } from "@/lib/types";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 
 export function AgentDetail() {
   const { agents, teams, selectedAgentId, logEntries, agentTypeBudgets, agentDiffs } =
@@ -21,6 +22,7 @@ export function AgentDetail() {
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
   const openErrorDrillDown = useAgentStore((s) => s.openErrorDrillDown);
   const openDiffViewer = useAgentStore((s) => s.openDiffViewer);
+  const workflowLabels = useWorkflowLabels();
 
   const handleViewLog = () => {
     if (!agent) return;
@@ -82,6 +84,8 @@ export function AgentDetail() {
 
   const color = AGENT_COLORS[agent.agentType];
   const statusColor = STATUS_COLORS[agent.status];
+  const wfLabel = workflowLabels.get(agent.id);
+  const secondary = wfLabel ?? agent.displayType;
   const totalTokens = agent.inputTokens + agent.outputTokens;
   const tokenPercent = getTokenPercent(agent);
   const elapsed = agent.duration ?? (Date.now() - agent.startTime);
@@ -112,9 +116,9 @@ export function AgentDetail() {
           <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
-          {agent.displayType && agent.displayType.toLowerCase() !== AGENT_LABELS[agent.agentType].toLowerCase() && (
+          {secondary && secondary.toLowerCase() !== AGENT_LABELS[agent.agentType].toLowerCase() && (
             <span className="text-xs font-mono" style={{ color: UI.text.muted }}>
-              {agent.displayType}
+              {secondary}
             </span>
           )}
           <button

@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { AgentDetail } from "../AgentDetail";
 import type { AgentState } from "@/lib/types";
-import { mockAgent } from "@/lib/__tests__/test-utils";
+import { mockAgent, mockWorkflowRun } from "@/lib/__tests__/test-utils";
 
 describe("AgentDetail", () => {
   beforeEach(() => {
@@ -15,6 +15,7 @@ describe("AgentDetail", () => {
       agentTypeBudgets: {},
       agentDiffs: new Map(),
       annotations: new Map(),
+      workflows: new Map(),
     });
   });
 
@@ -33,6 +34,38 @@ describe("AgentDetail", () => {
     expect(screen.getByText("implement feature")).toBeDefined();
     expect(screen.getByText("running")).toBeDefined();
     expect(screen.getByText("claude-3")).toBeDefined();
+  });
+
+  it("shows the workflow label instead of displayType for a workflow agent", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("wf1", mockAgent({ id: "wf1", displayType: "workflow-subagent", task: "t" }));
+
+    const run = mockWorkflowRun({
+      runId: "r1",
+      agents: [{ agentId: "wf1", label: "audit:dead-code", state: "running" }],
+    });
+
+    useAgentStore.setState({
+      agents,
+      selectedAgentId: "wf1",
+      workflows: new Map([[run.runId, run]]),
+    });
+    render(<AgentDetail />);
+
+    expect(screen.getByText("audit:dead-code")).toBeDefined();
+    expect(screen.queryByText("workflow-subagent")).toBeNull();
+    // The primary bold agent-type label (AGENT_LABELS["build"]) is unchanged.
+    expect(screen.getByText("BUILD")).toBeDefined();
+  });
+
+  it("shows displayType unchanged for a non-workflow agent", () => {
+    const agents = new Map<string, AgentState>();
+    agents.set("c1", mockAgent({ id: "c1", agentType: "build", displayType: "api-builder", task: "t" }));
+
+    useAgentStore.setState({ agents, selectedAgentId: "c1" });
+    render(<AgentDetail />);
+
+    expect(screen.getByText("api-builder")).toBeDefined();
   });
 
   // F4 — body.entries from /api/logs/[agentId] must be Array-validated before
