@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS, agentColor } from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
+import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 import { resolveSessionId } from "@/lib/sessions";
 import type { AgentState, TeamState } from "@/lib/types";
 import { UsagePanel } from "./UsagePanel";
@@ -13,7 +14,7 @@ function shortModel(model: string): string {
   return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : model;
 }
 
-function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelected: boolean; onClick: () => void }) {
+function AgentRow({ agent, isSelected, onClick, workflowLabels }: { agent: AgentState; isSelected: boolean; onClick: () => void; workflowLabels: Map<string, string> }) {
   const color = agentColor(agent);
   const isRunning = agent.status === "running";
   const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1].tool : null;
@@ -37,7 +38,7 @@ function AgentRow({ agent, isSelected, onClick }: { agent: AgentState; isSelecte
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
         <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
-          {(agent.displayType || AGENT_LABELS[agent.agentType]).toUpperCase()}{agent.model ? `(${shortModel(agent.model)})` : ""}
+          {workflowLabels.get(agent.id) ?? (agent.displayType || AGENT_LABELS[agent.agentType]).toUpperCase()}{agent.model ? `(${shortModel(agent.model)})` : ""}
         </span>
         <span className="text-xs capitalize truncate ml-auto flex-shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
       </div>
@@ -80,6 +81,7 @@ function SessionAgents({
   selectAgent,
   selectedTeamId,
   selectTeam,
+  workflowLabels,
 }: {
   agents: AgentState[];
   teams: Map<string, TeamState>;
@@ -87,6 +89,7 @@ function SessionAgents({
   selectAgent: (id: string) => void;
   selectedTeamId: string | null;
   selectTeam: (id: string | null) => void;
+  workflowLabels: Map<string, string>;
 }) {
   const { teamGroups, soloAgents } = useMemo(() => {
     const teamGroups = new Map<string, { team: TeamState; members: AgentState[] }>();
@@ -153,6 +156,7 @@ function SessionAgents({
                     agent={agent}
                     isSelected={agent.id === selectedAgentId}
                     onClick={() => selectAgent(agent.id)}
+                    workflowLabels={workflowLabels}
                   />
                 ))}
               </div>
@@ -167,6 +171,7 @@ function SessionAgents({
           agent={agent}
           isSelected={agent.id === selectedAgentId}
           onClick={() => selectAgent(agent.id)}
+          workflowLabels={workflowLabels}
         />
       ))}
     </>
@@ -186,6 +191,7 @@ export function AgentList() {
   const removeAgent = useAgentStore((s) => s.removeAgent);
 
   const agentList = useFilteredAgents();
+  const workflowLabels = useWorkflowLabels();
 
   // Build session groups from ALL agents (not filtered) so we always show all sessions in the sidebar
   const allSessionGroups = useMemo(() => {
@@ -331,6 +337,7 @@ export function AgentList() {
                         selectAgent={selectAgent}
                         selectedTeamId={selectedTeamId}
                         selectTeam={selectTeam}
+                        workflowLabels={workflowLabels}
                       />
                     </div>
                   )}
@@ -346,6 +353,7 @@ export function AgentList() {
                 selectAgent={selectAgent}
                 selectedTeamId={selectedTeamId}
                 selectTeam={selectTeam}
+                workflowLabels={workflowLabels}
               />
             )
             : null}
