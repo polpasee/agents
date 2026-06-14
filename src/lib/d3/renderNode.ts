@@ -159,30 +159,33 @@ export function renderNodeVisuals(
   // Letter(s) inside node — single line by default, stacked model + effort
   // tier when an effort is set.
   if (showEffortLine) {
-    // Both lines share font size + color so "OPUS / HIGH" reads as one block.
-    const lineFont = Math.max(centerFontMin, Math.round(centerFontBase * scale * 0.85));
+    // The model family is the headline (bold); the effort tier sits under it
+    // smaller and at normal weight so it reads as a secondary line.
+    const modelFont = Math.max(centerFontMin, Math.round(centerFontBase * scale * 0.85));
+    const effortFont = Math.max(6, Math.round(modelFont * 0.72));
     const gap = Math.max(1, Math.round(scale * 2));
-    // Symmetric offsets — equal font sizes mean the group's visual center
-    // sits exactly at y=0.
-    const halfStride = (lineFont + gap) / 2;
+    // Center the differently-sized pair on y=0: the gap sits between the two
+    // lines and the whole block straddles the origin.
+    const modelY = -(gap + effortFont) / 2;
+    const effortY = (gap + modelFont) / 2;
     work.append("text")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "central")
-      .attr("y", -halfStride)
+      .attr("y", modelY)
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", lineFont)
+      .attr("font-size", modelFont)
       .attr("font-weight", "bold")
       .style("pointer-events", "none")
       .text(centerText);
     work.append("text")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "central")
-      .attr("y", halfStride)
+      .attr("y", effortY)
       .attr("fill", color)
       .attr("font-family", "monospace")
-      .attr("font-size", lineFont)
-      .attr("font-weight", "bold")
+      .attr("font-size", effortFont)
+      .attr("font-weight", "normal")
       .style("pointer-events", "none")
       .text(effort!.toUpperCase());
   } else {

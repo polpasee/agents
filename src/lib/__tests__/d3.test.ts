@@ -157,6 +157,17 @@ describe("renderNodeVisuals center model + effort", () => {
     expect(texts.some((t) => t.textContent === "HIGH")).toBe(true);
   });
 
+  it("renders the effort line smaller and non-bold relative to the model line", () => {
+    const texts = render(createMockAgent({ model: "claude-opus-4-8", effort: "high" }));
+    const modelNode = texts.find((t) => t.textContent === "OPUS")!;
+    const effortNode = texts.find((t) => t.textContent === "HIGH")!;
+    expect(modelNode.getAttribute("font-weight")).toBe("bold");
+    expect(effortNode.getAttribute("font-weight")).toBe("normal");
+    expect(Number(effortNode.getAttribute("font-size"))).toBeLessThan(
+      Number(modelNode.getAttribute("font-size")),
+    );
+  });
+
   it("renders only the model name when no effort is set", () => {
     const texts = render(createMockAgent({ model: "claude-opus-4-8" }));
     expect(texts.some((t) => t.textContent === "OPUS")).toBe(true);
