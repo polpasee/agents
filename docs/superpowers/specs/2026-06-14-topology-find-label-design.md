@@ -20,28 +20,41 @@ agent's real workflow label — e.g. `find:A-line-scan`, `find:B-removed-behavio
   nodes by `agentId`** in `useTopologyEffect.ts:241-246`, but only `runId` and
   `phaseTitle` are captured from each ref — `label` is dropped.
 
-## Approach (front-end join, ~12 lines, 2 files)
+## Approach (front-end join, ~20 lines, 4 files)
 
 Reuse the existing agentId→ref join. No new `AgentState` field, no `discovery.ts`
 / SSE / ingestion changes.
 
-1. **`src/components/AgentGraph/useTopologyEffect.ts`**
-   - In the existing `for (const ref of run.agents)` loop, also build
-     `agentIdToLabel: Map<string, string>` from `ref.label`.
-   - Pass the looked-up label into `renderNodeVisuals(...)` as a new trailing
-     arg at the initial-render call site (this file). Mirror the same lookup at
-     the in-place refresh call site (Effect 2b / node-refresh effect) so live
-     updates keep the label.
+Effect 2b (`useNodeVisualsEffect.ts`) re-renders nodes in place but does **not**
+receive the `workflows` Map. Rather than plumb `workflows` through `index.tsx`
+and that hook, we stash the resolved label on the `SimNode` datum during the
+topology build (Effect 1), where the join already runs. Both render call sites
+then read it off the node datum they already hold.
 
-2. **`src/lib/d3/renderNode.ts`**
+1. **`src/lib/d3/updateLinks.ts`** — add optional `workflowLabel?: string` to the
+   `SimNode` interface.
+
+2. **`src/components/AgentGraph/useTopologyEffect.ts`**
+   - Build `agentIdToLabel: Map<string, string>` from each `ref.label`, set
+     **only when meaningful** (`ref.label` non-empty and `!== ref.agentId`, which
+     guards the workflow-scan fallback where `label === agentId`). Build it
+     *before* the initial node render so it's available on first paint.
+   - Set `node.workflowLabel = agentIdToLabel.get(node.id)` on each `SimNode`.
+   - Pass `d.workflowLabel` into the initial `renderNodeVisuals(...)` call.
+
+3. **`src/components/AgentGraph/useNodeVisualsEffect.ts`** (Effect 2b)
+   - Pass `d.workflowLabel` into its `renderNodeVisuals(...)` call (datum already
+     in scope; no Options change).
+
+4. **`src/lib/d3/renderNode.ts`**
    - Add optional param `workflowLabel?: string` to `renderNodeVisuals`.
-   - When `workflowLabel` is present **and meaningful** (non-empty and not equal
-     to the agent's raw id — guards the workflow-scan fallback where
-     `label === agentId`), use it **verbatim** as `typeLabel` (skip the
+   - When `workflowLabel` is truthy, use it **verbatim** as `typeLabel` (skip the
      `split(":").pop().toUpperCase()` transform) so `find:` prefix + lowercase
-     are preserved as in the reference image.
+     are preserved as in the reference image. The meaningfulness guard already
+     lives at the map-build step, so renderNode only needs a truthy check.
    - Otherwise behavior is unchanged: `displayType` → existing transform.
-   - `centerText` (model name / initial) is unaffected.
+   - `centerText` (model name / initial) is unaffected — keep deriving it from
+     the existing `typeLabel`/model logic, not from `workflowLabel`.
 
 ## Decisions
 
