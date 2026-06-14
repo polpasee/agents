@@ -98,6 +98,7 @@ export function applyRegister(
         // incomingNullish: even false/0 from the event replaces the value.
         effort:      event.effort ?? existing.effort,           // settings.json may omit effort on refresh
         is1MContext: event.is1MContext ?? existing.is1MContext, // same: false is meaningful, not "absent"
+        workflowName: existing.workflowName || event.workflowName, // keepFirst; heals from undefined if a later register carries it
       }
     : {
         id: event.agentId,
@@ -120,6 +121,7 @@ export function applyRegister(
         metadata: event.metadata,
         effort: event.effort,
         is1MContext: event.is1MContext,
+        workflowName: event.workflowName,
       };
   ctx.cloneAgents().set(event.agentId, agent);
 

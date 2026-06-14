@@ -278,6 +278,7 @@ export function registerAgent(opts: {
     metadata: agent.metadata,
     effort: opts.effort,
     is1MContext: opts.is1MContext,
+    workflowName: opts.workflowName,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
 }
@@ -302,6 +303,7 @@ export function broadcastRegisterFor(agent: AgentState, timestamp: number): void
       metadata: agent.metadata,
       effort: agent.effort,
       is1MContext: agent.is1MContext,
+      workflowName: agent.workflowName,
     },
     timestamp,
   });

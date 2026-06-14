@@ -48,6 +48,7 @@ export type AgentEvent =
       metadata?: Record<string, unknown>;
       effort?: ThinkingEffort;
       is1MContext?: boolean;
+      workflowName?: string;
     }
   | {
       type: "agent:status";
