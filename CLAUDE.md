@@ -63,8 +63,7 @@ For multi-step tasks, state a brief plan:
 
 # Workflow Step:
 
-This is the mandatory step for support any request for this codebase. Each steps should be output step and called "Triage Protocol" and not need to get approve on each step.
-no create worktree
+This is the mandatory step for support any request for this codebase. No need to get approve on each step. and no create worktree
 
 **Step 1** Explore the related codes.
 **Step 2** Plan minimal change by using skill `/superpowers:brainstorming`
