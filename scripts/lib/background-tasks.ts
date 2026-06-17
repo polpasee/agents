@@ -20,7 +20,8 @@ export async function startBackgroundTasks(): Promise<void> {
   // import rejects, the flag stays false so a later caller can retry —
   // previously a failed import would permanently wedge polling off.
   const { discoverActiveSessions, refreshTrackedAgents } = await import("./discovery");
-  const { PROJECTS_DIR, POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
+  const { PROJECTS_DIR, TEAMS_DIR, POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
+  const { discoverTeams } = await import("./teams-discovery");
   const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
   const { loadWebhookConfig } = await import("./webhooks");
 
@@ -43,6 +44,7 @@ export async function startBackgroundTasks(): Promise<void> {
       } else {
         await refreshTrackedAgents();
       }
+      await discoverTeams(TEAMS_DIR);
       if (firstRun) {
         firstRun = false;
         console.log(`[bg] Found ${agents.size} active agent(s)`);
