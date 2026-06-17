@@ -7,6 +7,8 @@ import * as fsp from "node:fs/promises";
 import {
   agents,
   edges,
+  teams,
+  agentLastModified,
   removedAgentIds,
   registerAgent,
   parseAgentType,
@@ -87,9 +89,11 @@ beforeEach(async () => {
   // Fresh tmp dir per test
   teamsDir = await fsp.mkdtemp(path.join(os.tmpdir(), "teams-discovery-test-"));
 
-  // Clear shared state
+  // Clear ALL shared singletons to prevent inter-test leakage
   agents.clear();
   edges.length = 0;
+  teams.clear();
+  agentLastModified.clear();
   removedAgentIds.clear();
 });
 
@@ -206,28 +210,25 @@ describe("discoverTeams", () => {
     expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
   });
 
-  it("does not re-add a member absent from a later snapshot", async () => {
+  // Replacement for the tautological "absent from later snapshot" test.
+  // This is the real bug: a member still listed in config but with a stale
+  // tombstone (set by the 60s purge) must NOT be re-registered every tick.
+  it("does not re-add a tombstoned member that is still listed in config", async () => {
     seedLeadAgent();
-    // First run: member is in config
-    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
+    const cfg = makeConfig();
+    (cfg.members[1] as Record<string, unknown>).joinedAt = 1000; // ancient
+    const sessionPath = await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, cfg);
+    const old = new Date(2000);
+    await fsp.utimes(path.join(sessionPath, "config.json"), old, old); // force old config mtime
+
     await discoverTeams(teamsDir);
     expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
 
-    // Simulate removal from config (member removed from members array)
-    const configWithoutMember = {
-      ...makeConfig(),
-      members: [makeConfig().members[0]], // only lead remains
-    };
-    await fsp.writeFile(
-      path.join(teamsDir, `session-${TEAM_NAME}`, "config.json"),
-      JSON.stringify(configWithoutMember),
-      "utf-8",
-    );
-
-    // Manually remove from agents to simulate stale-purge having fired
+    // Simulate the 60s stale-purge having fired, with a tombstone newer than any activity.
     agents.delete(MEMBER_AGENT_ID);
+    removedAgentIds.set(MEMBER_AGENT_ID, Date.now());
 
-    // Second run: discoverTeams must NOT re-add the removed member
+    // Member is STILL listed in config; without a tombstone check it would be re-added.
     await discoverTeams(teamsDir);
     expect(agents.has(MEMBER_AGENT_ID)).toBe(false);
   });
@@ -245,5 +246,47 @@ describe("discoverTeams", () => {
     const member = agents.get(MEMBER_AGENT_ID);
     expect(member).toBeDefined();
     expect(member?.model).toBe("");
+  });
+
+  it("refreshes status via updateAgentStatus on a repeat tick", async () => {
+    seedLeadAgent();
+    const sessionPath = await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
+    await discoverTeams(teamsDir);
+    const first = agentLastModified.get(MEMBER_AGENT_ID)!;
+    const future = new Date(Date.now() + 5 * 60_000);
+    await fsp.utimes(path.join(sessionPath, "config.json"), future, future);
+    await discoverTeams(teamsDir);
+    expect(agentLastModified.get(MEMBER_AGENT_ID)!).toBeGreaterThan(first);
+  });
+
+  it("skips a config with no members array and still processes sibling teams", async () => {
+    seedLeadAgent();
+    const badDir = path.join(teamsDir, "session-0bad");
+    await fsp.mkdir(badDir, { recursive: true });
+    await fsp.writeFile(path.join(badDir, "config.json"),
+      JSON.stringify({ name: "x", leadAgentId: "l", leadSessionId: "s" }), "utf-8");
+    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
+    await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
+    expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
+  });
+
+  it("falls back startTime to config mtime when joinedAt is missing (no NaN)", async () => {
+    seedLeadAgent();
+    const cfg = makeConfig();
+    delete (cfg.members[1] as Record<string, unknown>).joinedAt;
+    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, cfg);
+    await discoverTeams(teamsDir);
+    const m = agents.get(MEMBER_AGENT_ID);
+    expect(m).toBeDefined();
+    expect(Number.isNaN(m!.startTime)).toBe(false);
+  });
+
+  it("skips members with a non-string agentId or name", async () => {
+    seedLeadAgent();
+    const cfg = makeConfig();
+    cfg.members.push({ agentId: "okname@s", name: null, agentType: "build", joinedAt: 1 } as never);
+    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, cfg);
+    await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
+    expect(agents.has("okname@s")).toBe(false); // skipped: name not a string
   });
 });
