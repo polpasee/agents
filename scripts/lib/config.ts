@@ -8,6 +8,11 @@ import * as path from "node:path";
  *  (not env-driven); consumers tolerate a missing dir. */
 export const PROJECTS_DIR = path.join(os.homedir(), ".claude", "projects");
 
+/** Teams registry written by the Claude Code Agent/teams harness. Each
+ *  session-<id>/ subdirectory holds a config.json (lead + members list)
+ *  and an inboxes/ dir for per-member mailboxes. */
+export const TEAMS_DIR = path.join(os.homedir(), ".claude", "teams");
+
 export const POLL_INTERVAL_MS = 1500;
 
 /** Full filesystem rediscovery (scan every project dir for *new* sessions)
