@@ -94,11 +94,13 @@ interface SessionGroup {
 function groupBySession(
   list: Iterable<AgentState>,
   agents: Map<string, AgentState>,
+  resolvedIds?: Map<string, string>,
 ): Map<string, SessionGroup> {
   const groups = new Map<string, SessionGroup>();
 
   for (const agent of list) {
-    const sessionId = resolveSessionId(agent, agents);
+    const sessionId =
+      resolvedIds?.get(agent.id) ?? resolveSessionId(agent, agents);
     const root = agents.get(sessionId) ?? agent;
     const label = (root.metadata?.projectName as string) || sessionId;
 
@@ -254,9 +256,21 @@ export function AgentList() {
   const agentList = useFilteredAgents();
   const workflowLabels = useWorkflowLabels();
 
+  // Resolve each agent's session root once; both session-group memos share this.
+  // resolveSessionId does a parent-ancestor walk per agent — computing it once
+  // here and passing the result map eliminates the duplicate walk that the two
+  // groupBySession calls previously performed independently.
+  const resolvedSessionIds = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const agent of agents.values()) {
+      map.set(agent.id, resolveSessionId(agent, agents));
+    }
+    return map;
+  }, [agents]);
+
   // Build session groups from ALL agents (not filtered) so we always show all sessions in the sidebar
   const allSessionGroups = useMemo(() => {
-    const groups = groupBySession(agents.values(), agents);
+    const groups = groupBySession(agents.values(), agents, resolvedSessionIds);
 
     // Disambiguate label collisions: when two Claude sessions live in the same
     // project, append a short session-id suffix so users can tell them apart.
@@ -270,12 +284,12 @@ export function AgentList() {
     }
 
     return Array.from(groups.values());
-  }, [agents]);
+  }, [agents, resolvedSessionIds]);
 
   // Filtered agents grouped by session (for rendering agent rows)
   const filteredSessionGroups = useMemo(
-    () => groupBySession(agentList, agents),
-    [agentList, agents],
+    () => groupBySession(agentList, agents, resolvedSessionIds),
+    [agentList, agents, resolvedSessionIds],
   );
 
   const sessionCount = allSessionGroups.length;

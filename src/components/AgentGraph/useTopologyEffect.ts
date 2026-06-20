@@ -358,6 +358,26 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       ([, ns]) => ns.length >= 2,
     );
 
+    // Precompute per-run phase groupings once per topology rebuild.
+    // `agentIdToPhaseTitle` and `runNodes` are both stable between ticks
+    // (neither changes until the next topology rebuild), so rebuilding this
+    // Map<runId, Map<phaseTitle, SimNode[]>> inside the ~60Hz tick callback
+    // is pure redundant work. Node positions (x/y) are NOT used here — only
+    // node.id is looked up against agentIdToPhaseTitle. The per-tick code
+    // that reads positions (avgX/avgY centroid calculation) remains in the tick.
+    const nodesByPhasePerRun = new Map<string, Map<string, SimNode[]>>();
+    for (const [runId, runNodes] of workflowEntries) {
+      const nodesByPhase = new Map<string, SimNode[]>();
+      for (const node of runNodes) {
+        const phaseTitle = agentIdToPhaseTitle.get(node.id);
+        if (!phaseTitle) continue;
+        const list = nodesByPhase.get(phaseTitle) ?? [];
+        list.push(node);
+        nodesByPhase.set(phaseTitle, list);
+      }
+      nodesByPhasePerRun.set(runId, nodesByPhase);
+    }
+
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force(
         "link",
@@ -550,20 +570,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         });
 
         // Phase centroid labels inside workflow clusters
-        workflowMerged.each(function ([runId, runNodes]) {
+        workflowMerged.each(function ([runId]) {
           const g = select(this);
           const run = workflows.get(runId);
           if (!run || run.phases.length === 0) return;
 
-          // Group run nodes by phaseTitle
-          const nodesByPhase = new Map<string, SimNode[]>();
-          for (const node of runNodes) {
-            const phaseTitle = agentIdToPhaseTitle.get(node.id);
-            if (!phaseTitle) continue;
-            const list = nodesByPhase.get(phaseTitle) ?? [];
-            list.push(node);
-            nodesByPhase.set(phaseTitle, list);
-          }
+          // Use the precomputed phase grouping (hoisted above the tick).
+          // Only the position-dependent centroid calculation stays here.
+          const nodesByPhase = nodesByPhasePerRun.get(runId);
+          if (!nodesByPhase) return;
 
           // Join phase labels
           const phaseData = Array.from(nodesByPhase.entries()).filter(
