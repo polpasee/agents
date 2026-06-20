@@ -36,18 +36,24 @@ export function readNewLines(filePath: string): string[] {
     return [];
   }
   let buf: Buffer;
+  let bytesRead: number;
   try {
     buf = Buffer.alloc(bytesToRead);
-    fs.readSync(fd, buf, 0, buf.length, offset);
+    // A short read can return fewer bytes than requested, leaving stale/zero
+    // bytes in the buffer tail; clamp all downstream math to bytesRead.
+    bytesRead = fs.readSync(fd, buf, 0, buf.length, offset);
   } finally {
     fs.closeSync(fd);
   }
 
+  const readBytes = Math.min(bytesToRead, bytesRead);
+
   // Find the last complete line boundary to avoid splitting a partial JSON line
-  let usableBytes = bytesToRead;
-  if (bytesToRead < stat.size - offset) {
+  let usableBytes = readBytes;
+  if (readBytes < stat.size - offset) {
     // We didn't read the whole remaining file — find last newline
-    const lastNewline = buf.lastIndexOf(10); // 10 = '\n'
+    // within the actually-read region (ignore any stale buffer tail).
+    const lastNewline = buf.subarray(0, readBytes).lastIndexOf(10); // 10 = '\n'
     if (lastNewline >= 0) {
       usableBytes = lastNewline + 1;
     }
@@ -76,9 +82,12 @@ export function extractTaskFromJSONL(
     const stat = fs.statSync(filePath);
     const chunk = Buffer.alloc(Math.min(stat.size, maxBytes));
     const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, chunk, 0, chunk.length, 0);
+    const bytesRead = fs.readSync(fd, chunk, 0, chunk.length, 0);
     fs.closeSync(fd);
+    // A short read leaves stale/zero bytes in the chunk tail — decode only
+    // the bytes actually read.
     const lines = chunk
+      .subarray(0, bytesRead)
       .toString("utf-8")
       .split("\n")
       .filter((l: string) => l.trim());

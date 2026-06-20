@@ -8,6 +8,7 @@ import * as os from "node:os";
 // This route is a pure cache reader — no spawn, no side effects, idempotent GET —
 // so it imports only the cache path from config, never the spawn helper.
 import { CCSTATUSLINE_CACHE } from "../../../../scripts/lib/config";
+import { isAllowedRequestOrigin } from "../../../../scripts/lib/origin-check";
 
 /** Legacy fallback: Claude Code's own file. Older versions wrote it when
  *  rate-limit headers came back; newer versions have stopped writing it
@@ -50,7 +51,14 @@ function readCcstatuslineCache(): UsagePayload | null {
       ageMs,
       stale: ageMs > STALENESS_THRESHOLD_MS,
     };
-  } catch {
+  } catch (err) {
+    // A missing cache file is expected (ccstatusline may not have run yet);
+    // stay silent. A corrupt/unreadable cache is a real signal — surface it.
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    console.warn(
+      `Failed to read ccstatusline cache ${CCSTATUSLINE_CACHE}:`,
+      err,
+    );
     return null;
   }
 }
@@ -81,12 +89,19 @@ function readLegacyUsage(): UsagePayload | null {
       ageMs,
       stale,
     };
-  } catch {
+  } catch (err) {
+    // Missing legacy file is the common case (newer Claude Code stopped
+    // writing it); stay silent. A corrupt file is worth a warning.
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return null;
+    console.warn(`Failed to read legacy usage ${LEGACY_USAGE_PATH}:`, err);
     return null;
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!isAllowedRequestOrigin(request)) {
+    return new Response("Forbidden", { status: 403 });
+  }
   const payload = readCcstatuslineCache() ?? readLegacyUsage();
   return NextResponse.json(payload);
 }

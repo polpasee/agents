@@ -13,15 +13,16 @@ let webhookConfigs: WebhookConfig[] = [];
 
 export function loadWebhookConfig(): void {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-      const parsed = JSON.parse(raw);
-      webhookConfigs = Array.isArray(parsed) ? parsed : [parsed];
-      console.log(`Loaded ${webhookConfigs.length} webhook config(s)`);
-    }
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    webhookConfigs = Array.isArray(parsed) ? parsed : [parsed];
+    console.log(`Loaded ${webhookConfigs.length} webhook config(s)`);
   } catch (err) {
-    console.warn("Failed to load webhook config:", err);
     webhookConfigs = [];
+    // No webhook config is the normal case — stay silent on a missing file.
+    // A corrupt/invalid JSON config is a real misconfiguration worth a warning.
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return;
+    console.warn("Failed to load webhook config:", err);
   }
 }
 

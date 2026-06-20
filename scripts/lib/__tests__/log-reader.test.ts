@@ -181,4 +181,34 @@ describe("readAgentLog", () => {
     mockReadFile.mockRejectedValue(err);
     await expect(readAgentLog("/forbidden.jsonl")).rejects.toThrow("EACCES");
   });
+
+  it("decodes only bytesRead from the tail buffer on a short read (large file path)", async () => {
+    // Force the >LOG_READ_MAX_BYTES tail-read branch.
+    mockStat.mockResolvedValue({ size: 20 * 1024 * 1024 });
+    const tail = [
+      JSON.stringify({
+        type: "message",
+        timestamp: "2025-01-01T00:00:00Z",
+        message: { role: "user", content: "tail line" },
+      }),
+      "",
+    ].join("\n");
+    const tailBuf = Buffer.from(tail);
+
+    mockOpen.mockResolvedValue({
+      // Simulate a short read: fill only the prefix of the 10MB buffer and
+      // report the real bytesRead. Decoding the whole buffer would have leaked
+      // megabytes of zero bytes.
+      read: vi.fn(async (buf: Buffer) => {
+        tailBuf.copy(buf);
+        return { bytesRead: tailBuf.length };
+      }),
+      close: vi.fn(async () => {}),
+    });
+
+    const result = await readAgentLog("/huge.jsonl");
+    expect(result).toHaveLength(1);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.content).toBe("tail line");
+  });
 });

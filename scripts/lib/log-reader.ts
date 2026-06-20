@@ -16,8 +16,15 @@ export async function readAgentLog(filePath: string): Promise<LogEntry[]> {
     const fh = await fsp.open(filePath, "r");
     try {
       const buf = Buffer.alloc(LOG_READ_MAX_BYTES);
-      await fh.read(buf, 0, LOG_READ_MAX_BYTES, stat.size - LOG_READ_MAX_BYTES);
-      content = buf.toString("utf-8");
+      const { bytesRead } = await fh.read(
+        buf,
+        0,
+        LOG_READ_MAX_BYTES,
+        stat.size - LOG_READ_MAX_BYTES,
+      );
+      // A short read leaves stale/zero bytes in the buffer tail — decode only
+      // what was actually read.
+      content = buf.subarray(0, bytesRead).toString("utf-8");
     } finally {
       await fh.close();
     }

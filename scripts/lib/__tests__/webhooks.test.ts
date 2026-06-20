@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const mockReadFileSync = vi.fn();
+vi.mock("node:fs", () => ({
+  readFileSync: (...args: unknown[]) => mockReadFileSync(...args),
+}));
+
 import {
   formatSlackMessage,
   formatDiscordMessage,
   dispatchWebhooks,
   getWebhookConfigs,
+  loadWebhookConfig,
 } from "../webhooks";
 
 const mockPayload = {
@@ -132,5 +139,43 @@ describe("dispatchWebhooks — non-ok response", () => {
     expect(console.warn).not.toHaveBeenCalled();
     configs.pop();
     vi.unstubAllGlobals();
+  });
+});
+
+describe("loadWebhookConfig — missing vs corrupt", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("stays silent when the config file is absent (ENOENT)", () => {
+    mockReadFileSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT: no such file"), {
+        code: "ENOENT",
+      });
+    });
+
+    loadWebhookConfig();
+
+    // No config is the normal case — no warning, and no configs loaded.
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(getWebhookConfigs()).toEqual([]);
+  });
+
+  it("warns when the config file is corrupt JSON", () => {
+    mockReadFileSync.mockReturnValue("{ not valid json");
+
+    loadWebhookConfig();
+
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Failed to load webhook config"),
+      expect.anything(),
+    );
+    expect(getWebhookConfigs()).toEqual([]);
   });
 });

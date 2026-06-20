@@ -76,6 +76,25 @@ describe("readNewLines", () => {
     const result = readNewLines("/tracked-file-test.jsonl");
     expect(result).toEqual([]);
   });
+
+  it("ignores stale buffer tail when readSync returns fewer bytes (short read)", () => {
+    // stat reports a large file, but the read returns only the prefix; the
+    // buffer tail keeps whatever Buffer.alloc zeroed it to. Decoding the whole
+    // buffer would have leaked NUL bytes / a spurious empty line.
+    const real = '{"line":1}\n{"line":2}\n';
+    mockStatSync.mockReturnValue({ size: 4096 });
+    mockOpenSync.mockReturnValue(42);
+    mockCloseSync.mockReturnValue(undefined);
+    mockReadSync.mockImplementation((_fd: number, buffer: Buffer) => {
+      Buffer.from(real).copy(buffer);
+      return Buffer.from(real).length; // short read: < buffer.length (4096)
+    });
+
+    const result = readNewLines("/short-read.jsonl");
+    expect(result).toEqual(['{"line":1}', '{"line":2}']);
+    // No NUL bytes from the zero-filled buffer tail leaked into the output.
+    expect(result.join("")).not.toContain("\u0000");
+  });
 });
 
 describe("extractTaskFromJSONL", () => {
@@ -156,5 +175,27 @@ describe("extractTaskFromJSONL", () => {
     expect(result.task).toBe("");
     expect(result.slug).toBe("");
     expect(result.model).toBe("");
+  });
+
+  it("decodes only bytesRead on a short read (no stale tail contamination)", () => {
+    const content = JSON.stringify({
+      timestamp: "2025-01-01T00:00:00Z",
+      message: { role: "user", content: "Build a dashboard" },
+    });
+    const buf = Buffer.from(content);
+    // chunk is allocated to min(stat.size, maxBytes); claim a larger file so
+    // the chunk buffer is bigger than what readSync actually returns.
+    mockStatSync.mockReturnValue({ size: buf.length + 2048 });
+    mockOpenSync.mockReturnValue(42);
+    mockCloseSync.mockReturnValue(undefined);
+    mockReadSync.mockImplementation((_fd: number, buffer: Buffer) => {
+      buf.copy(buffer);
+      return buf.length; // short read: fewer than buffer.length
+    });
+
+    const result = extractTaskFromJSONL("/short-task.jsonl");
+    // Without the bytesRead clamp the zero-filled tail would corrupt the line
+    // and JSON.parse would skip it, yielding an empty task.
+    expect(result.task).toBe("Build a dashboard");
   });
 });
