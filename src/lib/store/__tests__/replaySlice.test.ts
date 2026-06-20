@@ -38,6 +38,104 @@ const registerEvent: AgentEvent = {
   task: "t",
 };
 
+// ── loadReplaySession edge cases ────────────────────────────────────────────
+
+describe("loadReplaySession", () => {
+  it("sets endTime to startTime when session has no events", () => {
+    const ts = 5000;
+    useAgentStore.getState().loadReplaySession({ startTime: ts, events: [] });
+    const replay = useAgentStore.getState().replay;
+    expect(replay.active).toBe(true);
+    expect(replay.endTime).toBe(ts);
+    expect(replay.currentTime).toBe(ts);
+  });
+
+  it("resets agent/team/edge state on load", () => {
+    useAgentStore.setState({
+      agents: new Map([["a-old", { id: "a-old" } as never]]),
+      edges: [{ source: "a", target: "b" }],
+    });
+    useAgentStore.getState().loadReplaySession({ startTime: 1000, events: [] });
+    expect(useAgentStore.getState().agents.size).toBe(0);
+    expect(useAgentStore.getState().edges).toHaveLength(0);
+  });
+});
+
+// ── replayPause ─────────────────────────────────────────────────────────────
+
+describe("replayPause", () => {
+  it("sets playing=false when replay is active", () => {
+    useAgentStore.getState().loadReplaySession({ startTime: 1000, events: [] });
+    useAgentStore.setState((s) => ({ replay: { ...s.replay, playing: true } }));
+    useAgentStore.getState().replayPause();
+    expect(useAgentStore.getState().replay.playing).toBe(false);
+  });
+
+  it("does nothing when replay is not active", () => {
+    // replay is inactive by default (from beforeEach resetStore)
+    const before = useAgentStore.getState().replay;
+    useAgentStore.getState().replayPause();
+    expect(useAgentStore.getState().replay).toEqual(before);
+  });
+});
+
+// ── replaySeek ──────────────────────────────────────────────────────────────
+
+describe("replaySeek", () => {
+  it("does nothing when replay is not active", () => {
+    const before = useAgentStore.getState().replay;
+    useAgentStore.getState().replaySeek(2000);
+    expect(useAgentStore.getState().replay).toEqual(before);
+  });
+
+  it("clamps seek to startTime when timestamp is below range", () => {
+    const t0 = 1000;
+    useAgentStore.getState().loadReplaySession({
+      startTime: t0,
+      events: [{ timestamp: t0 + 500, event: registerEvent }],
+    });
+    useAgentStore.getState().replaySeek(t0 - 500); // below startTime
+    expect(useAgentStore.getState().replay.currentTime).toBe(t0);
+  });
+
+  it("clamps seek to endTime when timestamp is above range", () => {
+    const t0 = 1000;
+    const t1 = 2000;
+    useAgentStore.getState().loadReplaySession({
+      startTime: t0,
+      events: [{ timestamp: t1, event: registerEvent }],
+    });
+    useAgentStore.getState().replaySeek(t1 + 9999); // above endTime
+    expect(useAgentStore.getState().replay.currentTime).toBe(t1);
+  });
+});
+
+// ── replaySetSpeed ──────────────────────────────────────────────────────────
+
+describe("replaySetSpeed", () => {
+  it("updates speed when replay is active", () => {
+    useAgentStore.getState().loadReplaySession({ startTime: 1000, events: [] });
+    useAgentStore.getState().replaySetSpeed(2);
+    expect(useAgentStore.getState().replay.speed).toBe(2);
+  });
+
+  it("does nothing when replay is not active", () => {
+    const before = useAgentStore.getState().replay;
+    useAgentStore.getState().replaySetSpeed(4);
+    expect(useAgentStore.getState().replay.speed).toBe(before.speed);
+  });
+});
+
+// ── replayPlay edge: no active replay ──────────────────────────────────────
+
+describe("replayPlay — guard", () => {
+  it("does nothing when replay is not active", () => {
+    const before = useAgentStore.getState().replay;
+    useAgentStore.getState().replayPlay();
+    expect(useAgentStore.getState().replay).toEqual(before);
+  });
+});
+
 // Bug 5 — single-event session (endTime === startTime) stuck at end.
 describe("replayPlay — single-event session rewind", () => {
   it("rewinds and sets playing=true when currentTime >= endTime and endTime === startTime", () => {

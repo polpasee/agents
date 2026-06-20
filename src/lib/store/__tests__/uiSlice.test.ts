@@ -351,3 +351,129 @@ describe("toggleAgentType", () => {
     expect(useAgentStore.getState().hiddenAgentTypes.has("build")).toBe(false);
   });
 });
+
+// ── toggleLiveMetrics ─────────────────────────────────────────────────────
+
+describe("toggleLiveMetrics", () => {
+  it("enables showLiveMetrics when it was false", () => {
+    useAgentStore.setState({ showLiveMetrics: false });
+    useAgentStore.getState().toggleLiveMetrics();
+    expect(useAgentStore.getState().showLiveMetrics).toBe(true);
+  });
+
+  it("disables showLiveMetrics when it was true", () => {
+    useAgentStore.setState({ showLiveMetrics: true });
+    useAgentStore.getState().toggleLiveMetrics();
+    expect(useAgentStore.getState().showLiveMetrics).toBe(false);
+  });
+});
+
+// ── setGraphLayout ────────────────────────────────────────────────────────
+
+describe("setGraphLayout", () => {
+  it("sets graphLayout to 'tree'", () => {
+    useAgentStore.getState().setGraphLayout("tree");
+    expect(useAgentStore.getState().graphLayout).toBe("tree");
+  });
+
+  it("sets graphLayout to 'radial'", () => {
+    useAgentStore.getState().setGraphLayout("radial");
+    expect(useAgentStore.getState().graphLayout).toBe("radial");
+  });
+
+  it("sets graphLayout to 'hierarchical'", () => {
+    useAgentStore.getState().setGraphLayout("hierarchical");
+    expect(useAgentStore.getState().graphLayout).toBe("hierarchical");
+  });
+
+  it("sets graphLayout back to 'force'", () => {
+    useAgentStore.getState().setGraphLayout("tree");
+    useAgentStore.getState().setGraphLayout("force");
+    expect(useAgentStore.getState().graphLayout).toBe("force");
+  });
+});
+
+// ── toggleSoundMute ───────────────────────────────────────────────────────
+
+describe("toggleSoundMute", () => {
+  it("mutes sound when it was unmuted", () => {
+    useAgentStore.setState({ soundMuted: false });
+    useAgentStore.getState().toggleSoundMute();
+    expect(useAgentStore.getState().soundMuted).toBe(true);
+  });
+
+  it("unmutes sound when it was muted", () => {
+    useAgentStore.setState({ soundMuted: true });
+    useAgentStore.getState().toggleSoundMute();
+    expect(useAgentStore.getState().soundMuted).toBe(false);
+  });
+
+  it("persists the sound muted state to localStorage", () => {
+    useAgentStore.setState({ soundMuted: false });
+    useAgentStore.getState().toggleSoundMute();
+    expect(localStorage.setItem).toHaveBeenCalledWith(
+      "soundMuted",
+      JSON.stringify(true),
+    );
+  });
+});
+
+// ── selectOnlySession ─────────────────────────────────────────────────────
+
+describe("selectOnlySession", () => {
+  it("sets selectedSessionIds to exactly the given session", () => {
+    useAgentStore.getState().selectOnlySession("session-x");
+    const { selectedSessionIds } = useAgentStore.getState();
+    expect(selectedSessionIds.size).toBe(1);
+    expect(selectedSessionIds.has("session-x")).toBe(true);
+  });
+
+  it("replaces any previously selected sessions", () => {
+    useAgentStore.getState().toggleSession("old-session");
+    useAgentStore.getState().selectOnlySession("new-session");
+    const { selectedSessionIds } = useAgentStore.getState();
+    expect(selectedSessionIds.has("old-session")).toBe(false);
+    expect(selectedSessionIds.has("new-session")).toBe(true);
+  });
+
+  it("marks sessionFilterInitialized as true", () => {
+    useAgentStore.getState().selectOnlySession("s1");
+    expect(useAgentStore.getState().sessionFilterInitialized).toBe(true);
+  });
+
+  it("clears selectedAgentId", () => {
+    useAgentStore.getState().selectAgent("agent-1");
+    useAgentStore.getState().selectOnlySession("s1");
+    expect(useAgentStore.getState().selectedAgentId).toBeNull();
+  });
+});
+
+// ── toggleTranscript / toggleFileAttention ────────────────────────────────
+
+describe("toggleTranscript", () => {
+  it("opens transcript when closed", () => {
+    useAgentStore.setState({ transcriptOpen: false });
+    useAgentStore.getState().toggleTranscript();
+    expect(useAgentStore.getState().transcriptOpen).toBe(true);
+  });
+
+  it("closes transcript when open", () => {
+    useAgentStore.setState({ transcriptOpen: true });
+    useAgentStore.getState().toggleTranscript();
+    expect(useAgentStore.getState().transcriptOpen).toBe(false);
+  });
+});
+
+describe("toggleFileAttention", () => {
+  it("opens file attention panel when closed", () => {
+    useAgentStore.setState({ fileAttentionOpen: false });
+    useAgentStore.getState().toggleFileAttention();
+    expect(useAgentStore.getState().fileAttentionOpen).toBe(true);
+  });
+
+  it("closes file attention panel when open", () => {
+    useAgentStore.setState({ fileAttentionOpen: true });
+    useAgentStore.getState().toggleFileAttention();
+    expect(useAgentStore.getState().fileAttentionOpen).toBe(false);
+  });
+});

@@ -2,13 +2,16 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import { HeatmapControls } from "../HeatmapControls";
-import { resetStore } from "@/lib/__tests__/test-utils";
+
+// Reset the specific UI fields this test suite exercises rather than
+// calling resetStore(), which only touches agent/team data.  This ensures
+// the heatmapMetric starts at its default on every test even when other
+// test files modify it while running in parallel.
+beforeEach(() => {
+  useAgentStore.setState({ heatmapMetric: "tokenEfficiency" });
+});
 
 describe("HeatmapControls", () => {
-  beforeEach(() => {
-    resetStore();
-  });
-
   it("renders the label and metric selector", () => {
     render(<HeatmapControls />);
     expect(screen.getByText("Heatmap Metric")).toBeDefined();

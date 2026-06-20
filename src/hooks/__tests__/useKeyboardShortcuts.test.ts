@@ -103,4 +103,68 @@ describe("useKeyboardShortcuts", () => {
 
     expect(useAgentStore.getState().selectedAgentId).toBe("a1");
   });
+
+  it("f key calls graphRef.current.fitToView()", () => {
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "f" }));
+    expect(graphRef.current.fitToView).toHaveBeenCalledOnce();
+  });
+
+  it("F key calls graphRef.current.fitToView()", () => {
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "F" }));
+    expect(graphRef.current.fitToView).toHaveBeenCalledOnce();
+  });
+
+  it("t key calls toggleTranscript", () => {
+    const toggleTranscript = vi.fn();
+    useAgentStore.setState({ toggleTranscript });
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "t" }));
+    expect(toggleTranscript).toHaveBeenCalledOnce();
+  });
+
+  it("h key calls toggleFileAttention", () => {
+    const toggleFileAttention = vi.fn();
+    useAgentStore.setState({ toggleFileAttention });
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "h" }));
+    expect(toggleFileAttention).toHaveBeenCalledOnce();
+  });
+
+  it("ignores keydown when target is an input element", () => {
+    useAgentStore.setState({ selectedAgentId: "a1" });
+    const selectAgent = vi.fn();
+    useAgentStore.setState({ selectAgent });
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
+
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    input.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    document.body.removeChild(input);
+
+    expect(selectAgent).not.toHaveBeenCalled();
+  });
 });
