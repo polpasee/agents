@@ -8,6 +8,7 @@ import type {
   ToolCallEntry,
   WorkflowRunState,
 } from "../../src/lib/types";
+import { makeAgentState } from "../../src/lib/agentState";
 import {
   STATUS_RUNNING_THRESHOLD_MS,
   MAX_TOOL_CALLS_PER_AGENT,
@@ -237,29 +238,22 @@ export function registerAgent(opts: {
     .replace(/^\//, "")
     .replace(/^private\/(tmp|var|etc)\b/, "$1");
 
-  const agent: AgentState = {
+  const agent: AgentState = makeAgentState({
     id: opts.agentId,
     parentId: opts.parentId,
     agentType: opts.agentType,
     displayType: opts.displayType,
-    status: "running",
     task: opts.task || "Session",
     sessionId: opts.sessionId,
     slug: opts.slug,
     model: opts.model,
     teamId: opts.teamId,
-    toolCalls: [],
-    inputTokens: 0,
-    outputTokens: 0,
-    cacheReadTokens: 0,
-    cacheCreateTokens: 0,
-    contextWindow: 1000000,
     startTime: opts.startTime,
     metadata: { projectName, projectDir: opts.projectDir },
     effort: opts.effort,
     is1MContext: opts.is1MContext,
     workflowName: opts.workflowName,
-  };
+  });
 
   agents.set(opts.agentId, agent);
 

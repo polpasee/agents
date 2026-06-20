@@ -7,7 +7,8 @@ import type {
   ToolCallEntry,
   AgentTypeBudgets,
 } from "../types";
-import { TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "../config";
+import { TOOL_CALLS_MAX_PER_AGENT } from "../config";
+import { makeAgentState } from "../agentState";
 import { findCascadeRelations, recomputeTeamForAgent } from "./helpers";
 
 /**
@@ -69,8 +70,9 @@ export function createMutationContext(snapshot: {
 
 // ── Re-register (metadata refresh) field-merge strategies ────────────
 //
-// Adding a new AgentState field? Add it to the merge block in applyRegister
-// so the policy is explicit (per-strategy semantics documented inline there).
+// Adding a new AgentState field? Add it to makeAgentState (src/lib/agentState.ts)
+// for the create branch, and to the merge block in applyRegister below for the
+// refresh branch (policy semantics documented inline there).
 
 // ── Per-event handlers ────────────────────────────────────────────────
 
@@ -103,29 +105,22 @@ export function applyRegister(
         is1MContext: event.is1MContext ?? existing.is1MContext, // same: false is meaningful, not "absent"
         workflowName: existing.workflowName || event.workflowName, // keepFirst; heals from undefined if a later register carries it
       }
-    : {
+    : makeAgentState({
         id: event.agentId,
         parentId: event.parentId,
         agentType: event.agentType,
         displayType: event.displayType,
-        status: "running",
         task: event.task,
         sessionId: event.sessionId,
         slug: event.slug,
         model: event.model,
         teamId: event.teamId,
-        toolCalls: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheCreateTokens: 0,
-        contextWindow: DEFAULT_CONTEXT_WINDOW,
         startTime: timestamp,
         metadata: event.metadata,
         effort: event.effort,
         is1MContext: event.is1MContext,
         workflowName: event.workflowName,
-      };
+      });
   ctx.cloneAgents().set(event.agentId, agent);
 
   // New agent = topology change. A metadata-refresh re-register on an
