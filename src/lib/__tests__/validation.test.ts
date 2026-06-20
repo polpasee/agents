@@ -260,3 +260,233 @@ describe("isValidAgentEvent", () => {
     ).toBe(false);
   });
 });
+
+// ── 2a: NaN/missing token field guards ──────────────────────────────────────
+
+describe("agent:tokens — NaN / Infinity / missing field rejection (2a)", () => {
+  const validTokens = {
+    type: "agent:tokens",
+    agentId: "a1",
+    inputTokens: 100,
+    outputTokens: 50,
+    cacheReadTokens: 10,
+    cacheCreateTokens: 5,
+    contextWindow: 200000,
+  };
+
+  it("rejects NaN for inputTokens", () => {
+    expect(isValidAgentEvent({ ...validTokens, inputTokens: NaN })).toBe(false);
+  });
+
+  it("rejects NaN for outputTokens", () => {
+    expect(isValidAgentEvent({ ...validTokens, outputTokens: NaN })).toBe(
+      false,
+    );
+  });
+
+  it("rejects NaN for cacheReadTokens", () => {
+    expect(isValidAgentEvent({ ...validTokens, cacheReadTokens: NaN })).toBe(
+      false,
+    );
+  });
+
+  it("rejects NaN for cacheCreateTokens", () => {
+    expect(isValidAgentEvent({ ...validTokens, cacheCreateTokens: NaN })).toBe(
+      false,
+    );
+  });
+
+  it("rejects NaN for contextWindow", () => {
+    expect(isValidAgentEvent({ ...validTokens, contextWindow: NaN })).toBe(
+      false,
+    );
+  });
+
+  it("rejects Infinity for inputTokens", () => {
+    expect(isValidAgentEvent({ ...validTokens, inputTokens: Infinity })).toBe(
+      false,
+    );
+  });
+
+  it("rejects missing outputTokens field", () => {
+    const { outputTokens: _o, ...withoutOutput } = validTokens;
+    expect(isValidAgentEvent(withoutOutput)).toBe(false);
+  });
+
+  it("rejects missing cacheReadTokens field", () => {
+    const { cacheReadTokens: _c, ...without } = validTokens;
+    expect(isValidAgentEvent(without)).toBe(false);
+  });
+
+  it("rejects missing cacheCreateTokens field", () => {
+    const { cacheCreateTokens: _c, ...without } = validTokens;
+    expect(isValidAgentEvent(without)).toBe(false);
+  });
+
+  it("rejects missing contextWindow field", () => {
+    const { contextWindow: _c, ...without } = validTokens;
+    expect(isValidAgentEvent(without)).toBe(false);
+  });
+
+  it("accepts all zero finite values", () => {
+    expect(
+      isValidAgentEvent({
+        ...validTokens,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        contextWindow: 0,
+      }),
+    ).toBe(true);
+  });
+});
+
+// ── 2c: malformed nested arrays in workflow and annotation validators ────────
+
+describe("isWorkflowRunState — malformed phases/agents elements (2c)", () => {
+  const validWorkflow = {
+    runId: "wf_abc",
+    sessionId: "sess-1",
+    name: "code-review",
+    status: "completed",
+    startTime: 1000,
+    agentCount: 1,
+    phases: [{ index: 1, title: "Phase 1" }],
+    agents: [{ agentId: "a1", label: "reviewer", state: "done" }],
+  };
+
+  it("accepts valid phases and agents elements", () => {
+    expect(
+      isValidServerEvent({ type: "workflow:update", workflow: validWorkflow }),
+    ).toBe(true);
+  });
+
+  it("rejects phases element missing index", () => {
+    const bad = {
+      ...validWorkflow,
+      phases: [{ title: "Phase 1" }],
+    };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects phases element missing title", () => {
+    const bad = { ...validWorkflow, phases: [{ index: 1 }] };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects phases element that is a non-object primitive", () => {
+    const bad = { ...validWorkflow, phases: ["not-an-object"] };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects agents element missing agentId", () => {
+    const bad = {
+      ...validWorkflow,
+      agents: [{ label: "reviewer", state: "done" }],
+    };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects agents element missing label", () => {
+    const bad = {
+      ...validWorkflow,
+      agents: [{ agentId: "a1", state: "done" }],
+    };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects agents element missing state", () => {
+    const bad = {
+      ...validWorkflow,
+      agents: [{ agentId: "a1", label: "reviewer" }],
+    };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("rejects agents element that is a non-object primitive", () => {
+    const bad = { ...validWorkflow, agents: [42] };
+    expect(isValidServerEvent({ type: "workflow:update", workflow: bad })).toBe(
+      false,
+    );
+  });
+
+  it("accepts empty phases and agents arrays", () => {
+    const empty = { ...validWorkflow, phases: [], agents: [], agentCount: 0 };
+    expect(
+      isValidServerEvent({ type: "workflow:update", workflow: empty }),
+    ).toBe(true);
+  });
+});
+
+describe("isAnnotationShape — full field validation (2c)", () => {
+  const validAnnotation = {
+    id: "ann-1",
+    targetId: "agent-x",
+    targetType: "agent",
+    text: "a note",
+    timestamp: 1000,
+  };
+
+  it("accepts annotation:sync with fully-shaped annotation", () => {
+    expect(
+      isValidServerEvent({
+        type: "annotation:sync",
+        annotations: [validAnnotation],
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects annotation missing targetType", () => {
+    const { targetType: _t, ...without } = validAnnotation;
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [without] }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation with invalid targetType", () => {
+    expect(
+      isValidServerEvent({
+        type: "annotation:sync",
+        annotations: [{ ...validAnnotation, targetType: "node" }],
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation missing text", () => {
+    const { text: _t, ...without } = validAnnotation;
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [without] }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation missing timestamp", () => {
+    const { timestamp: _t, ...without } = validAnnotation;
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [without] }),
+    ).toBe(false);
+  });
+
+  it("rejects annotation:update with annotation missing text field", () => {
+    const { text: _t, ...without } = validAnnotation;
+    expect(
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: without,
+        action: "add",
+      }),
+    ).toBe(false);
+  });
+});

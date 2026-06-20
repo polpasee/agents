@@ -48,7 +48,9 @@ describe("clusterHullPath", () => {
       .map((p) => p.split(",").map(Number));
     expect(vertices).toHaveLength(4);
     const cornerDist = Math.sqrt(50 * 50 + 50 * 50);
-    for (const [x, y] of vertices) {
+    for (const vertex of vertices) {
+      // safe: each vertex entry from .split(",").map(Number) has exactly 2 elements
+      const [x, y] = vertex as [number, number];
       const dist = Math.sqrt((x - 50) ** 2 + (y - 50) ** 2);
       expect(dist).toBeCloseTo(cornerDist + PAD, 6);
     }

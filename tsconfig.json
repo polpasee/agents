@@ -18,6 +18,10 @@
         "name": "next"
       }
     ],
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
     "paths": {
       "@/*": ["./src/*"]
     }

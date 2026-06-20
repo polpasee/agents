@@ -43,7 +43,8 @@ describe("/api/annotations/[id] DELETE", () => {
     expect(res.status).toBe(204);
     expect(annotations.has("ann-keep")).toBe(false);
     expect(client.received).toHaveLength(1);
-    const broadcast = JSON.parse(client.received[0]);
+    // safe: toHaveLength(1) asserts exactly one element was pushed
+    const broadcast = JSON.parse(client.received[0]!);
     expect(broadcast.type).toBe("annotation:update");
     expect(broadcast.action).toBe("remove");
     expect(broadcast.annotation.id).toBe("ann-keep");

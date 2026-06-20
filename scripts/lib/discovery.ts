@@ -222,7 +222,8 @@ export function selectLosingMains(
     // Keep mainIds[0] (winner). Evict only losers whose JSONL has gone quiet
     // — a still-writing loser is a real concurrent session, not a ghost.
     for (let i = 1; i < mainIds.length; i++) {
-      const id = mainIds[i];
+      // safe: i starts at 1 and stays < length, so mainIds[i] exists
+      const id = mainIds[i]!;
       const mtime = agentLastModified.get(id) ?? agents.get(id)?.startTime ?? 0;
       if (now - mtime <= STATUS_RUNNING_THRESHOLD_MS) continue;
       losingMainIds.push(id);
@@ -835,7 +836,9 @@ function purgeAgent(agentId: string, warnLabel: string): void {
   pendingReparents.delete(agentId);
   removedAgentIds.set(agentId, Date.now());
   for (let i = edges.length - 1; i >= 0; i--) {
-    if (edges[i].source === agentId || edges[i].target === agentId) {
+    // safe: i is in [0, edges.length) by loop bounds
+    const edge = edges[i]!;
+    if (edge.source === agentId || edge.target === agentId) {
       edges.splice(i, 1);
     }
   }

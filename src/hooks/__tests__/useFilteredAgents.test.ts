@@ -106,7 +106,8 @@ describe("useFilteredAgents", () => {
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(1);
-    expect(result.current[0].id).toBe("a1");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result.current[0]!.id).toBe("a1");
   });
 
   it("returns empty array when no agents", () => {
@@ -133,7 +134,8 @@ describe("useFilteredAgents", () => {
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(1);
-    expect(result.current[0].id).toBe("main-idle");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result.current[0]!.id).toBe("main-idle");
   });
 
   it("keeps idle sub-agents — server is the single source of truth for staleness", () => {

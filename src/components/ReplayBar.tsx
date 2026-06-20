@@ -1,5 +1,4 @@
 "use client";
-import React from "react";
 import { useAgentStore } from "@/lib/store";
 import { formatDuration } from "@/lib/utils";
 import { UI } from "@/lib/colors";

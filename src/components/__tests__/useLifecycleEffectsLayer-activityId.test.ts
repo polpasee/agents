@@ -43,7 +43,8 @@ describe("useLifecycleEffectsLayer — id-tracking logic", () => {
     const activity = [makeEntry(5), makeEntry(6), makeEntry(7)];
     const newEntries = getNewEntries(activity, 6);
     expect(newEntries).toHaveLength(1);
-    expect(newEntries[0].id).toBe("act-7");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(newEntries[0]!.id).toBe("act-7");
   });
 
   it("returns empty array when no entry is newer than lastSeenId", () => {
@@ -66,7 +67,8 @@ describe("useLifecycleEffectsLayer — id-tracking logic", () => {
 
     // Only entry 101 is new — the old slice(5) would have returned []
     expect(newEntries).toHaveLength(1);
-    expect(newEntries[0].id).toBe("act-101");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(newEntries[0]!.id).toBe("act-101");
   });
 
   it("with length-based slice approach (the OLD bug): demonstrates it returns [] after cap", () => {
@@ -87,7 +89,8 @@ describe("useLifecycleEffectsLayer — id-tracking logic", () => {
 
   it("advances lastSeenId to the last entry's numeric id", () => {
     const activity = [makeEntry(20), makeEntry(21), makeEntry(22)];
-    const lastEntry = activity[activity.length - 1];
+    // safe: activity has 3 elements, so index length-1 exists
+    const lastEntry = activity[activity.length - 1]!;
     const newLastSeenId = activityNumId(lastEntry);
     expect(newLastSeenId).toBe(22);
   });

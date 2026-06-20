@@ -94,8 +94,9 @@ describe("Timeline", () => {
     const { container } = render(<Timeline />);
 
     const labels = container.querySelectorAll(".text-xs.font-mono.font-bold");
-    expect(labels[0].textContent).toBe("BUILD");
-    expect(labels[1].textContent).toBe("REVIEW");
+    // safe: labels has at least 2 elements per test setup with 2 agents
+    expect(labels[0]!.textContent).toBe("BUILD");
+    expect(labels[1]!.textContent).toBe("REVIEW");
   });
 
   it("does not throw RangeError when computing the earliest startTime over 200000 agents (Math.min spread regression)", () => {

@@ -380,10 +380,12 @@ export function reparentAgent(agentId: string, newParentId: string): void {
   // Swap the parent edge: drop the old anchor, add the new one. Typed
   // edges (blocking/tool) are not parent anchors and must survive.
   for (let i = edges.length - 1; i >= 0; i--) {
+    // safe: i is in [0, edges.length) by loop bounds; reverse iteration is safe with splice
+    const edge = edges[i]!;
     if (
-      !edges[i].edgeType &&
-      edges[i].source === oldParentId &&
-      edges[i].target === agentId
+      !edge.edgeType &&
+      edge.source === oldParentId &&
+      edge.target === agentId
     ) {
       edges.splice(i, 1);
     }

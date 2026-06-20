@@ -46,8 +46,9 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].role).toBe("user");
-    expect(result[0].content).toBe("Hello world");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.role).toBe("user");
+    expect(result[0]!.content).toBe("Hello world");
   });
 
   it("parses assistant messages from JSONL", async () => {
@@ -65,8 +66,9 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].role).toBe("assistant");
-    expect(result[0].content).toBe("I can help");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.role).toBe("assistant");
+    expect(result[0]!.content).toBe("I can help");
   });
 
   it("parses tool_use blocks from assistant messages", async () => {
@@ -91,8 +93,10 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].toolCalls).toHaveLength(1);
-    expect(result[0].toolCalls![0].name).toBe("Read");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.toolCalls).toHaveLength(1);
+    // safe: toHaveLength(1) asserts toolCalls[0] exists
+    expect(result[0]!.toolCalls![0]!.name).toBe("Read");
   });
 
   it("matches tool_result to pending tool call", async () => {
@@ -126,7 +130,8 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     const assistantEntry = result.find((e) => e.role === "assistant");
-    expect(assistantEntry?.toolCalls?.[0].result).toBe("file contents here");
+    // safe: toolCalls[0] is the only entry, asserted to exist via toHaveLength in prior test
+    expect(assistantEntry?.toolCalls?.[0]!.result).toBe("file contents here");
   });
 
   it("skips malformed JSON lines", async () => {
@@ -142,7 +147,8 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].content).toBe("valid");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.content).toBe("valid");
   });
 
   it("skips entries without type or message", async () => {

@@ -126,7 +126,8 @@ export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
   const slot = Math.abs(djb2(id)) % AGENT_PALETTE.length;
-  const color = AGENT_PALETTE[slot];
+  // safe: slot is in [0, AGENT_PALETTE.length) by construction
+  const color = AGENT_PALETTE[slot]!;
   colorByAgentId.set(id, color);
   return color;
 }

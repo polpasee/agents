@@ -38,7 +38,15 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
     expect(
       isValidServerEvent({
         type: "annotation:sync",
-        annotations: [{ id: "1", targetId: "a", text: "note" }],
+        annotations: [
+          {
+            id: "1",
+            targetId: "a",
+            targetType: "agent",
+            text: "note",
+            timestamp: 1000,
+          },
+        ],
       }),
     ).toBe(true);
   });
@@ -66,7 +74,13 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
     expect(
       isValidServerEvent({
         type: "annotation:update",
-        annotation: { id: "1", targetId: "a" },
+        annotation: {
+          id: "1",
+          targetId: "a",
+          targetType: "agent",
+          text: "note",
+          timestamp: 1000,
+        },
         action: "add",
       }),
     ).toBe(true);
@@ -76,7 +90,13 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
     expect(
       isValidServerEvent({
         type: "annotation:update",
-        annotation: { id: "1", targetId: "a" },
+        annotation: {
+          id: "1",
+          targetId: "a",
+          targetType: "agent",
+          text: "note",
+          timestamp: 1000,
+        },
         action: "remove",
       }),
     ).toBe(true);
@@ -146,36 +166,34 @@ describe("isValidAgentEvent — adversarial: agent:tokens with non-numeric field
     ).toBe(false);
   });
 
-  it("accepts agent:tokens with Infinity (typeof Infinity === 'number')", () => {
-    // Document current behavior: Infinity passes typeof check.
-    // This test serves as a regression guard — if the validator is
-    // strengthened to reject Infinity, update this assertion.
-    const result = isValidAgentEvent({
-      type: "agent:tokens",
-      agentId: "a1",
-      inputTokens: Infinity,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreateTokens: 0,
-      contextWindow: 200000,
-    });
-    // Current behavior: passes (Infinity is typeof 'number')
-    expect(typeof result).toBe("boolean");
-    expect(result).toBe(true);
+  it("rejects agent:tokens with Infinity inputTokens (Number.isFinite guard)", () => {
+    // Strengthened: all token fields must be Number.isFinite (no NaN/Infinity).
+    expect(
+      isValidAgentEvent({
+        type: "agent:tokens",
+        agentId: "a1",
+        inputTokens: Infinity,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        contextWindow: 200000,
+      }),
+    ).toBe(false);
   });
 
-  it("accepts agent:tokens with NaN (typeof NaN === 'number')", () => {
-    // Document current behavior: NaN passes typeof check.
-    const result = isValidAgentEvent({
-      type: "agent:tokens",
-      agentId: "a1",
-      inputTokens: NaN,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreateTokens: 0,
-      contextWindow: 200000,
-    });
-    expect(result).toBe(true);
+  it("rejects agent:tokens with NaN inputTokens (Number.isFinite guard)", () => {
+    // Strengthened: NaN is not a finite number so the event is invalid.
+    expect(
+      isValidAgentEvent({
+        type: "agent:tokens",
+        agentId: "a1",
+        inputTokens: NaN,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        contextWindow: 200000,
+      }),
+    ).toBe(false);
   });
 
   it("rejects agent:tokens with undefined inputTokens", () => {

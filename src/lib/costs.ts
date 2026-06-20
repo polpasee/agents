@@ -14,13 +14,15 @@ const MODEL_RATES: Record<string, Rates> = {
   haiku: { input: 0.8, output: 4, cacheRead: 0.08, cacheWrite: 1 },
 };
 
-const DEFAULT_RATES = MODEL_RATES.opus;
+// safe: opus key is defined in the literal above; assertion avoids `| undefined` from Record<string, Rates>
+const DEFAULT_RATES: Rates = MODEL_RATES["opus"]!;
 
 function getRates(model?: string): Rates {
   if (!model) return DEFAULT_RATES;
   const lower = model.toLowerCase();
-  if (lower.includes("haiku")) return MODEL_RATES.haiku;
-  if (lower.includes("sonnet")) return MODEL_RATES.sonnet;
+  // safe: haiku/sonnet keys are defined in the literal above
+  if (lower.includes("haiku")) return MODEL_RATES["haiku"]!;
+  if (lower.includes("sonnet")) return MODEL_RATES["sonnet"]!;
   return DEFAULT_RATES; // opus or unknown
 }
 

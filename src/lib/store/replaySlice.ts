@@ -47,7 +47,8 @@ export const createReplaySlice: StateCreator<
   loadReplaySession: (session) => {
     const endTime =
       session.events.length > 0
-        ? session.events[session.events.length - 1].timestamp
+        ? // safe: length > 0 guarantees index length-1 exists
+          session.events[session.events.length - 1]!.timestamp
         : session.startTime;
     set({
       ...graphReset(get().topologyVersion),
@@ -128,8 +129,11 @@ export const createReplaySlice: StateCreator<
     );
     const events = replay.session.events;
     let idx = replay.currentIndex;
-    while (idx < events.length && events[idx].timestamp <= clamped) {
-      handleEvent(events[idx].event, events[idx].timestamp);
+    while (idx < events.length) {
+      // safe: idx < events.length guarantees events[idx] exists
+      const ev = events[idx]!;
+      if (ev.timestamp > clamped) break;
+      handleEvent(ev.event, ev.timestamp);
       idx++;
     }
     const newReplay = get().replay;

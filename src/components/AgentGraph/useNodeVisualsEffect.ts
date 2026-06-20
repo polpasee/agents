@@ -56,7 +56,8 @@ export function useNodeVisualsEffect(refs: AgentGraphRefs, opts: Options) {
       // Build a lightweight hash of visual-relevant fields to skip unchanged nodes
       const lastTool =
         latest.toolCalls.length > 0
-          ? latest.toolCalls[latest.toolCalls.length - 1].tool
+          ? // safe: length > 0 guarantees index length-1 exists
+            latest.toolCalls[latest.toolCalls.length - 1]!.tool
           : "";
       const hash = `${latest.status}|${latest.agentType}|${lastTool}|${latest.toolCalls.length}|${latest.inputTokens + latest.outputTokens}|${d.id === selectedAgentId}|${heatmapEnabled}|${heatmapMetric}`;
       const prev = select(this).attr("data-hash");

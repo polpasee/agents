@@ -10,7 +10,29 @@ import type {
 function isAnnotationShape(v: unknown): boolean {
   if (!v || typeof v !== "object") return false;
   const ann = v as Record<string, unknown>;
-  return typeof ann.id === "string" && typeof ann.targetId === "string";
+  return (
+    typeof ann.id === "string" &&
+    typeof ann.targetId === "string" &&
+    (ann.targetType === "agent" || ann.targetType === "edge") &&
+    typeof ann.text === "string" &&
+    typeof ann.timestamp === "number"
+  );
+}
+
+function isWorkflowPhaseShape(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const p = v as Record<string, unknown>;
+  return typeof p.index === "number" && typeof p.title === "string";
+}
+
+function isWorkflowAgentRefShape(v: unknown): boolean {
+  if (!v || typeof v !== "object") return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.agentId === "string" &&
+    typeof r.label === "string" &&
+    typeof r.state === "string"
+  );
 }
 
 function isAgentStatus(v: unknown): v is AgentStatus {
@@ -38,7 +60,9 @@ function isWorkflowRunState(v: unknown): v is WorkflowRunState {
     typeof r.startTime === "number" &&
     typeof r.agentCount === "number" &&
     Array.isArray(r.phases) &&
-    Array.isArray(r.agents)
+    r.phases.every(isWorkflowPhaseShape) &&
+    Array.isArray(r.agents) &&
+    r.agents.every(isWorkflowAgentRefShape)
   );
 }
 
@@ -97,7 +121,12 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
       return typeof obj.agentId === "string" && typeof obj.tool === "string";
     case "agent:tokens":
       return (
-        typeof obj.agentId === "string" && typeof obj.inputTokens === "number"
+        typeof obj.agentId === "string" &&
+        Number.isFinite(obj.inputTokens) &&
+        Number.isFinite(obj.outputTokens) &&
+        Number.isFinite(obj.cacheReadTokens) &&
+        Number.isFinite(obj.cacheCreateTokens) &&
+        Number.isFinite(obj.contextWindow)
       );
     case "agent:message":
       return typeof obj.fromId === "string" && typeof obj.toId === "string";

@@ -65,7 +65,8 @@ describe("/api/stream GET (SSE)", () => {
     expect(res.headers.get("cache-control")).toMatch(/no-store|no-cache/);
 
     const [first] = await readFrames(res.body!, 1);
-    const event = JSON.parse(first);
+    // safe: readFrames returns exactly 1 frame when count=1
+    const event = JSON.parse(first!);
     expect(event.type).toBe("state:sync");
     expect(event.agents).toHaveLength(1);
     expect(event.agents[0].id).toBe("main-x");
@@ -110,8 +111,9 @@ describe("/api/stream GET (SSE)", () => {
 
     const res = GET(new Request("http://localhost/api/stream"));
     const [first, second] = await readFrames(res.body!, 2);
-    expect(JSON.parse(first).type).toBe("state:sync");
-    expect(JSON.parse(second).type).toBe("annotation:sync");
+    // safe: readFrames returns exactly 2 frames when count=2
+    expect(JSON.parse(first!).type).toBe("state:sync");
+    expect(JSON.parse(second!).type).toBe("annotation:sync");
   });
 
   it("does not leak a viewer when enqueue throws during start()", async () => {

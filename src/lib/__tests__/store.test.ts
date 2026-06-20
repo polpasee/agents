@@ -293,10 +293,11 @@ describe("handleEvent: agent:tool_call", () => {
 
     const agent = useAgentStore.getState().agents.get("a1")!;
     expect(agent.toolCalls).toHaveLength(1);
-    expect(agent.toolCalls[0].tool).toBe("readFile");
-    expect(agent.toolCalls[0].args).toBe('{"path":"foo.ts"}');
-    expect(agent.toolCalls[0].result).toBe("file contents");
-    expect(agent.toolCalls[0].timestamp).toBe(ts);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(agent.toolCalls[0]!.tool).toBe("readFile");
+    expect(agent.toolCalls[0]!.args).toBe('{"path":"foo.ts"}');
+    expect(agent.toolCalls[0]!.result).toBe("file contents");
+    expect(agent.toolCalls[0]!.timestamp).toBe(ts);
   });
 
   it("caps tool calls at TOOL_CALLS_MAX_PER_AGENT", () => {
@@ -314,7 +315,8 @@ describe("handleEvent: agent:tool_call", () => {
     const agent = useAgentStore.getState().agents.get("a1")!;
     expect(agent.toolCalls).toHaveLength(TOOL_CALLS_MAX_PER_AGENT);
     // The oldest entries should have been dropped; the last tool should be the most recent
-    expect(agent.toolCalls[TOOL_CALLS_MAX_PER_AGENT - 1].tool).toBe(
+    // safe: TOOL_CALLS_MAX_PER_AGENT - 1 < toolCalls.length (verified by toHaveLength above)
+    expect(agent.toolCalls[TOOL_CALLS_MAX_PER_AGENT - 1]!.tool).toBe(
       `tool-${TOOL_CALLS_MAX_PER_AGENT + 9}`,
     );
   });
@@ -399,7 +401,8 @@ describe("handleEvent: agent:message", () => {
     expect(state.agents.get("a2")).toEqual(agentsBefore.get("a2"));
     // Activity should have the message event
     expect(state.activity.length).toBeGreaterThan(0);
-    const lastActivity = state.activity[state.activity.length - 1];
+    // safe: activity.length > 0 asserted above
+    const lastActivity = state.activity[state.activity.length - 1]!;
     expect(lastActivity.event.type).toBe("agent:message");
   });
 });
@@ -563,7 +566,8 @@ describe("activity", () => {
     registerAgent("a1");
     const activity = useAgentStore.getState().activity;
     expect(activity).toHaveLength(1);
-    expect(activity[0].event.type).toBe("agent:register");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(activity[0]!.event.type).toBe("agent:register");
   });
 
   it("is capped at ACTIVITY_MAX_ENTRIES", () => {
@@ -580,7 +584,8 @@ describe("activity", () => {
     const activity = useAgentStore.getState().activity;
     expect(activity).toHaveLength(ACTIVITY_MAX_ENTRIES);
     // The most recent event should be the last one
-    const lastEvent = activity[activity.length - 1].event;
+    // safe: toHaveLength(ACTIVITY_MAX_ENTRIES) asserts length > 0
+    const lastEvent = activity[activity.length - 1]!.event;
     expect(lastEvent.type).toBe("agent:register");
     if (lastEvent.type === "agent:register") {
       expect(lastEvent.agentId).toBe(`agent-${ACTIVITY_MAX_ENTRIES + 19}`);

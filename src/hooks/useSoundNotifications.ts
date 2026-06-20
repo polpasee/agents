@@ -116,7 +116,8 @@ export function useSoundNotifications() {
     }
 
     const lastId = lastIdRef.current;
-    const latestId = activity[activity.length - 1].id;
+    // safe: activity.length > 0 checked above; index length-1 exists
+    const latestId = activity[activity.length - 1]!.id;
 
     // On first run, just remember where we are — don't play sounds for existing entries.
     if (lastId === null) {

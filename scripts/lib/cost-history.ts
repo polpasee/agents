@@ -160,7 +160,8 @@ async function runWithConcurrency<T>(
       (async () => {
         while (cursor < items.length) {
           const idx = cursor++;
-          await worker(items[idx]);
+          // safe: idx < items.length because cursor was incremented after the while-check
+          await worker(items[idx]!);
         }
       })(),
     );

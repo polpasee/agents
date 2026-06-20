@@ -113,7 +113,8 @@ export function isDuplicateActivity(
       i >= Math.max(0, activity.length - 5);
       i--
     ) {
-      const prev = activity[i].event;
+      // safe: i is bounded in [activity.length-5, activity.length-1] and length > 0
+      const prev = activity[i]!.event;
       if (prev.type === "agent:status" && prev.agentId === event.agentId) {
         return prev.status === event.status;
       }

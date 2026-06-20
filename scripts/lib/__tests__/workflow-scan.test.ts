@@ -117,7 +117,8 @@ describe("parseWorkflowFile", () => {
     const result = parseWorkflowFile(filePath, "sess-abc");
 
     expect(result!.agents).toHaveLength(2);
-    const agent = result!.agents[0];
+    // safe: toHaveLength(2) asserts index 0 exists
+    const agent = result!.agents[0]!;
     expect(agent.agentId).toBe("ac37e2d69fd1abf90");
     expect(agent.label).toBe("find:A-arialabel");
     expect(agent.phaseIndex).toBe(1);
@@ -162,8 +163,8 @@ describe("parseWorkflowFile", () => {
     await fs.writeFile(filePath, JSON.stringify(FULL_FIXTURE));
     const result = parseWorkflowFile(filePath, "sess-abc");
 
-    // All agents come through with their wf label intact
-    expect(result!.agents[0].label).toBe("find:A-arialabel");
+    // safe: agents has at least 1 element (same fixture as above test)
+    expect(result!.agents[0]!.label).toBe("find:A-arialabel");
   });
 
   it("returns null for garbage file content", async () => {
@@ -204,7 +205,8 @@ describe("parseWorkflowFile", () => {
     const result = parseWorkflowFile(filePath, "sess-abc");
 
     expect(result).not.toBeNull();
-    const agent = result!.agents[0];
+    // safe: fixture has exactly 1 agent entry
+    const agent = result!.agents[0]!;
     // Non-numeric strings must be omitted (undefined), not NaN
     expect(agent.tokens).toBeUndefined();
     expect(agent.durationMs).toBeUndefined();
@@ -237,7 +239,8 @@ describe("parseWorkflowFile", () => {
 
     expect(result).not.toBeNull();
     expect(result!.agents).toHaveLength(1);
-    expect(result!.agents[0].agentId).toBe("valid-agent");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result!.agents[0]!.agentId).toBe("valid-agent");
   });
 
   it("falls back to agents.length when agentCount is absent", async () => {
@@ -361,7 +364,8 @@ describe("scanWorkflows", () => {
 
     const result = await scanWorkflows(tmpDir, sessionId);
     expect(result).toHaveLength(1);
-    expect(result[0].runId).toBe("wf_1abd6ed8-fdb");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.runId).toBe("wf_1abd6ed8-fdb");
   });
 
   it("skips all files on second call when mtimeCache is provided and files unchanged", async () => {
@@ -422,6 +426,7 @@ describe("scanWorkflows", () => {
 
     const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
     expect(second).toHaveLength(1);
-    expect(second[0].runId).toBe(FULL_FIXTURE.runId);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(second[0]!.runId).toBe(FULL_FIXTURE.runId);
   });
 });

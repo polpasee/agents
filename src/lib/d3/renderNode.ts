@@ -43,7 +43,8 @@ export function renderNodeVisuals(
   // Hexagon center shows the model family ("Fable"/"Opus"/"Sonnet"/"Haiku")
   // when known; falls back to the agent-type initial otherwise.
   const modelMatch = agent.model?.match(/claude-(fable|opus|sonnet|haiku)/i);
-  const modelName = modelMatch ? modelMatch[1].toUpperCase() : null;
+  // safe: capture group 1 is always present when the regex matches
+  const modelName = modelMatch ? modelMatch[1]!.toUpperCase() : null;
   const centerText = modelName ?? typeLabel.charAt(0);
   // When an effort tier is set, stack it as a second center line under the
   // model name so the active thinking tier reads at a glance.

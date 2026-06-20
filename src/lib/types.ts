@@ -193,6 +193,15 @@ export interface TeamState {
 // ── Workflow Monitoring ───────────────────────────────
 export type WorkflowStatus = "running" | "completed" | "failed";
 
+/** Closed union of per-agent state values emitted by the workflow runner.
+ *  "unknown" is the fallback for any unrecognized value in the JSONL data. */
+export type WorkflowAgentState =
+  | "pending"
+  | "running"
+  | "done"
+  | "failed"
+  | "unknown";
+
 export interface WorkflowPhase {
   index: number;
   title: string;
@@ -205,7 +214,7 @@ export interface WorkflowAgentRef {
   phaseIndex?: number;
   phaseTitle?: string;
   model?: string;
-  state: string;
+  state: WorkflowAgentState;
   tokens?: number;
   toolCalls?: number;
   durationMs?: number;

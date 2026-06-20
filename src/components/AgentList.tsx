@@ -17,7 +17,8 @@ import { UsagePanel } from "./UsagePanel";
 
 function shortModel(model: string): string {
   const m = model.match(/claude-(opus|sonnet|haiku)/i);
-  return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : model;
+  // safe: capture group 1 is always present when regex matches
+  return m ? m[1]!.charAt(0).toUpperCase() + m[1]!.slice(1) : model;
 }
 
 function AgentRow({
@@ -35,7 +36,8 @@ function AgentRow({
   const isRunning = agent.status === "running";
   const lastTool =
     agent.toolCalls.length > 0
-      ? agent.toolCalls[agent.toolCalls.length - 1].tool
+      ? // safe: length > 0 guarantees index length-1 exists
+        agent.toolCalls[agent.toolCalls.length - 1]!.tool
       : null;
   const statusLabel = isRunning && lastTool ? lastTool : agent.status;
   const statusColor = STATUS_COLORS[agent.status];

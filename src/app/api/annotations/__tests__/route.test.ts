@@ -54,7 +54,8 @@ describe("/api/annotations POST", () => {
     expect(body.annotation.id).toBe("ann-abc123");
     expect(annotations.size).toBe(1);
     expect(client.received).toHaveLength(1);
-    const broadcast = JSON.parse(client.received[0]);
+    // safe: toHaveLength(1) asserts exactly one element was pushed
+    const broadcast = JSON.parse(client.received[0]!);
     expect(broadcast.type).toBe("annotation:update");
     expect(broadcast.action).toBe("add");
     expect(broadcast.annotation.id).toBe("ann-abc123");

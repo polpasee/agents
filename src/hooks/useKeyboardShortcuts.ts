@@ -54,7 +54,8 @@ export function useKeyboardShortcuts(
             e.key === "ArrowDown"
               ? (currentIdx + 1) % agentIds.length
               : (currentIdx - 1 + agentIds.length) % agentIds.length;
-          selectAgent(agentIds[nextIdx]);
+          // safe: nextIdx is in [0, agentIds.length) by modular arithmetic
+          selectAgent(agentIds[nextIdx]!);
           break;
         }
       }

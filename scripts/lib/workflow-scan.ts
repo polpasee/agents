@@ -4,9 +4,30 @@ import * as path from "node:path";
 import type {
   WorkflowRunState,
   WorkflowAgentRef,
+  WorkflowAgentState,
   WorkflowPhase,
   WorkflowStatus,
 } from "../../src/lib/types";
+
+const KNOWN_AGENT_STATES = new Set<WorkflowAgentState>([
+  "pending",
+  "running",
+  "done",
+  "failed",
+  "unknown",
+]);
+
+/** Map a raw string value from JSONL to the closed WorkflowAgentState union.
+ *  Unknown values (including non-string) map to "unknown" rather than crashing. */
+function coerceWorkflowAgentState(raw: unknown): WorkflowAgentState {
+  if (
+    typeof raw === "string" &&
+    KNOWN_AGENT_STATES.has(raw as WorkflowAgentState)
+  ) {
+    return raw as WorkflowAgentState;
+  }
+  return "unknown";
+}
 
 /**
  * Parse a single wf_*.json file into a WorkflowRunState.
@@ -57,7 +78,7 @@ export function parseWorkflowFile(
         const ref: WorkflowAgentRef = {
           agentId: e.agentId as string,
           label: typeof e.label === "string" ? e.label : (e.agentId as string),
-          state: typeof e.state === "string" ? e.state : "unknown",
+          state: coerceWorkflowAgentState(e.state),
         };
         if (e.phaseIndex !== undefined) {
           const n = Number(e.phaseIndex);
@@ -129,7 +150,8 @@ export async function scanWorkflowScripts(
   }
   for (const file of files) {
     const m = file.match(/^(.+)-(wf_[A-Za-z0-9-]+)\.js$/);
-    if (m) map.set(m[2], m[1]);
+    // safe: capture groups 1 and 2 are always present when the regex matches
+    if (m) map.set(m[2]!, m[1]!);
   }
   return map;
 }

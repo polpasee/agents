@@ -49,7 +49,7 @@ describe("useEventStream", () => {
   it("connects to /api/stream and sets connected=true on open", async () => {
     renderHook(() => useEventStream());
     expect(MockEventSource.instances).toHaveLength(1);
-    expect(MockEventSource.instances[0].url).toBe("/api/stream");
+    expect(MockEventSource.instances[0]!.url).toBe("/api/stream");
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -58,7 +58,7 @@ describe("useEventStream", () => {
 
   it("handles state:sync by populating agents/edges/teams", async () => {
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -91,7 +91,7 @@ describe("useEventStream", () => {
 
   it("buffers state:update events and flushes them", async () => {
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -137,7 +137,7 @@ describe("useEventStream", () => {
 
   it("closes the EventSource on unmount", () => {
     const { unmount } = renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     expect(es.closed).toBe(false);
     unmount();
     expect(es.closed).toBe(true);
@@ -145,7 +145,7 @@ describe("useEventStream", () => {
 
   it("handles annotation:update add by writing to the store", async () => {
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -170,7 +170,7 @@ describe("useEventStream", () => {
   // pre-disconnect deltas don't flush onto the fresh snapshot.
   it("drops the buffered state:update events when a fresh state:sync arrives", async () => {
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -279,7 +279,7 @@ describe("useEventStream", () => {
     });
 
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -316,7 +316,7 @@ describe("useEventStream", () => {
   // connected=true.
   it("does not call setConnected from onerror after the hook is unmounted", async () => {
     const { unmount } = renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -335,7 +335,7 @@ describe("useEventStream", () => {
   // between enqueue and flush.
   it("drops buffered state:update events when replay activates before flush", async () => {
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -395,7 +395,7 @@ describe("useEventStream", () => {
   // Bug 2 — flushEventBuffer must not dispatch after teardown (destroyed guard).
   it("does not dispatch buffered events after the hook is unmounted (destroyed guard)", async () => {
     const { unmount } = renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -470,7 +470,7 @@ describe("useEventStream", () => {
     });
 
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });
@@ -507,7 +507,7 @@ describe("useEventStream", () => {
     useAgentStore.setState((s) => ({ replay: { ...s.replay, active: false } }));
 
     renderHook(() => useEventStream());
-    const es = MockEventSource.instances[0];
+    const es = MockEventSource.instances[0]!;
     await act(async () => {
       await new Promise((r) => queueMicrotask(() => r(null)));
     });

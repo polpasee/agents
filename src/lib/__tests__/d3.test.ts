@@ -331,7 +331,8 @@ describe("renderNodeVisuals center model + effort", () => {
     expect(effortNodes.length).toBe(1);
     // Center lines set dominant-baseline="central"; the below-hex labels don't —
     // so this pins the effort to the CENTER (guards de-dup AND relocation).
-    expect(effortNodes[0].getAttribute("dominant-baseline")).toBe("central");
+    // safe: effortNodes.length === 1 asserted above
+    expect(effortNodes[0]!.getAttribute("dominant-baseline")).toBe("central");
   });
 
   it("renders the type initial + effort when the model family is unknown", () => {

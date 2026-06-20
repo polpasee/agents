@@ -73,7 +73,8 @@ describe("useMetricSampler", () => {
     vi.advanceTimersByTime(METRIC_SAMPLE_INTERVAL_MS);
 
     const history = useAgentStore.getState().metricHistory;
-    const latest = history[history.length - 1];
+    // safe: history has at least 1 element after advancing the timer
+    const latest = history[history.length - 1]!;
     expect(latest.costPerMin).toBeGreaterThan(0);
   });
 

@@ -58,7 +58,8 @@ function buildHierarchy(nodes: LayoutNode[]) {
 
   let root: HierNode;
   if (roots.length === 1) {
-    root = toHierNode(roots[0], new Set());
+    // safe: length === 1 guarantees index 0 exists
+    root = toHierNode(roots[0]!, new Set());
   } else if (roots.length === 0) {
     root = { id: "__virtual_root__", realNode: null };
   } else {
@@ -100,8 +101,9 @@ function applyTreeBasedLayout(
 ): void {
   if (nodes.length === 0) return;
   if (nodes.length === 1) {
-    nodes[0].fx = width / 2;
-    nodes[0].fy = height / 2;
+    // safe: length === 1 guarantees index 0 exists
+    nodes[0]!.fx = width / 2;
+    nodes[0]!.fy = height / 2;
     return;
   }
 

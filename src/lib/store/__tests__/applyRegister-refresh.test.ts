@@ -283,7 +283,8 @@ describe("accumulated state fields are preserved on re-register", () => {
     });
     const result = reRegister(existing, {});
     expect(result.toolCalls).toHaveLength(2);
-    expect(result.toolCalls[0].tool).toBe("Read");
+    // safe: toHaveLength(2) asserts index 0 exists
+    expect(result.toolCalls[0]!.tool).toBe("Read");
   });
 
   it("inputTokens are preserved", () => {

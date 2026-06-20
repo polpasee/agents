@@ -49,8 +49,9 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
       parseInt(e.id.replace("act-", ""), 10);
     const newEntries = activity.filter((e) => activityNumId(e) > lastSeenId);
     if (activity.length > 0) {
+      // safe: length > 0 guarantees index length-1 exists
       refs.prevActivityLenRef.current = activityNumId(
-        activity[activity.length - 1],
+        activity[activity.length - 1]!,
       );
     }
 

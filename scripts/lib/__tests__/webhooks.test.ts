@@ -51,7 +51,8 @@ describe("formatDiscordMessage", () => {
     >;
     expect(result.embeds).toBeDefined();
     const embeds = result.embeds as Array<Record<string, unknown>>;
-    expect(embeds[0].color).toBe(0xff4444);
+    // safe: embeds is defined per the expect above; index 0 is the first embed
+    expect(embeds[0]!.color).toBe(0xff4444);
   });
 
   it("uses yellow color for budget_exceeded", () => {
@@ -60,7 +61,8 @@ describe("formatDiscordMessage", () => {
       mockTime,
     ) as Record<string, unknown>;
     const embeds = result.embeds as Array<Record<string, unknown>>;
-    expect(embeds[0].color).toBe(0xeab308);
+    // safe: embeds array always has at least one element per message format contract
+    expect(embeds[0]!.color).toBe(0xeab308);
   });
 });
 

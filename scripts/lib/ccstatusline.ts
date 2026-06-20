@@ -28,7 +28,10 @@ function resolveCcstatuslineBin(): string {
     bin: Record<string, string> | string;
   };
   const binRel =
-    typeof ccPkg.bin === "string" ? ccPkg.bin : Object.values(ccPkg.bin)[0];
+    typeof ccPkg.bin === "string"
+      ? ccPkg.bin
+      : // safe: ccPkg.bin is a non-empty bin map when present per npm package spec
+        Object.values(ccPkg.bin)[0]!;
   return path.resolve(path.dirname(ccPkgPath), binRel);
 }
 

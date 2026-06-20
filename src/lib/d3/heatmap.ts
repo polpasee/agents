@@ -46,8 +46,9 @@ export function computeMetricValue(
       if (elapsed <= 0 || agent.toolCalls.length === 0) return 0.5;
       let busyTime = 0;
       for (let i = 1; i < agent.toolCalls.length; i++) {
+        // safe: loop starts at 1 and stays < length, so i and i-1 are valid indices
         const gap =
-          agent.toolCalls[i].timestamp - agent.toolCalls[i - 1].timestamp;
+          agent.toolCalls[i]!.timestamp - agent.toolCalls[i - 1]!.timestamp;
         if (gap < 5000) busyTime += gap; // gaps < 5s count as busy
       }
       const idleRatio = 1 - busyTime / elapsed;
@@ -71,8 +72,9 @@ export function computeMetricValue(
       if (agent.toolCalls.length < 2) return 0.5;
       let totalGap = 0;
       for (let i = 1; i < agent.toolCalls.length; i++) {
+        // safe: loop starts at 1 and stays < length, so i and i-1 are valid indices
         totalGap +=
-          agent.toolCalls[i].timestamp - agent.toolCalls[i - 1].timestamp;
+          agent.toolCalls[i]!.timestamp - agent.toolCalls[i - 1]!.timestamp;
       }
       const avgGap = totalGap / (agent.toolCalls.length - 1);
       return Math.max(0, Math.min(1, avgGap / 30000));
