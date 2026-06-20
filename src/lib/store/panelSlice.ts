@@ -1,6 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
-import type { LogEntry, FileModification, MetricSample, Annotation } from "../types";
+import type { Annotation } from "../types";
 import { METRIC_HISTORY_MAX } from "../config";
 import { saveLocalStorage } from "./helpers";
 

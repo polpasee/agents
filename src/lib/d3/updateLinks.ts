@@ -1,7 +1,7 @@
 import { select } from "d3-selection";
 import type { Selection } from "d3-selection";
 import type { SimulationNodeDatum, SimulationLinkDatum } from "d3-force";
-import { EDGE_COLORS, UI, agentColor } from "@/lib/colors";
+import { UI, agentColor } from "@/lib/colors";
 import type { AgentState } from "@/lib/types";
 import { endpointId } from "./endpointId";
 
@@ -55,21 +55,16 @@ export function updateLinkVisuals<E extends SVGElement>(
   linkLine: Selection<E, SimLink, SVGGElement, unknown>,
   agents: Map<string, AgentState>,
 ) {
-  linkGlow.attr("stroke", (d) => {
+  const strokeFor = (d: SimLink) => {
     if (d.edgeType === "message") {
       return UI.tool; // amber for message edges
     }
     const a = agents.get(endpointId(d.target));
     return a ? agentColor(a) : UI.text.secondary;
-  });
+  };
+  linkGlow.attr("stroke", strokeFor);
   linkLine
-    .attr("stroke", (d) => {
-      if (d.edgeType === "message") {
-        return UI.tool;
-      }
-      const a = agents.get(endpointId(d.target));
-      return a ? agentColor(a) : UI.text.secondary;
-    })
+    .attr("stroke", strokeFor)
     .attr("stroke-dasharray", (d) => {
       if (d.edgeType === "message") return "4 3";
       const a = agents.get(endpointId(d.target));
