@@ -36,6 +36,8 @@ describe("/api/annotations/[id] DELETE", () => {
     const res = await DELETE(
       new Request("http://localhost/api/annotations/ann-keep", {
         method: "DELETE",
+        // A present, allowlisted Origin is required on mutating routes.
+        headers: { origin: "http://localhost" },
       }),
       { params: Promise.resolve({ id: "ann-keep" }) },
     );
@@ -54,9 +56,29 @@ describe("/api/annotations/[id] DELETE", () => {
     const res = await DELETE(
       new Request("http://localhost/api/annotations/ghost", {
         method: "DELETE",
+        headers: { origin: "http://localhost" },
       }),
       { params: Promise.resolve({ id: "ghost" }) },
     );
     expect(res.status).toBe(404);
+  });
+
+  it("returns 403 when the Origin header is absent (CSRF guard)", async () => {
+    annotations.set("ann-keep", {
+      id: "ann-keep",
+      targetId: "x",
+      targetType: "agent",
+      text: "y",
+      timestamp: 1,
+    });
+    const res = await DELETE(
+      new Request("http://localhost/api/annotations/ann-keep", {
+        method: "DELETE",
+      }),
+      { params: Promise.resolve({ id: "ann-keep" }) },
+    );
+    expect(res.status).toBe(403);
+    // The guard runs before deletion, so the annotation survives.
+    expect(annotations.has("ann-keep")).toBe(true);
   });
 });

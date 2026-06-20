@@ -24,7 +24,11 @@ function makeClient(): SSEClient & { received: string[] } {
 function postBody(body: unknown): Request {
   return new Request("http://localhost/api/annotations", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    // A present, allowlisted Origin is required on mutating routes (CSRF guard).
+    headers: {
+      "content-type": "application/json",
+      origin: "http://localhost",
+    },
     body: JSON.stringify(body),
   });
 }
@@ -167,6 +171,7 @@ describe("/api/annotations POST", () => {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        origin: "http://localhost",
         "content-length": String(big.length + 32),
       },
       body: JSON.stringify({
@@ -201,7 +206,10 @@ describe("/api/annotations POST", () => {
     });
     const req = new Request("http://localhost/api/annotations", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost",
+      },
       // @ts-expect-error duplex is required by undici for streamed bodies but
       // is not in the RequestInit lib types yet.
       duplex: "half",
@@ -214,10 +222,43 @@ describe("/api/annotations POST", () => {
   it("returns 400 when body is not JSON", async () => {
     const req = new Request("http://localhost/api/annotations", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost",
+      },
       body: "not json",
     });
     const res = await POST(req);
     expect(res.status).toBe(400);
+  });
+
+  it("returns 403 when the Origin header is absent (CSRF guard)", async () => {
+    const req = new Request("http://localhost/api/annotations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: "ann-no-origin",
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: 1,
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+    expect(annotations.size).toBe(0);
+  });
+
+  it("accepts a request with a present, allowlisted Origin", async () => {
+    const res = await POST(
+      postBody({
+        id: "ann-with-origin",
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: 1,
+      }),
+    );
+    expect(res.status).toBe(201);
   });
 });

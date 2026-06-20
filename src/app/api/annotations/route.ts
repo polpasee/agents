@@ -8,12 +8,12 @@ import {
   ANNOTATION_MAX_ENTRIES,
   ANNOTATION_MAX_BODY_BYTES,
 } from "../../../../scripts/lib/config";
-import { isAllowedRequestOrigin } from "../../../../scripts/lib/origin-check";
+import { isAllowedMutatingOrigin } from "../../../../scripts/lib/origin-check";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<Response> {
-  if (!isAllowedRequestOrigin(request)) {
+  if (!isAllowedMutatingOrigin(request)) {
     return new Response("Forbidden", { status: 403 });
   }
 

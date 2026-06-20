@@ -14,7 +14,7 @@ import {
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { calculateEfficiency } from "@/lib/efficiency";
-import type { AgentState } from "@/lib/types";
+import type { AgentState, AgentTypeBudgets } from "@/lib/types";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 
@@ -322,51 +322,11 @@ export function AgentDetail() {
         </DetailRow>
 
         {/* F3: Token Budget */}
-        {(() => {
-          const budgetLimit = agentTypeBudgets[agent.agentType];
-          if (budgetLimit == null) return null;
-          const budgetPercent = Math.min(
-            (totalTokens / budgetLimit) * 100,
-            100,
-          );
-          const exceeded = agent.budgetExceeded;
-          const barColor = exceeded
-            ? BUDGET_COLORS.critical
-            : budgetPercent > 80
-              ? BUDGET_COLORS.warning
-              : BUDGET_COLORS.ok;
-          return (
-            <DetailRow label="TOKEN BUDGET">
-              <div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-sm" style={{ color: barColor }}>
-                    {formatNumber(totalTokens)}
-                  </span>
-                  <span className="text-xs" style={{ color: UI.text.dimmed }}>
-                    / {formatNumber(budgetLimit)}
-                  </span>
-                  {exceeded && (
-                    <span
-                      className="text-xs font-bold"
-                      style={{ color: BUDGET_COLORS.critical }}
-                    >
-                      EXCEEDED
-                    </span>
-                  )}
-                </div>
-                <div
-                  className="mt-1 h-1 rounded-full overflow-hidden"
-                  style={{ background: "var(--color-border)" }}
-                >
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${budgetPercent}%`, background: barColor }}
-                  />
-                </div>
-              </div>
-            </DetailRow>
-          );
-        })()}
+        <TokenBudgetRow
+          agent={agent}
+          agentTypeBudgets={agentTypeBudgets}
+          totalTokens={totalTokens}
+        />
 
         {/* Duration */}
         <DetailRow label="DURATION">
@@ -488,6 +448,57 @@ function EfficiencyDisplay({
               </div>
             );
           })}
+        </div>
+      </div>
+    </DetailRow>
+  );
+}
+
+function TokenBudgetRow({
+  agent,
+  agentTypeBudgets,
+  totalTokens,
+}: {
+  agent: AgentState;
+  agentTypeBudgets: AgentTypeBudgets;
+  totalTokens: number;
+}) {
+  const budgetLimit = agentTypeBudgets[agent.agentType];
+  if (budgetLimit == null) return null;
+  const budgetPercent = Math.min((totalTokens / budgetLimit) * 100, 100);
+  const exceeded = agent.budgetExceeded;
+  const barColor = exceeded
+    ? BUDGET_COLORS.critical
+    : budgetPercent > 80
+      ? BUDGET_COLORS.warning
+      : BUDGET_COLORS.ok;
+  return (
+    <DetailRow label="TOKEN BUDGET">
+      <div>
+        <div className="flex items-baseline gap-1">
+          <span className="text-sm" style={{ color: barColor }}>
+            {formatNumber(totalTokens)}
+          </span>
+          <span className="text-xs" style={{ color: UI.text.dimmed }}>
+            / {formatNumber(budgetLimit)}
+          </span>
+          {exceeded && (
+            <span
+              className="text-xs font-bold"
+              style={{ color: BUDGET_COLORS.critical }}
+            >
+              EXCEEDED
+            </span>
+          )}
+        </div>
+        <div
+          className="mt-1 h-1 rounded-full overflow-hidden"
+          style={{ background: "var(--color-border)" }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${budgetPercent}%`, background: barColor }}
+          />
         </div>
       </div>
     </DetailRow>

@@ -259,6 +259,57 @@ describe("isValidAgentEvent", () => {
       }),
     ).toBe(false);
   });
+
+  it("accepts agent:register with valid optional fields", () => {
+    expect(
+      isValidAgentEvent({
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "main",
+        task: "t",
+        effort: "high",
+        is1MContext: true,
+        parentId: "p1",
+        model: "opus",
+        displayType: "api-builder",
+      }),
+    ).toBe(true);
+  });
+
+  it("accepts agent:register with absent optional fields", () => {
+    expect(
+      isValidAgentEvent({
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "main",
+        task: "t",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects agent:register with non-enum effort value", () => {
+    expect(
+      isValidAgentEvent({
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "main",
+        task: "t",
+        effort: "turbo",
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects agent:register with non-boolean is1MContext", () => {
+    expect(
+      isValidAgentEvent({
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "main",
+        task: "t",
+        is1MContext: "yes",
+      }),
+    ).toBe(false);
+  });
 });
 
 // ── 2a: NaN/missing token field guards ──────────────────────────────────────

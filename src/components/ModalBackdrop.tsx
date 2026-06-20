@@ -14,9 +14,10 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
   useEffect(() => {
     const el = backdropRef.current;
     if (!el) return;
+    const node = el;
 
     // Focus the backdrop to capture keyboard events
-    el.focus();
+    node.focus();
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -26,7 +27,7 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
 
       // Focus trap: cycle Tab within the modal
       if (e.key === "Tab") {
-        const focusable = el!.querySelectorAll<HTMLElement>(
+        const focusable = node.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
@@ -43,8 +44,8 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
       }
     }
 
-    el.addEventListener("keydown", handleKeyDown);
-    return () => el.removeEventListener("keydown", handleKeyDown);
+    node.addEventListener("keydown", handleKeyDown);
+    return () => node.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   return (

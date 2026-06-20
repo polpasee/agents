@@ -47,3 +47,12 @@ export function isAllowedRequestOrigin(request: Request): boolean {
   if (isPrivateLanHost(host)) return true;
   return false;
 }
+
+/** Stricter check for state-changing requests (POST/DELETE). Browsers always
+ *  send an Origin header on these, so a present + allowlisted Origin is
+ *  required: this closes a simple-request CSRF vector that the GET-friendly
+ *  "missing Origin allowed" rule would otherwise leave open. */
+export function isAllowedMutatingOrigin(request: Request): boolean {
+  if (!request.headers.get("origin")) return false;
+  return isAllowedRequestOrigin(request);
+}

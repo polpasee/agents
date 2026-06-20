@@ -48,7 +48,6 @@ export function renderNodeVisuals(
   const centerText = modelName ?? typeLabel.charAt(0);
   // When an effort tier is set, stack it as a second center line under the
   // model name so the active thinking tier reads at a glance.
-  const showEffortLine = !!effort;
   const isSelected = agent.id === selectedAgentId;
   const isActive = agent.status === "running" || agent.status === "idle";
   const isRunning = agent.status === "running";
@@ -182,7 +181,7 @@ export function renderNodeVisuals(
 
   // Letter(s) inside node — single line by default, stacked model + effort
   // tier when an effort is set.
-  if (showEffortLine) {
+  if (effort) {
     // The model family is the headline (bold); the effort tier sits under it
     // smaller and at normal weight so it reads as a secondary line.
     const modelFont = Math.max(
@@ -216,7 +215,7 @@ export function renderNodeVisuals(
       .attr("font-size", effortFont)
       .attr("font-weight", "normal")
       .style("pointer-events", "none")
-      .text(effort!.toUpperCase());
+      .text(effort.toUpperCase());
   } else {
     work
       .append("text")

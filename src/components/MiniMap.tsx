@@ -14,17 +14,18 @@ export function MiniMap({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const node = canvas;
 
     let frameId: ReturnType<typeof requestAnimationFrame>;
     let stopped = false;
 
     function draw() {
       if (stopped) return;
-      const ctx = canvas!.getContext("2d");
+      const ctx = node.getContext("2d");
       if (!ctx) return;
 
-      const w = canvas!.width;
-      const h = canvas!.height;
+      const w = node.width;
+      const h = node.height;
       ctx.clearRect(0, 0, w, h);
 
       const data = graphRef.current?.getNodesAndViewport();

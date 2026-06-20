@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fsp from "node:fs/promises";
@@ -224,6 +224,26 @@ describe("discoverTeams", () => {
 
     await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
     expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
+  });
+
+  it("warns on a corrupt config.json but stays silent on a missing one", async () => {
+    seedLeadAgent();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Missing config (ENOENT) — must not warn
+    await fsp.mkdir(path.join(teamsDir, "session-missing"), {
+      recursive: true,
+    });
+    // Corrupt config (invalid JSON) — must warn
+    const badDir = path.join(teamsDir, "session-bad");
+    await fsp.mkdir(badDir, { recursive: true });
+    await fsp.writeFile(path.join(badDir, "config.json"), "NOT JSON", "utf-8");
+
+    await discoverTeams(teamsDir);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain("Malformed team config");
+    warn.mockRestore();
   });
 
   // Replacement for the tautological "absent from later snapshot" test.

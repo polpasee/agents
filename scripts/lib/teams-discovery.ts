@@ -63,8 +63,13 @@ export async function discoverTeams(teamsDir: string): Promise<void> {
       ]);
       config = JSON.parse(raw) as TeamConfig;
       configMtimeMs = stat.mtimeMs;
-    } catch {
-      // Missing or malformed config.json — skip this team
+    } catch (err) {
+      // A missing config.json is normal (dir created before the file lands) —
+      // skip silently. Anything else is a genuinely corrupt/unreadable config:
+      // warn so it is not swallowed. Mirrors discovery.ts / usage/route.ts.
+      if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
+        console.warn(`Malformed team config ${configPath}:`, err);
+      }
       continue;
     }
 

@@ -1,4 +1,4 @@
-import { AGENT_STATUSES, AGENT_TYPES } from "./types";
+import { AGENT_STATUSES, AGENT_TYPES, THINKING_EFFORTS } from "./types";
 import type {
   AgentEvent,
   ServerEvent,
@@ -113,7 +113,17 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
       return (
         typeof obj.agentId === "string" &&
         isAgentType(obj.agentType) &&
-        typeof obj.task === "string"
+        typeof obj.task === "string" &&
+        // Optional fields: absent/undefined is valid; reject only wrong types.
+        (obj.effort === undefined ||
+          (THINKING_EFFORTS as readonly string[]).includes(
+            obj.effort as string,
+          )) &&
+        (obj.is1MContext === undefined ||
+          typeof obj.is1MContext === "boolean") &&
+        (obj.parentId === undefined || typeof obj.parentId === "string") &&
+        (obj.model === undefined || typeof obj.model === "string") &&
+        (obj.displayType === undefined || typeof obj.displayType === "string")
       );
     case "agent:status":
       return typeof obj.agentId === "string" && isAgentStatus(obj.status);

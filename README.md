@@ -354,7 +354,10 @@ agents/
 │       ├── teams-discovery.ts      # Team discovery under ~/.claude/teams/
 │       ├── workflow-scan.ts        # Workflow-run discovery and state
 │       ├── file-reader.ts          # JSONL file tail reader
-│       └── log-reader.ts           # Conversation log parser
+│       ├── log-reader.ts           # Conversation log parser
+│       ├── cost-history.ts         # Rolling 24h/7d/30d cost scanner (backs /api/costs)
+│       ├── ccstatusline.ts         # ccstatusline spawn helper for usage data (backs /api/usage)
+│       └── webhooks.ts             # Optional outbound webhooks (Slack/Discord/generic)
 └── docs/
     └── superpowers/                # Historical planning artifacts (pre-implementation specs)
         ├── specs/
@@ -362,6 +365,12 @@ agents/
         └── plans/
             └── 2026-03-26-dashboard-features.md
 ```
+
+## Troubleshooting
+
+- **Dashboard is empty / no agents show up** — Run `npm run mock-agents` to seed synthetic demo data. Real agents appear only once Claude Code has written recent transcripts under `~/.claude/projects/**/*.jsonl`; if you have never run Claude Code (or only have old sessions), there is nothing for the poller to discover.
+- **Port 4000 is already in use** — The `dev` script hardcodes `--port 4000` (see `package.json`). Override it for a one-off run with `npx next dev --hostname 0.0.0.0 --port <other>`, or edit the `dev` script to use a different port. Remember the Security note above when changing the bind host.
+- **Nothing updates / data looks stale** — The background poller is started on server boot by `src/instrumentation.ts` (which imports `scripts/lib/background-tasks.ts`). If it never started or you changed server code, stop and restart `npm run dev`. The SSE stream reconnects automatically, but the poller only runs while the Next.js server is up.
 
 ## Development
 
