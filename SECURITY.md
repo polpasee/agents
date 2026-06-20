@@ -2,7 +2,12 @@
 
 ## Threat Model
 
-This is a **localhost-only developer tool**. The Next.js server (`npm run dev`) binds to `0.0.0.0:4000`, making the dashboard reachable from private/LAN devices (e.g. a phone on the same WiFi). There is no separate WebSocket process — live state is delivered over Server-Sent Events (SSE) on `GET /api/stream`. Route handlers enforce an origin allowlist via `scripts/lib/origin-check.ts::isAllowedRequestOrigin`, which mirrors `next.config.ts::allowedDevOrigins` and permits only localhost and private/RFC1918 LAN origins. Note that a **missing `Origin` header is allowed by design** so that server-side and CLI clients (e.g. `curl`) can reach the routes. Out of scope: remote attackers, multi-tenant deployments, public network exposure, or internet-facing use.
+This is a **localhost-only developer tool**. The Next.js server (`npm run dev`) binds to `0.0.0.0:4000`, making the dashboard reachable from private/LAN devices (e.g. a phone on the same WiFi). There is no separate WebSocket process — live state is delivered over Server-Sent Events (SSE) on `GET /api/stream`. Route handlers enforce an origin allowlist via `scripts/lib/origin-check.ts`, which mirrors `next.config.ts::allowedDevOrigins` and permits only localhost and private/RFC1918 LAN origins. Out of scope: remote attackers, multi-tenant deployments, public network exposure, or internet-facing use.
+
+`origin-check.ts` exposes two checks, applied per route by risk:
+
+- **`isAllowedRequestOrigin`** — used on read-only routes (`GET /api/stream`, `/api/logs/[agentId]`, `/api/costs`, `/api/usage`). A **missing `Origin` header is allowed by design** so that server-side and CLI clients (e.g. `curl`) can reach these routes; a present `Origin` must still be allowlisted.
+- **`isAllowedMutatingOrigin`** — used on the state-changing annotation routes (`POST /api/annotations`, `DELETE /api/annotations/[id]`). This requires a **present, allowlisted `Origin`**: browsers always send `Origin` on these requests, so rejecting a missing one closes a simple-request CSRF vector that the read-route "missing Origin allowed" rule would otherwise leave open.
 
 ## Sensitive Data
 

@@ -167,7 +167,12 @@ The `event` payload inside `state:update` is an `AgentEvent`, one of:
 | Remove annotation | `DELETE /api/annotations/[id]` | Broadcasts `annotation:update` (`remove`) over SSE |
 | Fetch agent log | `GET /api/logs/[agentId]` | Returns `{ entries }` (parsed conversation log) |
 
-All route handlers enforce an origin allowlist via `scripts/lib/origin-check.ts::isAllowedRequestOrigin`.
+All route handlers enforce an origin allowlist via `scripts/lib/origin-check.ts` (localhost and
+private/RFC1918 LAN hosts only). Read routes use `isAllowedRequestOrigin`, which **allows a missing
+`Origin`** so CLI/server-side clients (e.g. `curl`) can reach them. The mutating annotation routes
+(`POST /api/annotations`, `DELETE /api/annotations/[id]`) use `isAllowedMutatingOrigin`, which
+**requires a present, allowlisted `Origin`** — CSRF hardening, since browsers always send `Origin`
+on state-changing requests.
 
 ## Agent Types & Colors
 
@@ -347,7 +352,7 @@ agents/
 │       ├── background-tasks.ts     # Poll loop started by instrumentation.ts
 │       ├── agent-state.ts          # Server-side agent state singleton + SSE viewers set
 │       ├── sse-broadcast.ts        # broadcast() — fan ServerEvents out to SSE viewers
-│       ├── origin-check.ts         # isAllowedRequestOrigin — route-handler origin allowlist
+│       ├── origin-check.ts         # route-handler origin allowlist (read vs. mutating checks)
 │       ├── annotation-store.ts     # In-memory annotation store + sanitization
 │       ├── config.ts               # Server configuration (PROJECTS_DIR, POLL_INTERVAL_MS, etc.)
 │       ├── discovery.ts            # Agent JSONL file discovery under ~/.claude/projects/

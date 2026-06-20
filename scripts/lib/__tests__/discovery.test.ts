@@ -1385,6 +1385,36 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     warnSpy.mockRestore();
   });
 
+  it("warns on an unexpected project-dir readdir failure but stays silent on ENOENT/ENOTDIR races", async () => {
+    const sess = "aaaadddd-dddd-dddd-dddd-dddddddddddd";
+
+    // EACCES (permission trouble) must leave a breadcrumb — otherwise every
+    // session in this project silently disappears.
+    buildFixture({ sessionId: sess });
+    failReaddirFor(FIX_PROJECT_PATH, "EACCES");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await discoverActiveSessions("/projects");
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(FIX_PROJECT_PATH),
+      expect.anything(),
+    );
+    warnSpy.mockRestore();
+
+    // A vanished project dir (ENOENT) is a routine mid-scan race — silent.
+    buildFixture({ sessionId: sess });
+    failReaddirFor(FIX_PROJECT_PATH, "ENOENT");
+    const enoentSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await discoverActiveSessions("/projects");
+
+    expect(
+      enoentSpy.mock.calls.some((c) => String(c[0]).includes(FIX_PROJECT_PATH)),
+    ).toBe(false);
+    enoentSpy.mockRestore();
+  });
+
   it("keeps the parent session alive via a fresh journal.jsonl alone", async () => {
     const sess = "aaaa0000-0000-0000-0000-000000000000";
     buildFixture({

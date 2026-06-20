@@ -812,14 +812,28 @@ export async function discoverActiveSessions(
 
   try {
     await fsp.access(projectsDir);
-  } catch {
+  } catch (err) {
+    // A missing projects root (ENOENT) is normal before Claude Code has ever
+    // run; bail silently. An unexpected code (EACCES, …) means the root exists
+    // but we can't reach it — surface it before bailing.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      console.warn(`Failed to access projects dir ${projectsDir}:`, err);
+    }
     return;
   }
 
   let topLevel: Dirent[];
   try {
     topLevel = await fsp.readdir(projectsDir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    // access() just succeeded, so ENOENT/ENOTDIR here is a teardown race and
+    // skips silently; any other code (EACCES, EMFILE, …) blanks the entire
+    // topology and deserves a breadcrumb.
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      console.warn(`Failed to read projects dir ${projectsDir}:`, err);
+    }
     return;
   }
 
@@ -837,7 +851,15 @@ export async function discoverActiveSessions(
     let entries: Dirent[];
     try {
       entries = await fsp.readdir(projectPath, { withFileTypes: true });
-    } catch {
+    } catch (err) {
+      // ENOENT/ENOTDIR are routine (a project dir can vanish or be replaced
+      // mid-scan); skip silently. An unexpected code (EACCES, EMFILE, …) is a
+      // real signal — permission/fd trouble that would otherwise hide every
+      // session in this project — so leave a breadcrumb before skipping.
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") {
+        console.warn(`Failed to read project dir ${projectPath}:`, err);
+      }
       continue;
     }
 
@@ -857,14 +879,30 @@ export async function discoverActiveSessions(
       const subagentsDir = path.join(projectPath, sessionId, "subagents");
       try {
         await fsp.access(subagentsDir);
-      } catch {
+      } catch (err) {
+        // A session without a subagents/ dir is the common case (ENOENT), and
+        // a session dir can vanish mid-scan (ENOTDIR); both are normal and
+        // skip silently. An unexpected code (EACCES, …) means we can't tell
+        // whether sub-agents exist — surface it.
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+          console.warn(`Failed to access subagents dir ${subagentsDir}:`, err);
+        }
         continue;
       }
 
       let files: string[];
       try {
         files = await fsp.readdir(subagentsDir);
-      } catch {
+      } catch (err) {
+        // Same race window as above (the dir passed access() then vanished):
+        // ENOENT/ENOTDIR are routine and skip silently; an unexpected code
+        // (EMFILE/ENFILE fd-exhaustion, EACCES) would silently drop every
+        // sub-agent in this session, so leave a breadcrumb.
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT" && code !== "ENOTDIR") {
+          console.warn(`Failed to read subagents dir ${subagentsDir}:`, err);
+        }
         continue;
       }
 
