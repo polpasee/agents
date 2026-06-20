@@ -3,11 +3,11 @@ import type { HierarchyNode } from "d3-hierarchy";
 
 interface LayoutNode {
   id: string;
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
-  agent: { parentId?: string };
+  x?: number | undefined;
+  y?: number | undefined;
+  fx?: number | null | undefined;
+  fy?: number | null | undefined;
+  agent: { parentId?: string | undefined };
 }
 
 /**
@@ -34,7 +34,7 @@ function buildHierarchy(nodes: LayoutNode[]) {
   interface HierNode {
     id: string;
     realNode: LayoutNode | null;
-    children?: HierNode[];
+    children?: HierNode[] | undefined;
   }
 
   // Guard against cycles in the parent chain: a malformed session could produce

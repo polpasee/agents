@@ -71,7 +71,12 @@ export function readNewLines(filePath: string): string[] {
 export function extractTaskFromJSONL(
   filePath: string,
   maxBytes = JSONL_MAX_BYTES,
-): { task: string; slug: string; model: string; startTime?: number } {
+): {
+  task: string;
+  slug: string;
+  model: string;
+  startTime?: number | undefined;
+} {
   const result = {
     task: "",
     slug: "",

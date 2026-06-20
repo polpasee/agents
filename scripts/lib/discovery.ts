@@ -189,7 +189,11 @@ const UUID_RE =
 export function selectLosingMains(
   agents: Map<
     string,
-    { parentId?: string; startTime: number; metadata?: Record<string, unknown> }
+    {
+      parentId?: string | undefined;
+      startTime: number;
+      metadata?: Record<string, unknown> | undefined;
+    }
   >,
   agentLastModified: Map<string, number>,
   now: number,
@@ -260,7 +264,10 @@ export function selectLosingMains(
 }
 
 export function selectStaleAgentIds(
-  agents: Map<string, { parentId?: string; status: string; startTime: number }>,
+  agents: Map<
+    string,
+    { parentId?: string | undefined; status: string; startTime: number }
+  >,
   agentLastModified: Map<string, number>,
   now: number,
 ): string[] {
@@ -310,13 +317,13 @@ interface BufferedSubagentFile {
   dir: string;
   stat: Stats;
   parsed: Record<string, unknown>[];
-  agentId?: string;
+  agentId?: string | undefined;
   agentType: ReturnType<typeof parseAgentType>;
-  displayType?: string;
+  displayType?: string | undefined;
   description: string;
-  teamId?: string;
-  teamName?: string;
-  toolUseId?: string;
+  teamId?: string | undefined;
+  teamName?: string | undefined;
+  toolUseId?: string | undefined;
 }
 
 /**

@@ -59,32 +59,32 @@ export type AgentEvent =
   | {
       type: "agent:register";
       agentId: string;
-      parentId?: string;
+      parentId?: string | undefined;
       agentType: AgentType;
-      displayType?: string;
+      displayType?: string | undefined;
       task: string;
-      sessionId?: string;
-      slug?: string;
-      model?: string;
-      teamId?: string;
-      metadata?: Record<string, unknown>;
-      effort?: ThinkingEffort;
-      is1MContext?: boolean;
-      workflowName?: string;
+      sessionId?: string | undefined;
+      slug?: string | undefined;
+      model?: string | undefined;
+      teamId?: string | undefined;
+      metadata?: Record<string, unknown> | undefined;
+      effort?: ThinkingEffort | undefined;
+      is1MContext?: boolean | undefined;
+      workflowName?: string | undefined;
     }
   | {
       type: "agent:status";
       agentId: string;
       status: AgentStatus;
-      message?: string;
-      waitingOn?: string; // F1: agentId this agent is blocked on
+      message?: string | undefined;
+      waitingOn?: string | undefined; // F1: agentId this agent is blocked on
     }
   | {
       type: "agent:tool_call";
       agentId: string;
       tool: string;
-      args?: string;
-      result?: string;
+      args?: string | undefined;
+      result?: string | undefined;
     }
   | {
       type: "agent:tokens";
@@ -104,7 +104,7 @@ export type AgentEvent =
   | {
       type: "agent:complete";
       agentId: string;
-      summary?: string;
+      summary?: string | undefined;
       duration: number;
     };
 
@@ -115,8 +115,8 @@ export type ServerEvent =
       agents: AgentState[];
       edges: EdgeState[];
       teams: TeamState[];
-      workflows?: WorkflowRunState[];
-      protocolVersion?: number;
+      workflows?: WorkflowRunState[] | undefined;
+      protocolVersion?: number | undefined;
     }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
   | { type: "state:remove"; agentId: string }
@@ -131,18 +131,18 @@ export type ServerEvent =
 
 export interface AgentState {
   id: string;
-  parentId?: string;
+  parentId?: string | undefined;
   agentType: AgentType;
   /** Raw meta.agentType string (e.g. "api-builder", "frontend-ui"). Used for
    *  display so the topology label matches what Claude shows in the terminal.
    *  agentType still drives color and coarse categorization. */
-  displayType?: string;
+  displayType?: string | undefined;
   status: AgentStatus;
   task: string;
-  sessionId?: string;
-  slug?: string;
-  model?: string;
-  teamId?: string;
+  sessionId?: string | undefined;
+  slug?: string | undefined;
+  model?: string | undefined;
+  teamId?: string | undefined;
   toolCalls: ToolCallEntry[];
   inputTokens: number;
   outputTokens: number;
@@ -150,40 +150,40 @@ export interface AgentState {
   cacheCreateTokens: number;
   contextWindow: number;
   startTime: number;
-  duration?: number;
-  summary?: string;
-  metadata?: Record<string, unknown>;
-  waitingOn?: string; // F1: dependency tracking
-  budgetExceeded?: boolean; // F3: token budget exceeded flag
+  duration?: number | undefined;
+  summary?: string | undefined;
+  metadata?: Record<string, unknown> | undefined;
+  waitingOn?: string | undefined; // F1: dependency tracking
+  budgetExceeded?: boolean | undefined; // F3: token budget exceeded flag
   /** Extended-thinking effort tier (low|medium|high|xhigh|max|auto). Rendered
    *  as the second line in the hexagon center, stacked under the model family. */
-  effort?: ThinkingEffort;
+  effort?: ThinkingEffort | undefined;
   /** True when the user has the 1M-context beta enabled (settings.json
    *  `model` field carries the `[1m]` suffix). */
-  is1MContext?: boolean;
+  is1MContext?: boolean | undefined;
   /** Workflow name (from the run-script filename) for agents in a live
    *  workflow whose completion-time wf_*.json (and real per-agent label) is
    *  not on disk yet. Rendered as a sub-label fallback under the real label. */
-  workflowName?: string;
+  workflowName?: string | undefined;
 }
 
 export interface ToolCallEntry {
   tool: string;
-  args?: string;
-  result?: string;
+  args?: string | undefined;
+  result?: string | undefined;
   timestamp: number;
 }
 
 export interface EdgeState {
   source: string;
   target: string;
-  edgeType?: "parent" | "message" | "blocking"; // F1: blocking edge type
+  edgeType?: "parent" | "message" | "blocking" | undefined; // F1: blocking edge type
 }
 
 export interface TeamState {
   id: string;
   name: string;
-  leaderId?: string;
+  leaderId?: string | undefined;
   memberIds: string[];
   status: TeamStatus;
   task: string;
@@ -205,19 +205,19 @@ export type WorkflowAgentState =
 export interface WorkflowPhase {
   index: number;
   title: string;
-  detail?: string;
+  detail?: string | undefined;
 }
 
 export interface WorkflowAgentRef {
   agentId: string;
   label: string;
-  phaseIndex?: number;
-  phaseTitle?: string;
-  model?: string;
+  phaseIndex?: number | undefined;
+  phaseTitle?: string | undefined;
+  model?: string | undefined;
   state: WorkflowAgentState;
-  tokens?: number;
-  toolCalls?: number;
-  durationMs?: number;
+  tokens?: number | undefined;
+  toolCalls?: number | undefined;
+  durationMs?: number | undefined;
 }
 
 export interface WorkflowRunState {
@@ -226,11 +226,11 @@ export interface WorkflowRunState {
   name: string;
   status: WorkflowStatus;
   startTime: number;
-  durationMs?: number;
+  durationMs?: number | undefined;
   agentCount: number;
-  totalTokens?: number;
-  totalToolCalls?: number;
-  summary?: string;
+  totalTokens?: number | undefined;
+  totalToolCalls?: number | undefined;
+  summary?: string | undefined;
   phases: WorkflowPhase[];
   agents: WorkflowAgentRef[];
 }
@@ -274,14 +274,14 @@ export interface LogEntry {
   timestamp: number;
   role: "user" | "assistant" | "system";
   content: string;
-  toolCalls?: LogToolCall[];
+  toolCalls?: LogToolCall[] | undefined;
 }
 
 export interface LogToolCall {
   id: string;
   name: string;
   input: string;
-  result?: string;
+  result?: string | undefined;
 }
 
 // ── Cost Projections ──────────────────────────────────
@@ -306,9 +306,9 @@ export type HeatmapMetric =
 export interface ErrorDetail {
   agentId: string;
   message: string;
-  stackTrace?: string;
-  lastToolCall?: ToolCallEntry;
-  cascadeIds?: string[]; // related error agent IDs
+  stackTrace?: string | undefined;
+  lastToolCall?: ToolCallEntry | undefined;
+  cascadeIds?: string[] | undefined; // related error agent IDs
   timestamp: number;
 }
 
@@ -331,17 +331,17 @@ export interface Annotation {
   targetId: string;
   targetType: "agent" | "edge";
   text: string;
-  author?: string;
+  author?: string | undefined;
   timestamp: number;
-  x?: number;
-  y?: number;
+  x?: number | undefined;
+  y?: number | undefined;
 }
 
 // ── F8: Agent Diff View ──────────────────────────────
 export interface FileModification {
   filePath: string;
   operation: "create" | "edit" | "delete";
-  diff?: string;
+  diff?: string | undefined;
   timestamp: number;
 }
 

@@ -11,11 +11,11 @@ function mockNode(
   parentId?: string,
 ): {
   id: string;
-  x?: number;
-  y?: number;
-  fx?: number | null;
-  fy?: number | null;
-  agent: { parentId?: string };
+  x?: number | undefined;
+  y?: number | undefined;
+  fx?: number | null | undefined;
+  fy?: number | null | undefined;
+  agent: { parentId?: string | undefined };
 } {
   return {
     id,

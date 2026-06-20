@@ -56,7 +56,7 @@ export const GRAPH = {
  *  `depthFactor` (see lib/d3/depth.ts) scales ONLY the sub-agent branch so
  *  nested sub-agents shrink per level; main agents and team members ignore it. */
 export function getNodeRadius(
-  agent: { parentId?: string; teamId?: string },
+  agent: { parentId?: string | undefined; teamId?: string | undefined },
   depthFactor = 1,
 ): number {
   return agent.parentId && !agent.teamId

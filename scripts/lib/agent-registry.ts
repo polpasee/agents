@@ -15,17 +15,17 @@ export function registerAgent(opts: {
   sessionId: string;
   projectDir: string;
   agentType: AgentType;
-  displayType?: string;
-  parentId?: string;
+  displayType?: string | undefined;
+  parentId?: string | undefined;
   task: string;
   slug: string;
   model: string;
   startTime: number;
-  teamId?: string;
-  teamName?: string;
-  effort?: ThinkingEffort;
-  is1MContext?: boolean;
-  workflowName?: string;
+  teamId?: string | undefined;
+  teamName?: string | undefined;
+  effort?: ThinkingEffort | undefined;
+  is1MContext?: boolean | undefined;
+  workflowName?: string | undefined;
 }) {
   // macOS resolves /tmp, /var, /etc through /private/* symlinks, so cwds there
   // are stored on disk as `-private-tmp` etc. Strip the cosmetic prefix from

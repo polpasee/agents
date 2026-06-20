@@ -15,19 +15,19 @@ import { DEFAULT_CONTEXT_WINDOW } from "./config";
 
 export interface MakeAgentStateOpts {
   id: string;
-  parentId?: string;
+  parentId?: string | undefined;
   agentType: AgentType;
-  displayType?: string;
+  displayType?: string | undefined;
   task: string;
-  sessionId?: string;
-  slug?: string;
-  model?: string;
-  teamId?: string;
+  sessionId?: string | undefined;
+  slug?: string | undefined;
+  model?: string | undefined;
+  teamId?: string | undefined;
   startTime: number;
-  metadata?: Record<string, unknown>;
-  effort?: ThinkingEffort;
-  is1MContext?: boolean;
-  workflowName?: string;
+  metadata?: Record<string, unknown> | undefined;
+  effort?: ThinkingEffort | undefined;
+  is1MContext?: boolean | undefined;
+  workflowName?: string | undefined;
 }
 
 /**

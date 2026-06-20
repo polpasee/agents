@@ -73,7 +73,7 @@ function ActivityLine({
 }: {
   timestamp: number;
   event: AgentEvent;
-  agents: Map<string, { agentType: AgentType; teamId?: string }>;
+  agents: Map<string, { agentType: AgentType; teamId?: string | undefined }>;
   teams: Map<string, { name: string }>;
 }) {
   const time = formatTimestamp(timestamp);

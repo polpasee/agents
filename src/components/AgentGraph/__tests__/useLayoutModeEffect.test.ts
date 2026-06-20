@@ -61,7 +61,7 @@ function makeMockSimulation() {
 function makeNode(id: string, x = 0, y = 0): SimNode {
   return {
     id,
-    agent: { id, parentId: undefined } as SimNode["agent"],
+    agent: { id, parentId: undefined } as unknown as SimNode["agent"],
     x,
     y,
   } as SimNode;
