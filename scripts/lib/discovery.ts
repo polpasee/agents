@@ -26,9 +26,23 @@ import {
   upsertWorkflow,
   removeWorkflow,
 } from "./agent-state";
-import { readNewLines, extractTaskFromJSONL, cleanupFileOffsets } from "./file-reader";
-import { THINKING_EFFORTS, type ThinkingEffort, type WorkflowRunState } from "../../src/lib/types";
-import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS, REMOVED_IDS_TTL_MS, STATUS_RUNNING_THRESHOLD_MS } from "./config";
+import {
+  readNewLines,
+  extractTaskFromJSONL,
+  cleanupFileOffsets,
+} from "./file-reader";
+import {
+  THINKING_EFFORTS,
+  type ThinkingEffort,
+  type WorkflowRunState,
+} from "../../src/lib/types";
+import {
+  DISCOVERY_THRESHOLD_MS,
+  STALE_THRESHOLD_MS,
+  SUBAGENT_STALE_THRESHOLD_MS,
+  REMOVED_IDS_TTL_MS,
+  STATUS_RUNNING_THRESHOLD_MS,
+} from "./config";
 import { scanWorkflows, scanWorkflowScripts } from "./workflow-scan";
 
 // ---------------------------------------------------------------------------
@@ -39,13 +53,19 @@ import { scanWorkflows, scanWorkflowScripts } from "./workflow-scan";
 type ParsedSettings = Record<string, unknown> | null;
 type SettingsCache = Map<string, ParsedSettings>;
 
-function readSettingsCached(filePath: string, cache: SettingsCache): ParsedSettings {
+function readSettingsCached(
+  filePath: string,
+  cache: SettingsCache,
+): ParsedSettings {
   if (cache.has(filePath)) return cache.get(filePath)!;
   let result: ParsedSettings = null;
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
     const parsed = JSON.parse(raw);
-    result = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+    result =
+      parsed && typeof parsed === "object" && !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
       console.warn(`Failed to read settings ${filePath}:`, err);
@@ -62,18 +82,27 @@ function settingsCandidatePaths(projectDir: string): string[] {
   ];
 }
 
-function readEffortLevelCached(projectDir: string, cache: SettingsCache): ThinkingEffort | undefined {
+function readEffortLevelCached(
+  projectDir: string,
+  cache: SettingsCache,
+): ThinkingEffort | undefined {
   for (const filePath of settingsCandidatePaths(projectDir)) {
     const parsed = readSettingsCached(filePath, cache);
     const value = parsed?.effortLevel;
-    if (typeof value === "string" && (THINKING_EFFORTS as readonly string[]).includes(value)) {
+    if (
+      typeof value === "string" &&
+      (THINKING_EFFORTS as readonly string[]).includes(value)
+    ) {
       return value as ThinkingEffort;
     }
   }
   return undefined;
 }
 
-function readIs1MContextCached(projectDir: string, cache: SettingsCache): boolean | undefined {
+function readIs1MContextCached(
+  projectDir: string,
+  cache: SettingsCache,
+): boolean | undefined {
   for (const filePath of settingsCandidatePaths(projectDir)) {
     const parsed = readSettingsCached(filePath, cache);
     const model = parsed?.model;
@@ -122,13 +151,18 @@ const wfMtimeCache = new Map<string, number>();
  * Returns the runIds of workflow runs belonging to the given session.
  * Exported for testing.
  */
-export function workflowRunIdsForSession(workflows: Map<string, WorkflowRunState>, sessionId: string): string[] {
+export function workflowRunIdsForSession(
+  workflows: Map<string, WorkflowRunState>,
+  sessionId: string,
+): string[] {
   const ids: string[] = [];
-  for (const [runId, run] of workflows) if (run.sessionId === sessionId) ids.push(runId);
+  for (const [runId, run] of workflows)
+    if (run.sessionId === sessionId) ids.push(runId);
   return ids;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Finds redundant "main" sessions that share a projectDir and returns the
@@ -153,7 +187,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * Exported for testing.
  */
 export function selectLosingMains(
-  agents: Map<string, { parentId?: string; startTime: number; metadata?: Record<string, unknown> }>,
+  agents: Map<
+    string,
+    { parentId?: string; startTime: number; metadata?: Record<string, unknown> }
+  >,
   agentLastModified: Map<string, number>,
   now: number,
 ): string[] {
@@ -251,7 +288,9 @@ export function selectStaleAgentIds(
   for (const [agentId, agent] of agents) {
     if (agent.status !== "running" && agent.status !== "idle") continue;
     const lastMod = agentLastModified.get(agentId) || agent.startTime;
-    const threshold = agent.parentId ? SUBAGENT_STALE_THRESHOLD_MS : STALE_THRESHOLD_MS;
+    const threshold = agent.parentId
+      ? SUBAGENT_STALE_THRESHOLD_MS
+      : STALE_THRESHOLD_MS;
     if (now - lastMod <= threshold) continue;
     if (freshParentIds.has(agentId)) continue;
     stale.push(agentId);
@@ -326,7 +365,9 @@ function isIgnoredSubagentId(agentId: string): boolean {
   return agentId.startsWith("compact-") || agentId.startsWith("mcp__");
 }
 
-export async function discoverActiveSessions(projectsDir: string): Promise<void> {
+export async function discoverActiveSessions(
+  projectsDir: string,
+): Promise<void> {
   const settingsCache: SettingsCache = new Map();
 
   try {
@@ -385,7 +426,13 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       if (!agents.has(sessionId)) {
         const removedAt = removedAgentIds.get(sessionId);
         if (removedAt !== undefined && stat.mtimeMs <= removedAt) continue;
-        registerMainAgent({ sessionId, filePath, projectDir, fallbackStartMs: stat.mtimeMs, settingsCache });
+        registerMainAgent({
+          sessionId,
+          filePath,
+          projectDir,
+          fallbackStartMs: stat.mtimeMs,
+          settingsCache,
+        });
       }
 
       const newLines = readNewLines(filePath);
@@ -393,7 +440,9 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         try {
           const entry = JSON.parse(line);
           processEntry(entry, sessionId);
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
 
       updateAgentStatus(sessionId, stat.mtimeMs);
@@ -416,7 +465,9 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
     // stat-per-entry pass here was the single largest source of poll-loop
     // syscalls — it stat'd every historical JSONL file in the project just to
     // learn it wasn't a directory.
-    const sessionDirs = entries.filter((d) => d.isDirectory()).map((d) => d.name);
+    const sessionDirs = entries
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name);
 
     for (const sessionId of sessionDirs) {
       const subagentsDir = path.join(projectPath, sessionId, "subagents");
@@ -483,7 +534,8 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       for (const { dir, names } of listings) {
         for (const name of names) {
           if (name.endsWith(".jsonl")) candidates.push({ dir, name });
-          else if (name.endsWith(".meta.json")) metaPaths.add(path.join(dir, name));
+          else if (name.endsWith(".meta.json"))
+            metaPaths.add(path.join(dir, name));
         }
       }
 
@@ -522,13 +574,23 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             for (const line of readNewLines(filePath)) {
               try {
                 parsed.push(JSON.parse(line));
-              } catch { /* skip */ }
+              } catch {
+                /* skip */
+              }
             }
             for (const entry of parsed) harvestSpawnToolUses(entry, agentId);
           }
         }
 
-        buffered.push({ filePath, dir, stat, parsed, agentId, agentType: "generic", description: "" });
+        buffered.push({
+          filePath,
+          dir,
+          stat,
+          parsed,
+          agentId,
+          agentType: "generic",
+          description: "",
+        });
       }
 
       // ── Phase B: register + process ────────────────
@@ -569,7 +631,9 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
       const batchParent = new Map<string, string>();
       for (const file of buffered) {
         if (!file.agentId || !file.toolUseId) continue;
-        const owner = resolveLiveSpawner(file.toolUseId, file.agentId, (id) => batchIds.has(id));
+        const owner = resolveLiveSpawner(file.toolUseId, file.agentId, (id) =>
+          batchIds.has(id),
+        );
         if (owner !== undefined) {
           batchParent.set(file.agentId, owner);
         }
@@ -597,7 +661,11 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
         if (!agents.has(sessionId)) {
           const parentJsonl = path.join(projectPath, `${sessionId}.jsonl`);
           let parentStat: Stats | undefined;
-          try { parentStat = await fsp.stat(parentJsonl); } catch { /* missing */ }
+          try {
+            parentStat = await fsp.stat(parentJsonl);
+          } catch {
+            /* missing */
+          }
           if (parentStat) {
             const removedAt = removedAgentIds.get(sessionId);
             // Don't resurrect a purged main unless its own JSONL (or the
@@ -606,11 +674,21 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
               removedAt !== undefined &&
               parentStat.mtimeMs <= removedAt &&
               stat.mtimeMs <= removedAt
-            ) continue;
-            registerMainAgent({ sessionId, filePath: parentJsonl, projectDir, fallbackStartMs: parentStat.mtimeMs, settingsCache });
+            )
+              continue;
+            registerMainAgent({
+              sessionId,
+              filePath: parentJsonl,
+              projectDir,
+              fallbackStartMs: parentStat.mtimeMs,
+              settingsCache,
+            });
             // Seed lastModified from the fresher of parent mtime or child mtime
             // so the main stays marked alive while the sub is active.
-            updateAgentStatus(sessionId, Math.max(parentStat.mtimeMs, stat.mtimeMs));
+            updateAgentStatus(
+              sessionId,
+              Math.max(parentStat.mtimeMs, stat.mtimeMs),
+            );
           }
         } else {
           // Keep an already-registered parent fresh whenever a child writes,
@@ -652,9 +730,10 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
             }
           }
 
-          const workflowName = path.basename(path.dirname(file.dir)) === "workflows"
-            ? workflowScriptNames.get(path.basename(file.dir))
-            : undefined;
+          const workflowName =
+            path.basename(path.dirname(file.dir)) === "workflows"
+              ? workflowScriptNames.get(path.basename(file.dir))
+              : undefined;
           registerAgent({
             agentId,
             sessionId,
@@ -697,7 +776,10 @@ export async function discoverActiveSessions(projectsDir: string): Promise<void>
           // mid-session register re-broadcast (same path as re-parents).
           if (existing) {
             let healed = false;
-            if (existing.displayType === undefined && file.displayType !== undefined) {
+            if (
+              existing.displayType === undefined &&
+              file.displayType !== undefined
+            ) {
               existing.displayType = file.displayType;
               healed = true;
             }
@@ -838,7 +920,9 @@ export async function refreshTrackedAgents(): Promise<void> {
     for (const line of newLines) {
       try {
         processEntry(JSON.parse(line), agentId);
-      } catch { /* skip malformed lines */ }
+      } catch {
+        /* skip malformed lines */
+      }
     }
 
     updateAgentStatus(agentId, stat.mtimeMs);

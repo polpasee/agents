@@ -4,7 +4,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Agent Monitor",
-  description: "Real-time monitoring dashboard for Claude agents and sub-agents",
+  description:
+    "Real-time monitoring dashboard for Claude agents and sub-agents",
 };
 
 export default function RootLayout({
@@ -19,7 +20,9 @@ export default function RootLayout({
     // is correct — the suppression silences a noisy false-positive.
     <html lang="en" suppressHydrationWarning>
       <body className="antialiased" suppressHydrationWarning>
-        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>

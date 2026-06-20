@@ -1,11 +1,19 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { annotations } from "../../../../../scripts/lib/annotation-store";
-import { viewers, type SSEClient } from "../../../../../scripts/lib/sse-broadcast";
+import {
+  viewers,
+  type SSEClient,
+} from "../../../../../scripts/lib/sse-broadcast";
 import { DELETE } from "../[id]/route";
 
 function makeClient(): SSEClient & { received: string[] } {
   const received: string[] = [];
-  return { received, send(data: string) { received.push(data); } };
+  return {
+    received,
+    send(data: string) {
+      received.push(data);
+    },
+  };
 }
 
 describe("/api/annotations/[id] DELETE", () => {
@@ -16,13 +24,19 @@ describe("/api/annotations/[id] DELETE", () => {
 
   it("removes an existing annotation, returns 204, and broadcasts annotation:update remove", async () => {
     annotations.set("ann-keep", {
-      id: "ann-keep", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
+      id: "ann-keep",
+      targetId: "x",
+      targetType: "agent",
+      text: "y",
+      timestamp: 1,
     });
     const client = makeClient();
     viewers.add(client);
 
     const res = await DELETE(
-      new Request("http://localhost/api/annotations/ann-keep", { method: "DELETE" }),
+      new Request("http://localhost/api/annotations/ann-keep", {
+        method: "DELETE",
+      }),
       { params: Promise.resolve({ id: "ann-keep" }) },
     );
 
@@ -37,7 +51,9 @@ describe("/api/annotations/[id] DELETE", () => {
 
   it("returns 404 when the annotation does not exist", async () => {
     const res = await DELETE(
-      new Request("http://localhost/api/annotations/ghost", { method: "DELETE" }),
+      new Request("http://localhost/api/annotations/ghost", {
+        method: "DELETE",
+      }),
       { params: Promise.resolve({ id: "ghost" }) },
     );
     expect(res.status).toBe(404);

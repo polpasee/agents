@@ -2,11 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockReadFile = vi.fn<(..._args: unknown[]) => Promise<string>>();
 const mockStat = vi.fn<(..._args: unknown[]) => Promise<{ size: number }>>(() =>
-  Promise.resolve({ size: 1024 })
+  Promise.resolve({ size: 1024 }),
 );
 const mockOpen = vi.fn();
-const mockRead = vi.fn();
-const mockClose = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
   readFile: (..._args: unknown[]) => mockReadFile(..._args),
@@ -79,7 +77,12 @@ describe("readAgentLog", () => {
         message: {
           role: "assistant",
           content: [
-            { type: "tool_use", id: "tool-1", name: "Read", input: { file: "test.ts" } },
+            {
+              type: "tool_use",
+              id: "tool-1",
+              name: "Read",
+              input: { file: "test.ts" },
+            },
           ],
         },
       }),
@@ -110,7 +113,11 @@ describe("readAgentLog", () => {
         message: {
           role: "user",
           content: [
-            { type: "tool_result", tool_use_id: "tool-1", content: "file contents here" },
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "file contents here",
+            },
           ],
         },
       }),
@@ -154,13 +161,17 @@ describe("readAgentLog", () => {
   });
 
   it("rejects (throws) when fs.stat throws ENOENT — IO errors must propagate", async () => {
-    const err = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" });
+    const err = Object.assign(new Error("ENOENT: no such file or directory"), {
+      code: "ENOENT",
+    });
     mockStat.mockRejectedValue(err);
     await expect(readAgentLog("/nonexistent.jsonl")).rejects.toThrow("ENOENT");
   });
 
   it("rejects (throws) when fs.readFile throws EACCES — IO errors must propagate", async () => {
-    const err = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    const err = Object.assign(new Error("EACCES: permission denied"), {
+      code: "EACCES",
+    });
     mockReadFile.mockRejectedValue(err);
     await expect(readAgentLog("/forbidden.jsonl")).rejects.toThrow("EACCES");
   });

@@ -3,7 +3,12 @@
 import { useMemo, useState, useEffect } from "react";
 import { useAgentStore } from "@/lib/store";
 import { UI, BUDGET_COLORS, getBarColor } from "@/lib/colors";
-import { formatNumber, formatDuration, formatResetTime, totalTokens } from "@/lib/utils";
+import {
+  formatNumber,
+  formatDuration,
+  formatResetTime,
+  totalTokens,
+} from "@/lib/utils";
 import { calculateTotalCost, formatCost } from "@/lib/costs";
 import { useApiUsage, deriveUsageBars } from "@/hooks/useApiUsage";
 
@@ -15,7 +20,15 @@ function formatAge(ms: number): string {
   return `${Math.floor(h / 24)}d`;
 }
 
-function UsageBar({ label, percent, resetMs }: { label: string; percent: number; resetMs: number }) {
+function UsageBar({
+  label,
+  percent,
+  resetMs,
+}: {
+  label: string;
+  percent: number;
+  resetMs: number;
+}) {
   const color = getBarColor(percent);
   return (
     <div className="flex items-center gap-1.5 text-xs">
@@ -60,13 +73,27 @@ export function UsagePanel() {
       totalWindow += a.contextWindow;
       totalAllTokens += totalTokens(a);
       if (a.startTime < earliest) earliest = a.startTime;
-      if (a.status === "running" || a.status === "idle" || a.status === "waiting") hasActive = true;
+      if (
+        a.status === "running" ||
+        a.status === "idle" ||
+        a.status === "waiting"
+      )
+        hasActive = true;
     }
 
-    const contextPercent = totalWindow > 0 ? Math.min((totalUsed / totalWindow) * 100, 100) : 0;
+    const contextPercent =
+      totalWindow > 0 ? Math.min((totalUsed / totalWindow) * 100, 100) : 0;
     const cost = calculateTotalCost(agents);
 
-    return { totalUsed, totalWindow, contextPercent, totalAllTokens, cost, earliest, hasActive };
+    return {
+      totalUsed,
+      totalWindow,
+      contextPercent,
+      totalAllTokens,
+      cost,
+      earliest,
+      hasActive,
+    };
   }, [agents]);
 
   // Live timer — re-render every second
@@ -104,7 +131,8 @@ export function UsagePanel() {
             <div className="flex items-center justify-between text-xs mb-0.5">
               <span style={{ color: UI.text.dimmed }}>Context</span>
               <span style={{ color: UI.text.secondary }}>
-                {formatNumber(stats.totalUsed)} / {formatNumber(stats.totalWindow)}
+                {formatNumber(stats.totalUsed)} /{" "}
+                {formatNumber(stats.totalWindow)}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -121,7 +149,10 @@ export function UsagePanel() {
                   }}
                 />
               </div>
-              <span className="text-xs flex-shrink-0" style={{ color: barColor, minWidth: 32, textAlign: "right" }}>
+              <span
+                className="text-xs flex-shrink-0"
+                style={{ color: barColor, minWidth: 32, textAlign: "right" }}
+              >
                 {stats.contextPercent.toFixed(1)}%
               </span>
             </div>
@@ -131,11 +162,18 @@ export function UsagePanel() {
           <div className="flex items-center justify-between text-xs">
             <div>
               <span style={{ color: UI.text.dimmed }}>Tokens </span>
-              <span style={{ color: UI.text.secondary }}>{formatNumber(stats.totalAllTokens)}</span>
+              <span style={{ color: UI.text.secondary }}>
+                {formatNumber(stats.totalAllTokens)}
+              </span>
             </div>
             <div>
               <span style={{ color: UI.text.dimmed }}>Cost </span>
-              <span style={{ color: UI.primary, textShadow: `0 0 6px ${UI.primary}44` }}>
+              <span
+                style={{
+                  color: UI.primary,
+                  textShadow: `0 0 6px ${UI.primary}44`,
+                }}
+              >
                 {formatCost(stats.cost.total)}
               </span>
             </div>
@@ -144,7 +182,9 @@ export function UsagePanel() {
           {/* Runtime */}
           <div className="text-xs">
             <span style={{ color: UI.text.dimmed }}>Runtime </span>
-            <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
+            <span style={{ color: UI.text.secondary }}>
+              {formatDuration(elapsed)}
+            </span>
           </div>
         </>
       )}
@@ -160,7 +200,11 @@ export function UsagePanel() {
       {apiUsage && (
         <div
           className="pt-1.5 space-y-1"
-          style={agents.size > 0 ? { borderTop: "1px solid var(--color-border)" } : undefined}
+          style={
+            agents.size > 0
+              ? { borderTop: "1px solid var(--color-border)" }
+              : undefined
+          }
         >
           {apiUsage.stale && (
             <div
@@ -170,13 +214,24 @@ export function UsagePanel() {
             >
               <span>⚠</span>
               <span>
-                Stale{apiUsage.ageMs != null ? ` · ${formatAge(apiUsage.ageMs)} old` : ""}
+                Stale
+                {apiUsage.ageMs != null
+                  ? ` · ${formatAge(apiUsage.ageMs)} old`
+                  : ""}
               </span>
             </div>
           )}
           <div style={apiUsage.stale ? { opacity: 0.5 } : undefined}>
-            <UsageBar label="Session" percent={blockPercent} resetMs={blockResetMs} />
-            <UsageBar label="Weekly" percent={weeklyPercent} resetMs={weeklyResetMs} />
+            <UsageBar
+              label="Session"
+              percent={blockPercent}
+              resetMs={blockResetMs}
+            />
+            <UsageBar
+              label="Weekly"
+              percent={weeklyPercent}
+              resetMs={weeklyResetMs}
+            />
           </div>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useAgentStore } from "@/lib/store";
 import type { ActivityEntry } from "@/lib/types";
@@ -17,7 +17,7 @@ describe("useSoundNotifications", () => {
     vi.resetModules();
 
     // Provide a working AudioContext mock before importing
-    (globalThis as any).AudioContext = class {
+    (globalThis as { AudioContext?: unknown }).AudioContext = class {
       state = "running";
       currentTime = 0;
       destination = {};
@@ -68,7 +68,7 @@ describe("useSoundNotifications", () => {
   it("processes agent:register events without error", async () => {
     vi.resetModules();
 
-    (globalThis as any).AudioContext = class {
+    (globalThis as { AudioContext?: unknown }).AudioContext = class {
       state = "running";
       currentTime = 0;
       destination = {};
@@ -117,11 +117,11 @@ describe("useSoundNotifications", () => {
 
   it("handles missing AudioContext gracefully", async () => {
     vi.resetModules();
-    delete (globalThis as any).AudioContext;
+    delete (globalThis as { AudioContext?: unknown }).AudioContext;
 
     const { useSoundNotifications } = await import("../useSoundNotifications");
 
-    const { result } = renderHook(() => {
+    renderHook(() => {
       useSoundNotifications();
       return useAgentStore((s) => s.activity);
     });
@@ -181,7 +181,8 @@ describe("useSoundNotifications — evicted lastId startIdx formula", () => {
     expect(buggyStartIdx).toBe(0);
     // With startIdx=0 and the existing guard `startIdx <= 0 ? activity : slice`,
     // newEntries becomes the FULL activity array — wrong.
-    const wrongNewEntries = buggyStartIdx <= 0 ? activity : activity.slice(buggyStartIdx);
+    const wrongNewEntries =
+      buggyStartIdx <= 0 ? activity : activity.slice(buggyStartIdx);
     expect(wrongNewEntries).toHaveLength(1); // demonstrates the bug
   });
 

@@ -37,7 +37,7 @@ describe("SessionComparison", () => {
         rightSession="session-b"
         agents={agents}
         onExit={() => {}}
-      />
+      />,
     );
 
     expect(screen.getByText("SESSION COMPARISON")).toBeDefined();
@@ -53,9 +53,23 @@ describe("SessionComparison", () => {
   it("canonical grouping: child agents are counted under their root's sessionId", () => {
     const agents = new Map<string, AgentState>();
     // root agent with session-a; child has no own sessionId but parentId → root
-    agents.set("root-a", mockAgent({ id: "root-a", sessionId: "session-a", agentType: "main" }));
-    agents.set("child-a", mockAgent({ id: "child-a", parentId: "root-a", sessionId: undefined, agentType: "build" }));
-    agents.set("root-b", mockAgent({ id: "root-b", sessionId: "session-b", agentType: "main" }));
+    agents.set(
+      "root-a",
+      mockAgent({ id: "root-a", sessionId: "session-a", agentType: "main" }),
+    );
+    agents.set(
+      "child-a",
+      mockAgent({
+        id: "child-a",
+        parentId: "root-a",
+        sessionId: undefined,
+        agentType: "build",
+      }),
+    );
+    agents.set(
+      "root-b",
+      mockAgent({ id: "root-b", sessionId: "session-b", agentType: "main" }),
+    );
 
     render(
       <SessionComparison
@@ -63,7 +77,7 @@ describe("SessionComparison", () => {
         rightSession="session-b"
         agents={agents}
         onExit={() => {}}
-      />
+      />,
     );
 
     // session-a has 2 agents (root + child), session-b has 1

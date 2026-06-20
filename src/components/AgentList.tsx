@@ -2,7 +2,13 @@
 
 import { useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
-import { STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS, agentColor } from "@/lib/colors";
+import {
+  STATUS_COLORS,
+  AGENT_LABELS,
+  UI,
+  TEAM_STATUS_COLORS,
+  agentColor,
+} from "@/lib/colors";
 import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 import { resolveSessionId } from "@/lib/sessions";
@@ -14,13 +20,24 @@ function shortModel(model: string): string {
   return m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : model;
 }
 
-function AgentRow({ agent, isSelected, onClick, workflowLabels }: { agent: AgentState; isSelected: boolean; onClick: () => void; workflowLabels: Map<string, string> }) {
+function AgentRow({
+  agent,
+  isSelected,
+  onClick,
+  workflowLabels,
+}: {
+  agent: AgentState;
+  isSelected: boolean;
+  onClick: () => void;
+  workflowLabels: Map<string, string>;
+}) {
   const color = agentColor(agent);
   const isRunning = agent.status === "running";
-  const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1].tool : null;
-  const statusLabel = isRunning && lastTool
-    ? lastTool
-    : agent.status;
+  const lastTool =
+    agent.toolCalls.length > 0
+      ? agent.toolCalls[agent.toolCalls.length - 1].tool
+      : null;
+  const statusLabel = isRunning && lastTool ? lastTool : agent.status;
   const statusColor = STATUS_COLORS[agent.status];
   return (
     <button
@@ -37,12 +54,29 @@ function AgentRow({ agent, isSelected, onClick, workflowLabels }: { agent: Agent
           className="w-1.5 h-1.5 rounded-full flex-shrink-0"
           style={{ background: color, boxShadow: `0 0 4px ${color}` }}
         />
-        <span className="text-sm truncate" style={{ color: isSelected ? color : UI.text.secondary }}>
-          {workflowLabels.get(agent.id) ?? (agent.workflowName || agent.displayType || AGENT_LABELS[agent.agentType]).toUpperCase()}{agent.model ? `(${shortModel(agent.model)})` : ""}
+        <span
+          className="text-sm truncate"
+          style={{ color: isSelected ? color : UI.text.secondary }}
+        >
+          {workflowLabels.get(agent.id) ??
+            (
+              agent.workflowName ||
+              agent.displayType ||
+              AGENT_LABELS[agent.agentType]
+            ).toUpperCase()}
+          {agent.model ? `(${shortModel(agent.model)})` : ""}
         </span>
-        <span className="text-xs capitalize truncate ml-auto flex-shrink-0" style={{ color: statusColor }}>{statusLabel}</span>
+        <span
+          className="text-xs capitalize truncate ml-auto flex-shrink-0"
+          style={{ color: statusColor }}
+        >
+          {statusLabel}
+        </span>
       </div>
-      <div className="text-xs truncate mt-0.5 ml-3" style={{ color: UI.text.dimmed }}>
+      <div
+        className="text-xs truncate mt-0.5 ml-3"
+        style={{ color: UI.text.dimmed }}
+      >
         {agent.task}
       </div>
     </button>
@@ -55,7 +89,10 @@ interface SessionGroup {
   agents: AgentState[];
 }
 
-function groupBySession(list: Iterable<AgentState>, agents: Map<string, AgentState>): Map<string, SessionGroup> {
+function groupBySession(
+  list: Iterable<AgentState>,
+  agents: Map<string, AgentState>,
+): Map<string, SessionGroup> {
   const groups = new Map<string, SessionGroup>();
 
   for (const agent of list) {
@@ -92,7 +129,10 @@ function SessionAgents({
   workflowLabels: Map<string, string>;
 }) {
   const { teamGroups, soloAgents } = useMemo(() => {
-    const teamGroups = new Map<string, { team: TeamState; members: AgentState[] }>();
+    const teamGroups = new Map<
+      string,
+      { team: TeamState; members: AgentState[] }
+    >();
     const soloAgents: AgentState[] = [];
 
     for (const agent of agents) {
@@ -125,7 +165,9 @@ function SessionAgents({
               aria-expanded={isTeamSelected}
               className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
               style={{
-                background: isTeamSelected ? `${UI.primary}11` : `${UI.primary}06`,
+                background: isTeamSelected
+                  ? `${UI.primary}11`
+                  : `${UI.primary}06`,
                 border: `1px solid ${isTeamSelected ? `${UI.primary}44` : `${UI.primary}15`}`,
               }}
             >
@@ -133,17 +175,34 @@ function SessionAgents({
                 <span className="text-xs" style={{ color: UI.text.dimmed }}>
                   {isTeamSelected ? "▼" : "▶"}
                 </span>
-                <span className="text-xs font-bold font-mono" style={{ color: UI.primary }}>
+                <span
+                  className="text-xs font-bold font-mono"
+                  style={{ color: UI.primary }}
+                >
                   TEAM
                 </span>
-                <span className="text-xs truncate" style={{ color: UI.text.secondary }}>
+                <span
+                  className="text-xs truncate"
+                  style={{ color: UI.text.secondary }}
+                >
                   {team.name}
                 </span>
               </div>
               <div className="flex items-center gap-1 mt-0.5 ml-4">
-                <div className="w-1 h-1 rounded-full" style={{ background: statusColor }} />
-                <span className="text-xs capitalize" style={{ color: statusColor }}>{team.status}</span>
-                <span className="text-xs ml-1" style={{ color: UI.text.dimmed }}>
+                <div
+                  className="w-1 h-1 rounded-full"
+                  style={{ background: statusColor }}
+                />
+                <span
+                  className="text-xs capitalize"
+                  style={{ color: statusColor }}
+                >
+                  {team.status}
+                </span>
+                <span
+                  className="text-xs ml-1"
+                  style={{ color: UI.text.dimmed }}
+                >
                   ({members.length} members)
                 </span>
               </div>
@@ -200,7 +259,8 @@ export function AgentList() {
     // Disambiguate label collisions: when two Claude sessions live in the same
     // project, append a short session-id suffix so users can tell them apart.
     const labelCounts = new Map<string, number>();
-    for (const g of groups.values()) labelCounts.set(g.label, (labelCounts.get(g.label) ?? 0) + 1);
+    for (const g of groups.values())
+      labelCounts.set(g.label, (labelCounts.get(g.label) ?? 0) + 1);
     for (const g of groups.values()) {
       if ((labelCounts.get(g.label) ?? 0) > 1) {
         g.label = `${g.label} · ${g.sessionId.slice(0, 6)}`;
@@ -232,131 +292,162 @@ export function AgentList() {
     >
       <div
         className="px-3 py-2 text-xs uppercase tracking-wider"
-        style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
+        style={{
+          color: UI.text.muted,
+          borderBottom: "1px solid var(--color-border)",
+        }}
       >
         Agents ({agentList.length})
         {hasMultipleSessions && (
-          <span style={{ color: UI.text.dimmed }}> &middot; {sessionCount} sessions</span>
+          <span style={{ color: UI.text.dimmed }}>
+            {" "}
+            &middot; {sessionCount} sessions
+          </span>
         )}
         {teams.size > 0 && (
-          <span style={{ color: UI.text.dimmed }}> &middot; {teams.size} team{teams.size !== 1 ? "s" : ""}</span>
+          <span style={{ color: UI.text.dimmed }}>
+            {" "}
+            &middot; {teams.size} team{teams.size !== 1 ? "s" : ""}
+          </span>
         )}
       </div>
       <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
         {agentList.length === 0 && selectedSessionIds.size === 0 && (
-          <div className="text-sm text-center py-8" style={{ color: UI.text.empty }}>
+          <div
+            className="text-sm text-center py-8"
+            style={{ color: UI.text.empty }}
+          >
             No agents connected
           </div>
         )}
 
-        {hasMultipleSessions && (() => {
-          const allActive = selectedSessionIds.size === 0;
-          return (
-            <button
-              onClick={() => { if (!allActive) selectAllSessions(); }}
-              aria-pressed={allActive}
-              className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
-              style={{
-                background: allActive ? `${UI.primary}18` : "transparent",
-                border: `1px dashed ${allActive ? UI.primary : `${UI.primary}30`}`,
-              }}
-              title="Show all sessions in topology"
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="text-xs font-medium uppercase tracking-wider"
-                  style={{ color: allActive ? UI.primary : UI.text.dimmed }}
-                >
-                  All Sessions
-                </span>
-                <span className="text-xs ml-auto" style={{ color: UI.text.dimmed }}>
-                  {allSessionGroups.length}
-                </span>
-              </div>
-            </button>
-          );
-        })()}
-
-        {hasMultipleSessions
-          ? allSessionGroups.map((group) => {
-              const isSelected = selectedSessionIds.has(group.sessionId);
-              const isActive = selectedSessionIds.size === 0 || isSelected;
-              const filtered = filteredSessionGroups.get(group.sessionId);
-              const canDismiss = group.agents.every(
-                (a) => a.status === "idle" || a.status === "completed" || a.status === "error"
-              );
-              // Note: unselected pills used to dim to opacity 0.4 to signal
-              // "filtered out." With the new "default to one session" model,
-              // *not selected* is the normal state — keep them fully readable
-              // and let the bright border + cyan label signal selection on its own.
-              return (
-                <div key={group.sessionId} className="space-y-0.5">
-                  <button
-                    onClick={() => toggleSession(group.sessionId)}
-                    aria-pressed={isSelected}
-                    className="w-full text-left rounded-md px-2 py-1.5 transition-colors hover:brightness-125"
-                    style={{
-                      background: isSelected ? `${UI.primary}18` : `${UI.primary}0d`,
-                      border: `1px solid ${isSelected ? UI.primary : `${UI.primary}40`}`,
-                    }}
+        {hasMultipleSessions &&
+          (() => {
+            const allActive = selectedSessionIds.size === 0;
+            return (
+              <button
+                onClick={() => {
+                  if (!allActive) selectAllSessions();
+                }}
+                aria-pressed={allActive}
+                className="w-full text-left rounded-md px-2 py-1.5 transition-colors"
+                style={{
+                  background: allActive ? `${UI.primary}18` : "transparent",
+                  border: `1px dashed ${allActive ? UI.primary : `${UI.primary}30`}`,
+                }}
+                title="Show all sessions in topology"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="text-xs font-medium uppercase tracking-wider"
+                    style={{ color: allActive ? UI.primary : UI.text.dimmed }}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="text-xs font-medium truncate"
-                        style={{ color: isSelected ? UI.primary : UI.text.primary }}
-                        title={group.label}
-                      >
-                        {group.label}
-                      </span>
-                      <span className="text-xs ml-auto flex-shrink-0" style={{ color: UI.text.muted }}>
-                        {group.agents.length}
-                      </span>
-                      {canDismiss && (
-                        <span
-                          role="button"
-                          aria-label="Dismiss session"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            group.agents.forEach((a) => removeAgent(a.id));
-                          }}
-                          className="flex-shrink-0 leading-none"
-                          style={{ color: UI.text.muted, fontSize: 10, lineHeight: 1 }}
-                          title="Dismiss idle session"
-                        >
-                          ✕
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                  {isActive && filtered && (
-                    <div className="ml-2 space-y-0.5">
-                      <SessionAgents
-                        agents={filtered.agents}
-                        teams={teams}
-                        selectedAgentId={selectedAgentId}
-                        selectAgent={selectAgent}
-                        selectedTeamId={selectedTeamId}
-                        selectTeam={selectTeam}
-                        workflowLabels={workflowLabels}
-                      />
-                    </div>
-                  )}
+                    All Sessions
+                  </span>
+                  <span
+                    className="text-xs ml-auto"
+                    style={{ color: UI.text.dimmed }}
+                  >
+                    {allSessionGroups.length}
+                  </span>
                 </div>
-              );
-            })
-          : allSessionGroups.length === 1 && filteredSessionGroups.size === 1
-            ? (
-              <SessionAgents
-                agents={agentList}
-                teams={teams}
-                selectedAgentId={selectedAgentId}
-                selectAgent={selectAgent}
-                selectedTeamId={selectedTeamId}
-                selectTeam={selectTeam}
-                workflowLabels={workflowLabels}
-              />
-            )
-            : null}
+              </button>
+            );
+          })()}
+
+        {hasMultipleSessions ? (
+          allSessionGroups.map((group) => {
+            const isSelected = selectedSessionIds.has(group.sessionId);
+            const isActive = selectedSessionIds.size === 0 || isSelected;
+            const filtered = filteredSessionGroups.get(group.sessionId);
+            const canDismiss = group.agents.every(
+              (a) =>
+                a.status === "idle" ||
+                a.status === "completed" ||
+                a.status === "error",
+            );
+            // Note: unselected pills used to dim to opacity 0.4 to signal
+            // "filtered out." With the new "default to one session" model,
+            // *not selected* is the normal state — keep them fully readable
+            // and let the bright border + cyan label signal selection on its own.
+            return (
+              <div key={group.sessionId} className="space-y-0.5">
+                <button
+                  onClick={() => toggleSession(group.sessionId)}
+                  aria-pressed={isSelected}
+                  className="w-full text-left rounded-md px-2 py-1.5 transition-colors hover:brightness-125"
+                  style={{
+                    background: isSelected
+                      ? `${UI.primary}18`
+                      : `${UI.primary}0d`,
+                    border: `1px solid ${isSelected ? UI.primary : `${UI.primary}40`}`,
+                  }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="text-xs font-medium truncate"
+                      style={{
+                        color: isSelected ? UI.primary : UI.text.primary,
+                      }}
+                      title={group.label}
+                    >
+                      {group.label}
+                    </span>
+                    <span
+                      className="text-xs ml-auto flex-shrink-0"
+                      style={{ color: UI.text.muted }}
+                    >
+                      {group.agents.length}
+                    </span>
+                    {canDismiss && (
+                      <span
+                        role="button"
+                        aria-label="Dismiss session"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          group.agents.forEach((a) => removeAgent(a.id));
+                        }}
+                        className="flex-shrink-0 leading-none"
+                        style={{
+                          color: UI.text.muted,
+                          fontSize: 10,
+                          lineHeight: 1,
+                        }}
+                        title="Dismiss idle session"
+                      >
+                        ✕
+                      </span>
+                    )}
+                  </div>
+                </button>
+                {isActive && filtered && (
+                  <div className="ml-2 space-y-0.5">
+                    <SessionAgents
+                      agents={filtered.agents}
+                      teams={teams}
+                      selectedAgentId={selectedAgentId}
+                      selectAgent={selectAgent}
+                      selectedTeamId={selectedTeamId}
+                      selectTeam={selectTeam}
+                      workflowLabels={workflowLabels}
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : allSessionGroups.length === 1 &&
+          filteredSessionGroups.size === 1 ? (
+          <SessionAgents
+            agents={agentList}
+            teams={teams}
+            selectedAgentId={selectedAgentId}
+            selectAgent={selectAgent}
+            selectedTeamId={selectedTeamId}
+            selectTeam={selectTeam}
+            workflowLabels={workflowLabels}
+          />
+        ) : null}
       </div>
       <UsagePanel />
     </div>

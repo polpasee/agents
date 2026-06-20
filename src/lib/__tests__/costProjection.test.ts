@@ -20,7 +20,12 @@ describe("calculateBurnRate", () => {
 
   it("falls back to lifetime burn when fewer than 2 token events in window", () => {
     vi.setSystemTime(60_000);
-    const agent = mockAgent({ id: "a1", inputTokens: 5000, outputTokens: 2000, startTime: 0 });
+    const agent = mockAgent({
+      id: "a1",
+      inputTokens: 5000,
+      outputTokens: 2000,
+      startTime: 0,
+    });
     const agents = new Map([["a1", agent]]);
 
     const activity: ActivityEntry[] = [
@@ -47,7 +52,12 @@ describe("calculateBurnRate", () => {
 
   it("returns 0 when agents have zero cost even with activity", () => {
     vi.setSystemTime(60_000);
-    const agent = mockAgent({ id: "a1", inputTokens: 0, outputTokens: 0, startTime: 0 });
+    const agent = mockAgent({
+      id: "a1",
+      inputTokens: 0,
+      outputTokens: 0,
+      startTime: 0,
+    });
     const agents = new Map([["a1", agent]]);
     const rate = calculateBurnRate([], agents);
     expect(rate).toBe(0);
@@ -58,7 +68,12 @@ describe("calculateBurnRate", () => {
     vi.setSystemTime(now);
 
     // Agent started 60 seconds ago, spent $0.001 total — lifetime avg = $0.001/min
-    const agent = mockAgent({ id: "a1", inputTokens: 100, outputTokens: 50, startTime: 0 });
+    const agent = mockAgent({
+      id: "a1",
+      inputTokens: 100,
+      outputTokens: 50,
+      startTime: 0,
+    });
     const agents = new Map([["a1", agent]]);
 
     // Two events only 5ms apart — window-based rate would be absurdly high

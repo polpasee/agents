@@ -17,20 +17,29 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
   // log:response / log:error were removed from the SSE protocol — replaced by
   // HTTP /api/logs/[agentId]. The validator must now reject them.
   it("rejects log:response (no longer part of the protocol)", () => {
-    expect(isValidServerEvent({ type: "log:response", agentId: "a1", entries: [] })).toBe(false);
+    expect(
+      isValidServerEvent({ type: "log:response", agentId: "a1", entries: [] }),
+    ).toBe(false);
   });
 
   it("rejects log:error (no longer part of the protocol)", () => {
-    expect(isValidServerEvent({ type: "log:error", agentId: "a1", error: "ENOENT" })).toBe(false);
+    expect(
+      isValidServerEvent({ type: "log:error", agentId: "a1", error: "ENOENT" }),
+    ).toBe(false);
   });
 
   it("accepts valid annotation:sync", () => {
-    expect(isValidServerEvent({ type: "annotation:sync", annotations: [] })).toBe(true);
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: [] }),
+    ).toBe(true);
   });
 
   it("accepts annotation:sync with well-shaped entries", () => {
     expect(
-      isValidServerEvent({ type: "annotation:sync", annotations: [{ id: "1", targetId: "a", text: "note" }] }),
+      isValidServerEvent({
+        type: "annotation:sync",
+        annotations: [{ id: "1", targetId: "a", text: "note" }],
+      }),
     ).toBe(true);
   });
 
@@ -39,12 +48,17 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
   });
 
   it("rejects annotation:sync with non-array annotations", () => {
-    expect(isValidServerEvent({ type: "annotation:sync", annotations: "bad" })).toBe(false);
+    expect(
+      isValidServerEvent({ type: "annotation:sync", annotations: "bad" }),
+    ).toBe(false);
   });
 
   it("rejects annotation:sync entries missing targetId", () => {
     expect(
-      isValidServerEvent({ type: "annotation:sync", annotations: [{ id: "1" }] }),
+      isValidServerEvent({
+        type: "annotation:sync",
+        annotations: [{ id: "1" }],
+      }),
     ).toBe(false);
   });
 
@@ -79,24 +93,38 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
   });
 
   it("rejects annotation:update without annotation field", () => {
-    expect(isValidServerEvent({ type: "annotation:update", action: "add" })).toBe(false);
+    expect(
+      isValidServerEvent({ type: "annotation:update", action: "add" }),
+    ).toBe(false);
   });
 
   it("rejects annotation:update with string annotation payload", () => {
     expect(
-      isValidServerEvent({ type: "annotation:update", annotation: "not-an-object", action: "add" }),
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: "not-an-object",
+        action: "add",
+      }),
     ).toBe(false);
   });
 
   it("rejects annotation:update with numeric annotation payload", () => {
     expect(
-      isValidServerEvent({ type: "annotation:update", annotation: 42, action: "add" }),
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: 42,
+        action: "add",
+      }),
     ).toBe(false);
   });
 
   it("rejects annotation:update when annotation is missing targetId", () => {
     expect(
-      isValidServerEvent({ type: "annotation:update", annotation: { id: "1" }, action: "add" }),
+      isValidServerEvent({
+        type: "annotation:update",
+        annotation: { id: "1" },
+        action: "add",
+      }),
     ).toBe(false);
   });
 });
@@ -105,15 +133,17 @@ describe("isValidServerEvent — log:response, log:error, annotation:* variants"
 
 describe("isValidAgentEvent — adversarial: agent:tokens with non-numeric fields", () => {
   it("rejects agent:tokens with string inputTokens", () => {
-    expect(isValidAgentEvent({
-      type: "agent:tokens",
-      agentId: "a1",
-      inputTokens: "9999",   // string instead of number
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreateTokens: 0,
-      contextWindow: 200000,
-    })).toBe(false);
+    expect(
+      isValidAgentEvent({
+        type: "agent:tokens",
+        agentId: "a1",
+        inputTokens: "9999", // string instead of number
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        contextWindow: 200000,
+      }),
+    ).toBe(false);
   });
 
   it("accepts agent:tokens with Infinity (typeof Infinity === 'number')", () => {
@@ -149,14 +179,16 @@ describe("isValidAgentEvent — adversarial: agent:tokens with non-numeric field
   });
 
   it("rejects agent:tokens with undefined inputTokens", () => {
-    expect(isValidAgentEvent({
-      type: "agent:tokens",
-      agentId: "a1",
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheCreateTokens: 0,
-      contextWindow: 200000,
-    })).toBe(false);
+    expect(
+      isValidAgentEvent({
+        type: "agent:tokens",
+        agentId: "a1",
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheCreateTokens: 0,
+        contextWindow: 200000,
+      }),
+    ).toBe(false);
   });
 });
 
@@ -183,14 +215,18 @@ describe("adversarial: __proto__ injection on state:sync — regression guard", 
     // JSON.parse safely strips __proto__ — it does NOT set Object.prototype.
     // This test documents that behavior and guards against future regressions
     // if the parsing strategy changes.
-    const payload = JSON.parse('{"type":"state:sync","agents":[],"edges":[],"teams":[],"__proto__":{"polluted":true}}');
+    const payload = JSON.parse(
+      '{"type":"state:sync","agents":[],"edges":[],"teams":[],"__proto__":{"polluted":true}}',
+    );
 
     // Validator accepts it (shallow check — __proto__ parsed as own property by JSON.parse)
     expect(isValidServerEvent(payload)).toBe(true);
 
     // After syncState, Object.prototype must not be polluted
     useAgentStore.getState().syncState([], [], []);
-    expect((Object.prototype as Record<string, unknown>)["polluted"]).toBeUndefined();
+    expect(
+      (Object.prototype as Record<string, unknown>)["polluted"],
+    ).toBeUndefined();
   });
 });
 
@@ -219,7 +255,14 @@ describe("adversarial: oversized state:sync — 10,000 agents", () => {
       agentType: "build",
       status: "running",
     }));
-    expect(isValidServerEvent({ type: "state:sync", agents: bigAgents, edges: [], teams: [] })).toBe(true);
+    expect(
+      isValidServerEvent({
+        type: "state:sync",
+        agents: bigAgents,
+        edges: [],
+        teams: [],
+      }),
+    ).toBe(true);
   });
 
   it("syncState handles 10,000 agents without throwing", () => {
@@ -237,7 +280,7 @@ describe("adversarial: oversized state:sync — 10,000 agents", () => {
       startTime: i,
     }));
     expect(() =>
-      useAgentStore.getState().syncState(bigAgents as AgentState[], [], [])
+      useAgentStore.getState().syncState(bigAgents as AgentState[], [], []),
     ).not.toThrow();
     expect(useAgentStore.getState().agents.size).toBe(10000);
   });

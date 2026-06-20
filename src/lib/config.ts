@@ -4,7 +4,7 @@
 // event-buffer flush cadence used to coalesce render churn.
 
 export const STREAM_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events ~1 frame
-export const STREAM_BATCH_MAX_SIZE = 50;    // Force-flush at this many buffered events
+export const STREAM_BATCH_MAX_SIZE = 50; // Force-flush at this many buffered events
 
 export const ACTIVITY_MAX_ENTRIES = 100; // Max activity-log items kept in the UI before oldest are evicted
 export const TOOL_CALLS_MAX_PER_AGENT = 20; // Max tool-call entries shown per agent in the detail panel
@@ -55,8 +55,13 @@ export const GRAPH = {
 /** Returns the effective node radius based on whether the agent is a sub-agent.
  *  `depthFactor` (see lib/d3/depth.ts) scales ONLY the sub-agent branch so
  *  nested sub-agents shrink per level; main agents and team members ignore it. */
-export function getNodeRadius(agent: { parentId?: string; teamId?: string }, depthFactor = 1): number {
-  return agent.parentId && !agent.teamId ? GRAPH.subAgentNodeRadius * depthFactor : GRAPH.nodeRadius;
+export function getNodeRadius(
+  agent: { parentId?: string; teamId?: string },
+  depthFactor = 1,
+): number {
+  return agent.parentId && !agent.teamId
+    ? GRAPH.subAgentNodeRadius * depthFactor
+    : GRAPH.nodeRadius;
 }
 
 /** Cost projection configuration */

@@ -22,37 +22,65 @@ class MockEventSource {
   emit(payload: unknown) {
     this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent);
   }
-  close() { this.closed = true; }
+  close() {
+    this.closed = true;
+  }
 }
 
 describe("useEventStream", () => {
   beforeEach(() => {
     MockEventSource.instances = [];
-    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
-    useAgentStore.setState({ agents: new Map(), edges: [], teams: new Map(), connected: false });
+    vi.stubGlobal(
+      "EventSource",
+      MockEventSource as unknown as typeof EventSource,
+    );
+    useAgentStore.setState({
+      agents: new Map(),
+      edges: [],
+      teams: new Map(),
+      connected: false,
+    });
   });
 
-  afterEach(() => { vi.unstubAllGlobals(); });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
   it("connects to /api/stream and sets connected=true on open", async () => {
     renderHook(() => useEventStream());
     expect(MockEventSource.instances).toHaveLength(1);
     expect(MockEventSource.instances[0].url).toBe("/api/stream");
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
     expect(useAgentStore.getState().connected).toBe(true);
   });
 
   it("handles state:sync by populating agents/edges/teams", async () => {
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     act(() => {
       es.emit({
         type: "state:sync",
-        agents: [{ id: "a", agentType: "main", status: "running", task: "t",
-          toolCalls: [], inputTokens: 0, outputTokens: 0,
-          cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        agents: [
+          {
+            id: "a",
+            agentType: "main",
+            status: "running",
+            task: "t",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
         edges: [],
         teams: [],
         protocolVersion: 1,
@@ -64,15 +92,30 @@ describe("useEventStream", () => {
   it("buffers state:update events and flushes them", async () => {
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     // Seed an agent so the agent:tool_call update has something to land on
     act(() => {
       useAgentStore.getState().syncState(
-        [{ id: "main-x", agentType: "main", status: "running", task: "t",
-           toolCalls: [], inputTokens: 0, outputTokens: 0,
-           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
-        [], [],
+        [
+          {
+            id: "main-x",
+            agentType: "main",
+            status: "running",
+            task: "t",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
+        [],
+        [],
       );
     });
 
@@ -84,7 +127,9 @@ describe("useEventStream", () => {
       });
     });
     // Wait for the 16ms batch flush
-    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
 
     const agent = useAgentStore.getState().agents.get("main-x");
     expect(agent?.toolCalls.some((tc) => tc.tool === "Read")).toBe(true);
@@ -101,13 +146,21 @@ describe("useEventStream", () => {
   it("handles annotation:update add by writing to the store", async () => {
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     act(() => {
       es.emit({
         type: "annotation:update",
         action: "add",
-        annotation: { id: "ann-x", targetId: "main", targetType: "agent", text: "hi", timestamp: 1 },
+        annotation: {
+          id: "ann-x",
+          targetId: "main",
+          targetType: "agent",
+          text: "hi",
+          timestamp: 1,
+        },
       });
     });
     expect(useAgentStore.getState().annotations.has("ann-x")).toBe(true);
@@ -118,15 +171,30 @@ describe("useEventStream", () => {
   it("drops the buffered state:update events when a fresh state:sync arrives", async () => {
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     // Seed an agent so the buffered tool_call would otherwise land on it
     act(() => {
       useAgentStore.getState().syncState(
-        [{ id: "main-x", agentType: "main", status: "running", task: "old",
-           toolCalls: [], inputTokens: 0, outputTokens: 0,
-           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
-        [], [],
+        [
+          {
+            id: "main-x",
+            agentType: "main",
+            status: "running",
+            task: "old",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
+        [],
+        [],
       );
     });
 
@@ -134,7 +202,11 @@ describe("useEventStream", () => {
     act(() => {
       es.emit({
         type: "state:update",
-        event: { type: "agent:tool_call", agentId: "main-x", tool: "ShouldNotApply" },
+        event: {
+          type: "agent:tool_call",
+          agentId: "main-x",
+          tool: "ShouldNotApply",
+        },
         timestamp: 1700000000000,
       });
     });
@@ -145,16 +217,30 @@ describe("useEventStream", () => {
     act(() => {
       es.emit({
         type: "state:sync",
-        agents: [{ id: "main-y", agentType: "main", status: "running", task: "fresh",
-          toolCalls: [], inputTokens: 0, outputTokens: 0,
-          cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
+        agents: [
+          {
+            id: "main-y",
+            agentType: "main",
+            status: "running",
+            task: "fresh",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
         edges: [],
         teams: [],
         protocolVersion: 1,
       });
     });
 
-    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 25));
+    });
 
     const state = useAgentStore.getState();
     expect(state.agents.has("main-y")).toBe(true);
@@ -169,21 +255,53 @@ describe("useEventStream", () => {
     // Pre-populate annotations
     useAgentStore.setState({
       annotations: new Map([
-        ["stale-1", { id: "stale-1", targetId: "a", targetType: "agent", text: "old", timestamp: 1 }],
-        ["keep-1", { id: "keep-1", targetId: "a", targetType: "agent", text: "kept", timestamp: 2 }],
+        [
+          "stale-1",
+          {
+            id: "stale-1",
+            targetId: "a",
+            targetType: "agent",
+            text: "old",
+            timestamp: 1,
+          },
+        ],
+        [
+          "keep-1",
+          {
+            id: "keep-1",
+            targetId: "a",
+            targetType: "agent",
+            text: "kept",
+            timestamp: 2,
+          },
+        ],
       ]),
     });
 
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     act(() => {
       es.emit({
         type: "annotation:sync",
         annotations: [
-          { id: "keep-1", targetId: "a", targetType: "agent", text: "kept", timestamp: 2 },
-          { id: "new-1", targetId: "b", targetType: "agent", text: "new", timestamp: 3 },
+          {
+            id: "keep-1",
+            targetId: "a",
+            targetType: "agent",
+            text: "kept",
+            timestamp: 2,
+          },
+          {
+            id: "new-1",
+            targetId: "b",
+            targetType: "agent",
+            text: "new",
+            timestamp: 3,
+          },
         ],
       });
     });
@@ -199,13 +317,17 @@ describe("useEventStream", () => {
   it("does not call setConnected from onerror after the hook is unmounted", async () => {
     const { unmount } = renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     // Unmount and then put the store in connected=true (mimicking a remount
     // that succeeded). The stale onerror must NOT overwrite it.
     unmount();
     useAgentStore.setState({ connected: true });
-    act(() => { es.onerror?.(new Event("error")); });
+    act(() => {
+      es.onerror?.(new Event("error"));
+    });
     expect(useAgentStore.getState().connected).toBe(true);
   });
 
@@ -214,14 +336,29 @@ describe("useEventStream", () => {
   it("drops buffered state:update events when replay activates before flush", async () => {
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     act(() => {
       useAgentStore.getState().syncState(
-        [{ id: "main-z", agentType: "main", status: "running", task: "t",
-           toolCalls: [], inputTokens: 0, outputTokens: 0,
-           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
-        [], [],
+        [
+          {
+            id: "main-z",
+            agentType: "main",
+            status: "running",
+            task: "t",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
+        [],
+        [],
       );
     });
 
@@ -229,35 +366,60 @@ describe("useEventStream", () => {
     act(() => {
       es.emit({
         type: "state:update",
-        event: { type: "agent:tool_call", agentId: "main-z", tool: "ReplayDropMe" },
+        event: {
+          type: "agent:tool_call",
+          agentId: "main-z",
+          tool: "ReplayDropMe",
+        },
         timestamp: 1700000000000,
       });
     });
 
     // Flip replay on before the flush timer fires
     act(() => {
-      useAgentStore.setState((s) => ({ replay: { ...s.replay, active: true } }));
+      useAgentStore.setState((s) => ({
+        replay: { ...s.replay, active: true },
+      }));
     });
 
-    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 25));
+    });
 
     const agent = useAgentStore.getState().agents.get("main-z");
-    expect(agent?.toolCalls.some((tc) => tc.tool === "ReplayDropMe")).toBe(false);
+    expect(agent?.toolCalls.some((tc) => tc.tool === "ReplayDropMe")).toBe(
+      false,
+    );
   });
 
   // Bug 2 — flushEventBuffer must not dispatch after teardown (destroyed guard).
   it("does not dispatch buffered events after the hook is unmounted (destroyed guard)", async () => {
     const { unmount } = renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     // Seed an agent so a buffered event would apply to it
     act(() => {
       useAgentStore.getState().syncState(
-        [{ id: "main-d", agentType: "main", status: "running", task: "t",
-           toolCalls: [], inputTokens: 0, outputTokens: 0,
-           cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0 }],
-        [], [],
+        [
+          {
+            id: "main-d",
+            agentType: "main",
+            status: "running",
+            task: "t",
+            toolCalls: [],
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheCreateTokens: 0,
+            contextWindow: 0,
+            startTime: 0,
+          },
+        ],
+        [],
+        [],
       );
     });
 
@@ -265,7 +427,11 @@ describe("useEventStream", () => {
     act(() => {
       es.emit({
         type: "state:update",
-        event: { type: "agent:tool_call", agentId: "main-d", tool: "DestroyedFlush" },
+        event: {
+          type: "agent:tool_call",
+          agentId: "main-d",
+          tool: "DestroyedFlush",
+        },
         timestamp: 1700000000001,
       });
     });
@@ -274,10 +440,14 @@ describe("useEventStream", () => {
     unmount();
 
     // Even after the normal flush delay, the event must not have landed.
-    await act(async () => { await new Promise((r) => setTimeout(r, 25)); });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 25));
+    });
 
     const agent = useAgentStore.getState().agents.get("main-d");
-    expect(agent?.toolCalls.some((tc) => tc.tool === "DestroyedFlush")).toBe(false);
+    expect(agent?.toolCalls.some((tc) => tc.tool === "DestroyedFlush")).toBe(
+      false,
+    );
   });
 
   // Annotations are independent of the replay timeline (replay only scrubs
@@ -286,17 +456,30 @@ describe("useEventStream", () => {
   it("applies annotation:sync even when replay is active", async () => {
     useAgentStore.setState({
       annotations: new Map([
-        ["existing", { id: "existing", targetId: "a", targetType: "agent", text: "keep", timestamp: 1 }],
+        [
+          "existing",
+          {
+            id: "existing",
+            targetId: "a",
+            targetType: "agent",
+            text: "keep",
+            timestamp: 1,
+          },
+        ],
       ]),
     });
 
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     // Activate replay mode
     act(() => {
-      useAgentStore.setState((s) => ({ replay: { ...s.replay, active: true } }));
+      useAgentStore.setState((s) => ({
+        replay: { ...s.replay, active: true },
+      }));
     });
 
     // Fire annotation:sync while replay is active — must still apply
@@ -304,7 +487,13 @@ describe("useEventStream", () => {
       es.emit({
         type: "annotation:sync",
         annotations: [
-          { id: "new-ann", targetId: "b", targetType: "agent", text: "live", timestamp: 2 },
+          {
+            id: "new-ann",
+            targetId: "b",
+            targetType: "agent",
+            text: "live",
+            timestamp: 2,
+          },
         ],
       });
     });
@@ -319,13 +508,21 @@ describe("useEventStream", () => {
 
     renderHook(() => useEventStream());
     const es = MockEventSource.instances[0];
-    await act(async () => { await new Promise((r) => queueMicrotask(() => r(null))); });
+    await act(async () => {
+      await new Promise((r) => queueMicrotask(() => r(null)));
+    });
 
     act(() => {
       es.emit({
         type: "annotation:sync",
         annotations: [
-          { id: "ann-live", targetId: "a", targetType: "agent", text: "live", timestamp: 1 },
+          {
+            id: "ann-live",
+            targetId: "a",
+            targetType: "agent",
+            text: "live",
+            timestamp: 1,
+          },
         ],
       });
     });

@@ -1,5 +1,11 @@
 import { AGENT_STATUSES, AGENT_TYPES } from "./types";
-import type { AgentEvent, ServerEvent, AgentStatus, AgentType, WorkflowRunState } from "./types";
+import type {
+  AgentEvent,
+  ServerEvent,
+  AgentStatus,
+  AgentType,
+  WorkflowRunState,
+} from "./types";
 
 function isAnnotationShape(v: unknown): boolean {
   if (!v || typeof v !== "object") return false;
@@ -8,11 +14,15 @@ function isAnnotationShape(v: unknown): boolean {
 }
 
 function isAgentStatus(v: unknown): v is AgentStatus {
-  return typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v)
+  );
 }
 
 function isAgentType(v: unknown): v is AgentType {
-  return typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v)
+  );
 }
 
 function isWorkflowRunState(v: unknown): v is WorkflowRunState {
@@ -22,7 +32,9 @@ function isWorkflowRunState(v: unknown): v is WorkflowRunState {
     typeof r.runId === "string" &&
     typeof r.sessionId === "string" &&
     typeof r.name === "string" &&
-    (r.status === "running" || r.status === "completed" || r.status === "failed") &&
+    (r.status === "running" ||
+      r.status === "completed" ||
+      r.status === "failed") &&
     typeof r.startTime === "number" &&
     typeof r.agentCount === "number" &&
     Array.isArray(r.phases) &&
@@ -43,14 +55,18 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
         Array.isArray(obj.agents) &&
         Array.isArray(obj.edges) &&
         Array.isArray(obj.teams) &&
-        (obj.protocolVersion === undefined || typeof obj.protocolVersion === "number")
+        (obj.protocolVersion === undefined ||
+          typeof obj.protocolVersion === "number")
       );
     case "state:update":
       return typeof obj.timestamp === "number" && isValidAgentEvent(obj.event);
     case "state:remove":
       return typeof obj.agentId === "string";
     case "annotation:sync":
-      return Array.isArray(obj.annotations) && obj.annotations.every(isAnnotationShape);
+      return (
+        Array.isArray(obj.annotations) &&
+        obj.annotations.every(isAnnotationShape)
+      );
     case "annotation:update":
       if (obj.action !== "add" && obj.action !== "remove") return false;
       return isAnnotationShape(obj.annotation);
@@ -70,17 +86,25 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
 
   switch (obj.type) {
     case "agent:register":
-      return typeof obj.agentId === "string" && isAgentType(obj.agentType) && typeof obj.task === "string";
+      return (
+        typeof obj.agentId === "string" &&
+        isAgentType(obj.agentType) &&
+        typeof obj.task === "string"
+      );
     case "agent:status":
       return typeof obj.agentId === "string" && isAgentStatus(obj.status);
     case "agent:tool_call":
       return typeof obj.agentId === "string" && typeof obj.tool === "string";
     case "agent:tokens":
-      return typeof obj.agentId === "string" && typeof obj.inputTokens === "number";
+      return (
+        typeof obj.agentId === "string" && typeof obj.inputTokens === "number"
+      );
     case "agent:message":
       return typeof obj.fromId === "string" && typeof obj.toId === "string";
     case "agent:complete":
-      return typeof obj.agentId === "string" && typeof obj.duration === "number";
+      return (
+        typeof obj.agentId === "string" && typeof obj.duration === "number"
+      );
     default:
       return false;
   }

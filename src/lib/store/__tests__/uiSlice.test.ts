@@ -140,28 +140,35 @@ describe("exitComparison", () => {
 
 describe("hydrateUI", () => {
   it("hydrates theme from localStorage", () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
-      if (key === "theme") return JSON.stringify("light");
-      return null;
-    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "theme") return JSON.stringify("light");
+        return null;
+      },
+    );
     useAgentStore.getState().hydrateUI();
     expect(useAgentStore.getState().theme).toBe("light");
   });
 
   it("hydrates soundMuted from localStorage", () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
-      if (key === "soundMuted") return JSON.stringify(true);
-      return null;
-    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "soundMuted") return JSON.stringify(true);
+        return null;
+      },
+    );
     useAgentStore.getState().hydrateUI();
     expect(useAgentStore.getState().soundMuted).toBe(true);
   });
 
   it("hydrates selectedSessionIds from localStorage when stored array is present", () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
-      if (key === "selectedSessionIds") return JSON.stringify(["sess-1", "sess-2"]);
-      return null;
-    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "selectedSessionIds")
+          return JSON.stringify(["sess-1", "sess-2"]);
+        return null;
+      },
+    );
     useAgentStore.getState().hydrateUI();
     const ids = useAgentStore.getState().selectedSessionIds;
     expect(ids.has("sess-1")).toBe(true);
@@ -172,10 +179,12 @@ describe("hydrateUI", () => {
   });
 
   it("marks initialized when stored array is empty (explicit 'All sessions' choice)", () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
-      if (key === "selectedSessionIds") return JSON.stringify([]);
-      return null;
-    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "selectedSessionIds") return JSON.stringify([]);
+        return null;
+      },
+    );
     useAgentStore.getState().hydrateUI();
     expect(useAgentStore.getState().selectedSessionIds.size).toBe(0);
     expect(useAgentStore.getState().sessionFilterInitialized).toBe(true);
@@ -209,7 +218,9 @@ describe("setViewMode", () => {
 describe("autoSelectInitialSession", () => {
   it("keeps a stored filter when at least one id matches a live session", () => {
     useAgentStore.setState({
-      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined })]]),
+      agents: new Map([
+        ["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined })],
+      ]),
       selectedSessionIds: new Set(["live"]),
       sessionFilterInitialized: false,
     });
@@ -221,7 +232,17 @@ describe("autoSelectInitialSession", () => {
 
   it("falls through to All Sessions when stored ids are stale and live sessions exist", () => {
     useAgentStore.setState({
-      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live", parentId: undefined, startTime: 100 })]]),
+      agents: new Map([
+        [
+          "a1",
+          mockAgent({
+            id: "a1",
+            sessionId: "live",
+            parentId: undefined,
+            startTime: 100,
+          }),
+        ],
+      ]),
       selectedSessionIds: new Set(["stale-id-no-longer-exists"]),
       sessionFilterInitialized: false,
     });
@@ -234,8 +255,24 @@ describe("autoSelectInitialSession", () => {
   it("defaults to All Sessions on first boot with no stored filter and live agents", () => {
     useAgentStore.setState({
       agents: new Map([
-        ["a1", mockAgent({ id: "a1", sessionId: "s1", parentId: undefined, startTime: 100 })],
-        ["a2", mockAgent({ id: "a2", sessionId: "s2", parentId: undefined, startTime: 200 })],
+        [
+          "a1",
+          mockAgent({
+            id: "a1",
+            sessionId: "s1",
+            parentId: undefined,
+            startTime: 100,
+          }),
+        ],
+        [
+          "a2",
+          mockAgent({
+            id: "a2",
+            sessionId: "s2",
+            parentId: undefined,
+            startTime: 200,
+          }),
+        ],
       ]),
       selectedSessionIds: new Set(),
       sessionFilterInitialized: false,
@@ -271,15 +308,26 @@ describe("autoSelectInitialSession", () => {
   });
 
   it("recovers from stale localStorage filter to All Sessions when first live agent arrives", () => {
-    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((key: string) => {
-      if (key === "selectedSessionIds") return JSON.stringify(["stale-id"]);
-      return null;
-    });
+    (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+      (key: string) => {
+        if (key === "selectedSessionIds") return JSON.stringify(["stale-id"]);
+        return null;
+      },
+    );
     useAgentStore.getState().hydrateUI();
     expect(useAgentStore.getState().sessionFilterInitialized).toBe(false);
 
     useAgentStore.setState({
-      agents: new Map([["a1", mockAgent({ id: "a1", sessionId: "live-session", parentId: undefined })]]),
+      agents: new Map([
+        [
+          "a1",
+          mockAgent({
+            id: "a1",
+            sessionId: "live-session",
+            parentId: undefined,
+          }),
+        ],
+      ]),
     });
     useAgentStore.getState().autoSelectInitialSession();
 

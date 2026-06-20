@@ -59,7 +59,8 @@ export function calculateProjection(
 ): CostProjectionData {
   // Project: if burn rate continues for same duration again
   const elapsedMinutes = elapsedMs / 60_000;
-  const projectedTotal = burnRate > 0 ? currentTotal + burnRate * elapsedMinutes : currentTotal;
+  const projectedTotal =
+    burnRate > 0 ? currentTotal + burnRate * elapsedMinutes : currentTotal;
 
   let timeToThreshold = Infinity;
   let percentOfBudget = 0;

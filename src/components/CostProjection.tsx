@@ -34,7 +34,10 @@ export function CostProjection() {
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -56,14 +59,21 @@ export function CostProjection() {
   }, [agents]);
 
   const projection = useMemo(
-    () => calculateProjection(totalCost.total, burnRate, budgetThreshold, elapsedMs),
+    () =>
+      calculateProjection(
+        totalCost.total,
+        burnRate,
+        budgetThreshold,
+        elapsedMs,
+      ),
     [totalCost.total, burnRate, budgetThreshold, elapsedMs],
   );
 
   // Determine alert level
   const alertLevel: "ok" | "warning" | "critical" = useMemo(() => {
     if (budgetThreshold && budgetThreshold > 0) {
-      if (projection.percentOfBudget >= COST_CRITICAL_PERCENT) return "critical";
+      if (projection.percentOfBudget >= COST_CRITICAL_PERCENT)
+        return "critical";
       if (projection.percentOfBudget >= COST_WARNING_PERCENT) return "warning";
     }
     return "ok";
@@ -202,7 +212,9 @@ export function CostProjection() {
                   style={{
                     width: `${Math.min(projection.percentOfBudget, 100)}%`,
                     background: alertColor ?? BUDGET_COLORS.ok,
-                    boxShadow: alertColor ? `0 0 6px ${alertColor}88` : undefined,
+                    boxShadow: alertColor
+                      ? `0 0 6px ${alertColor}88`
+                      : undefined,
                   }}
                 />
               </div>
@@ -290,33 +302,38 @@ export function CostProjection() {
                     PER-TYPE TOKEN BUDGETS
                   </label>
                   <div className="space-y-1">
-                    {Array.from(activeTypes).sort().map((type) => (
-                      <div key={type} className="flex items-center gap-1">
-                        <span
-                          className="text-xs w-14 truncate"
-                          style={{ color: AGENT_COLORS[type] }}
-                        >
-                          {AGENT_LABELS[type]}
-                        </span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1000"
-                          value={agentTypeBudgets[type] ?? ""}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value, 10);
-                            setAgentTypeBudget(type, isNaN(val) || val <= 0 ? null : val);
-                          }}
-                          placeholder="tokens"
-                          className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none"
-                          style={{
-                            background: "var(--color-border)",
-                            color: UI.text.primary,
-                            border: `1px solid ${AGENT_COLORS[type]}33`,
-                          }}
-                        />
-                      </div>
-                    ))}
+                    {Array.from(activeTypes)
+                      .sort()
+                      .map((type) => (
+                        <div key={type} className="flex items-center gap-1">
+                          <span
+                            className="text-xs w-14 truncate"
+                            style={{ color: AGENT_COLORS[type] }}
+                          >
+                            {AGENT_LABELS[type]}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1000"
+                            value={agentTypeBudgets[type] ?? ""}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10);
+                              setAgentTypeBudget(
+                                type,
+                                isNaN(val) || val <= 0 ? null : val,
+                              );
+                            }}
+                            placeholder="tokens"
+                            className="flex-1 rounded px-1.5 py-0.5 text-xs outline-none"
+                            style={{
+                              background: "var(--color-border)",
+                              color: UI.text.primary,
+                              border: `1px solid ${AGENT_COLORS[type]}33`,
+                            }}
+                          />
+                        </div>
+                      ))}
                   </div>
                 </div>
               </>
@@ -328,12 +345,26 @@ export function CostProjection() {
       {/* Pulse animations */}
       <style jsx>{`
         @keyframes cost-pulse-warning {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.6;
+          }
         }
         @keyframes cost-pulse-critical {
-          0%, 100% { opacity: 1; text-shadow: 0 0 6px ${BUDGET_COLORS.critical}66; }
-          50% { opacity: 0.7; text-shadow: 0 0 16px ${BUDGET_COLORS.critical}, 0 0 30px ${BUDGET_COLORS.critical}88; }
+          0%,
+          100% {
+            opacity: 1;
+            text-shadow: 0 0 6px ${BUDGET_COLORS.critical}66;
+          }
+          50% {
+            opacity: 0.7;
+            text-shadow:
+              0 0 16px ${BUDGET_COLORS.critical},
+              0 0 30px ${BUDGET_COLORS.critical}88;
+          }
         }
       `}</style>
     </div>

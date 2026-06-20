@@ -21,7 +21,7 @@ export function DiffViewer() {
     (e: KeyboardEvent) => {
       if (e.key === "Escape") closeDiffViewer();
     },
-    [closeDiffViewer]
+    [closeDiffViewer],
   );
 
   useEffect(() => {
@@ -83,18 +83,17 @@ export function DiffViewer() {
         {/* Summary Bar */}
         <div
           className="flex items-center gap-4 px-4 py-2 text-xs"
-          style={{ background: "var(--color-border)", color: UI.text.secondary }}
+          style={{
+            background: "var(--color-border)",
+            color: UI.text.secondary,
+          }}
         >
           <span>
             <span style={{ color: UI.text.primary }}>{totalFiles}</span> file
             {totalFiles !== 1 ? "s" : ""}
           </span>
-          <span style={{ color: CHANGE_COLORS.create }}>
-            +{creates} added
-          </span>
-          <span style={{ color: CHANGE_COLORS.edit }}>
-            ~{edits} modified
-          </span>
+          <span style={{ color: CHANGE_COLORS.create }}>+{creates} added</span>
+          <span style={{ color: CHANGE_COLORS.edit }}>~{edits} modified</span>
           <span style={{ color: CHANGE_COLORS.delete }}>
             -{deletes} deleted
           </span>

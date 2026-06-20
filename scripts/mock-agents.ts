@@ -8,16 +8,30 @@ import { PROJECTS_DIR } from "./lib/config";
 const MOCK_PREFIX = "-mock-agents-demo";
 const MOCK_DIR = path.join(PROJECTS_DIR, MOCK_PREFIX);
 
-function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
-function randomId() { return Math.random().toString(36).slice(2, 10); }
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+function randomId() {
+  return Math.random().toString(36).slice(2, 10);
+}
 
 interface JsonlLine {
   timestamp: string;
   message: {
     role: "user" | "assistant" | "system";
     model?: string;
-    content?: Array<{ type: string; name?: string; input?: unknown; text?: string }>;
-    usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+    content?: Array<{
+      type: string;
+      name?: string;
+      input?: unknown;
+      text?: string;
+    }>;
+    usage?: {
+      input_tokens?: number;
+      output_tokens?: number;
+      cache_read_input_tokens?: number;
+      cache_creation_input_tokens?: number;
+    };
   };
   meta?: { agentType?: string };
 }
@@ -26,18 +40,28 @@ async function appendLine(file: string, line: JsonlLine): Promise<void> {
   await fs.appendFile(file, JSON.stringify(line) + "\n", "utf8");
 }
 
-async function writeFirstLine(file: string, slug: string, agentType: string): Promise<void> {
+async function writeFirstLine(
+  file: string,
+  slug: string,
+  agentType: string,
+): Promise<void> {
   const first: JsonlLine = {
     timestamp: new Date().toISOString(),
-    message: { role: "user", content: [{ type: "text", text: `Mock session: ${slug}` }] },
+    message: {
+      role: "user",
+      content: [{ type: "text", text: `Mock session: ${slug}` }],
+    },
     meta: { agentType },
   };
   await fs.writeFile(file, JSON.stringify(first) + "\n", "utf8");
 }
 
 async function cleanupMockDir(): Promise<void> {
-  try { await fs.rm(MOCK_DIR, { recursive: true, force: true }); }
-  catch (err) { console.warn("[mock] cleanup failed:", err); }
+  try {
+    await fs.rm(MOCK_DIR, { recursive: true, force: true });
+  } catch (err) {
+    console.warn("[mock] cleanup failed:", err);
+  }
 }
 
 async function runSimulation(): Promise<void> {
@@ -58,7 +82,13 @@ async function runSimulation(): Promise<void> {
       message: {
         role: "assistant",
         model: "claude-opus-4-7",
-        content: [{ type: "tool_use", name: tool, input: { path: `/fake/${tool.toLowerCase()}.ts` } }],
+        content: [
+          {
+            type: "tool_use",
+            name: tool,
+            input: { path: `/fake/${tool.toLowerCase()}.ts` },
+          },
+        ],
         usage: { input_tokens: 100, output_tokens: 50 },
       },
     });
@@ -87,7 +117,9 @@ async function runSimulation(): Promise<void> {
 
   // Hold the mock open so the topology has time to render
   console.log("[mock] Simulation complete. Press Ctrl+C to clean up and exit.");
-  await new Promise(() => { /* hang forever */ });
+  await new Promise(() => {
+    /* hang forever */
+  });
 }
 
 let shuttingDown = false;

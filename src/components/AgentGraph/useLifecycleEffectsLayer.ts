@@ -45,14 +45,19 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
     // (initialized to -1 via useAgentGraphRefs which sets it to 0; the first
     // real entry has id >= 1, so id > 0 is always safe as the initial guard).
     const lastSeenId = refs.prevActivityLenRef.current;
-    const activityNumId = (e: ActivityEntry) => parseInt(e.id.replace("act-", ""), 10);
+    const activityNumId = (e: ActivityEntry) =>
+      parseInt(e.id.replace("act-", ""), 10);
     const newEntries = activity.filter((e) => activityNumId(e) > lastSeenId);
     if (activity.length > 0) {
-      refs.prevActivityLenRef.current = activityNumId(activity[activity.length - 1]);
+      refs.prevActivityLenRef.current = activityNumId(
+        activity[activity.length - 1],
+      );
     }
 
     // Build O(1) lookup once for all new entries rather than Array.find per entry.
-    const nodeById = new Map<string, SimNode>(refs.nodesRef.current.map((n) => [n.id, n]));
+    const nodeById = new Map<string, SimNode>(
+      refs.nodesRef.current.map((n) => [n.id, n]),
+    );
 
     for (const entry of newEntries) {
       let effectNode: SimNode | undefined;
@@ -76,10 +81,17 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
           break;
       }
 
-      if (effectNode && effectType && effectNode.x != null && effectNode.y != null) {
+      if (
+        effectNode &&
+        effectType &&
+        effectNode.x != null &&
+        effectNode.y != null
+      ) {
         const a = agents.get(effectNode.id);
         const color = a ? agentColor(a) : UI.text.secondary;
-        const effectRadius = a ? getNodeRadius(a, depthFactor(effectNode.depth)) : GRAPH.nodeRadius;
+        const effectRadius = a
+          ? getNodeRadius(a, depthFactor(effectNode.depth))
+          : GRAPH.nodeRadius;
         refs.effectsRef.current.push({
           x: effectNode.x,
           y: effectNode.y,
@@ -119,7 +131,9 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
 
       const now = Date.now();
       // Expire finished effects
-      const live = refs.effectsRef.current.filter((e) => now - e.startTime < e.duration);
+      const live = refs.effectsRef.current.filter(
+        (e) => now - e.startTime < e.duration,
+      );
       refs.effectsRef.current = live;
 
       // Keyed enter/update/exit join — reuse primitives instead of removing all
@@ -142,9 +156,7 @@ export function useLifecycleEffectsLayer(refs: AgentGraphRefs, opts: Options) {
             .attr("class", "ring")
             .attr("fill", "none")
             .attr("stroke", UI.success);
-          g.append("circle")
-            .attr("class", "flash")
-            .attr("fill", "white");
+          g.append("circle").attr("class", "flash").attr("fill", "white");
         } else {
           g.append("circle")
             .attr("class", "ring")

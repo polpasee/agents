@@ -23,7 +23,10 @@ describe("TeamPanel", () => {
   it("renders team info when teams exist", () => {
     const agents = new Map<string, AgentState>();
     agents.set("a1", mockAgent({ id: "a1", teamId: "team-1" }));
-    agents.set("a2", mockAgent({ id: "a2", teamId: "team-1", status: "completed" }));
+    agents.set(
+      "a2",
+      mockAgent({ id: "a2", teamId: "team-1", status: "completed" }),
+    );
 
     const teams = new Map<string, TeamState>();
     teams.set("team-1", {
@@ -71,7 +74,10 @@ describe("TeamPanel", () => {
   it("expands the member list when selected; member click selects the agent without collapsing", () => {
     const agents = new Map<string, AgentState>();
     agents.set("a1", mockAgent({ id: "a1", teamId: "team-1" }));
-    agents.set("a2", mockAgent({ id: "a2", teamId: "team-1", status: "completed" }));
+    agents.set(
+      "a2",
+      mockAgent({ id: "a2", teamId: "team-1", status: "completed" }),
+    );
 
     const teams = new Map<string, TeamState>();
     teams.set("team-1", {

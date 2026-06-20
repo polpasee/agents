@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { truncateId, formatTimestamp } from "@/lib/utils";
-import type { AgentEvent, AgentType, TeamState } from "@/lib/types";
+import type { AgentEvent, AgentType } from "@/lib/types";
 
 export function ActivityStream() {
   const activity = useAgentStore((s) => s.activity);
@@ -29,7 +29,10 @@ export function ActivityStream() {
     >
       <div
         className="px-3 py-1.5 text-[11px] uppercase tracking-wider flex-shrink-0"
-        style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
+        style={{
+          color: UI.text.muted,
+          borderBottom: "1px solid var(--color-border)",
+        }}
       >
         Activity Stream
       </div>
@@ -41,7 +44,10 @@ export function ActivityStream() {
         className="flex-1 overflow-y-auto custom-scrollbar px-3 py-1 space-y-0.5"
       >
         {activity.length === 0 && (
-          <div className="text-[10px] text-center py-4" style={{ color: UI.text.empty }}>
+          <div
+            className="text-[10px] text-center py-4"
+            style={{ color: UI.text.empty }}
+          >
             Waiting for agent activity...
           </div>
         )}
@@ -98,7 +104,11 @@ function ActivityLine({
           {teamName && (
             <span
               className="ml-1 px-1 rounded text-xs"
-              style={{ color: UI.primary, background: `${UI.primary}15`, fontSize: 10 }}
+              style={{
+                color: UI.primary,
+                background: `${UI.primary}15`,
+                fontSize: 10,
+              }}
             >
               {teamName}
             </span>
@@ -148,7 +158,9 @@ function ActivityLine({
             {truncateId(event.toId)}
           </span>
           {" — "}
-          <span style={{ color: UI.text.muted }}>&quot;{event.content}&quot;</span>
+          <span style={{ color: UI.text.muted }}>
+            &quot;{event.content}&quot;
+          </span>
         </>
       );
       break;
@@ -172,7 +184,10 @@ function ActivityLine({
   }
 
   return (
-    <div className="text-[10px] leading-relaxed animate-fade-in-up" style={{ color: UI.text.secondary }}>
+    <div
+      className="text-[10px] leading-relaxed animate-fade-in-up"
+      style={{ color: UI.text.secondary }}
+    >
       <span style={{ color: UI.primary }}>{time}</span> {content}
     </div>
   );

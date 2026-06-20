@@ -4,20 +4,38 @@ import type { Annotation } from "../types";
 import { METRIC_HISTORY_MAX } from "../config";
 import { saveLocalStorage } from "./helpers";
 
-export type PanelSlice = Pick<AgentStore,
-  | "logEntries" | "logLoading" | "logViewerAgentId"
-  | "agentDiffs" | "diffViewerAgentId"
+export type PanelSlice = Pick<
+  AgentStore,
+  | "logEntries"
+  | "logLoading"
+  | "logViewerAgentId"
+  | "agentDiffs"
+  | "diffViewerAgentId"
   | "errorDrillDownAgentId"
-  | "budgetThreshold" | "metricHistory" | "annotations"
-  | "openLogViewer" | "closeLogViewer" | "setLogEntries" | "setLogLoading"
-  | "openDiffViewer" | "closeDiffViewer" | "setAgentDiffs"
-  | "openErrorDrillDown" | "closeErrorDrillDown"
+  | "budgetThreshold"
+  | "metricHistory"
+  | "annotations"
+  | "openLogViewer"
+  | "closeLogViewer"
+  | "setLogEntries"
+  | "setLogLoading"
+  | "openDiffViewer"
+  | "closeDiffViewer"
+  | "setAgentDiffs"
+  | "openErrorDrillDown"
+  | "closeErrorDrillDown"
   | "setBudgetThreshold"
   | "pushMetricSample"
-  | "addAnnotation" | "removeAnnotation" | "updateAnnotation" | "replaceAnnotations"
+  | "addAnnotation"
+  | "removeAnnotation"
+  | "updateAnnotation"
+  | "replaceAnnotations"
 >;
 
-export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (set, get) => ({
+export const createPanelSlice: StateCreator<AgentStore, [], [], PanelSlice> = (
+  set,
+  get,
+) => ({
   // ── Log Viewer ────────────────────────────────────────
   logEntries: new Map(),
   logLoading: new Set(),

@@ -32,7 +32,10 @@ export function clusterHullPath(points: [number, number][]): string {
  * Anchor for a cluster label: horizontally centered over the member points,
  * just above the topmost one.
  */
-export function clusterLabelAnchor(points: [number, number][]): { x: number; y: number } {
+export function clusterLabelAnchor(points: [number, number][]): {
+  x: number;
+  y: number;
+} {
   // Avoid Math.min(...spread) — fold to stay stack-safe with
   // arbitrarily many cluster points.
   let minY = Infinity;

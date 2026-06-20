@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { annotations } from "../../../../../scripts/lib/annotation-store";
-import { viewers, type SSEClient } from "../../../../../scripts/lib/sse-broadcast";
+import {
+  viewers,
+  type SSEClient,
+} from "../../../../../scripts/lib/sse-broadcast";
 import {
   ANNOTATION_MAX_ENTRIES,
   ANNOTATION_MAX_BODY_BYTES,
@@ -10,7 +13,12 @@ import { POST } from "../route";
 
 function makeClient(): SSEClient & { received: string[] } {
   const received: string[] = [];
-  return { received, send(data: string) { received.push(data); } };
+  return {
+    received,
+    send(data: string) {
+      received.push(data);
+    },
+  };
 }
 
 function postBody(body: unknown): Request {
@@ -31,13 +39,15 @@ describe("/api/annotations POST", () => {
     const client = makeClient();
     viewers.add(client);
 
-    const res = await POST(postBody({
-      id: "ann-abc123",
-      targetId: "main-x",
-      targetType: "agent",
-      text: "hello",
-      timestamp: 1700000000000,
-    }));
+    const res = await POST(
+      postBody({
+        id: "ann-abc123",
+        targetId: "main-x",
+        targetType: "agent",
+        text: "hello",
+        timestamp: 1700000000000,
+      }),
+    );
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -51,9 +61,15 @@ describe("/api/annotations POST", () => {
   });
 
   it("returns 400 on malformed input (bad id pattern)", async () => {
-    const res = await POST(postBody({
-      id: "bad", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
-    }));
+    const res = await POST(
+      postBody({
+        id: "bad",
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: 1,
+      }),
+    );
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toBeDefined();
@@ -61,25 +77,45 @@ describe("/api/annotations POST", () => {
 
   it("returns 409 on duplicate id", async () => {
     annotations.set("ann-existing", {
-      id: "ann-existing", targetId: "x", targetType: "agent", text: "old", timestamp: 1,
+      id: "ann-existing",
+      targetId: "x",
+      targetType: "agent",
+      text: "old",
+      timestamp: 1,
     });
-    const res = await POST(postBody({
-      id: "ann-existing", targetId: "x", targetType: "agent", text: "new", timestamp: 2,
-    }));
+    const res = await POST(
+      postBody({
+        id: "ann-existing",
+        targetId: "x",
+        targetType: "agent",
+        text: "new",
+        timestamp: 2,
+      }),
+    );
     expect(res.status).toBe(409);
   });
 
   it("evicts oldest when over cap", async () => {
     for (let i = 0; i < ANNOTATION_MAX_ENTRIES; i++) {
       annotations.set(`ann-fill${i}`, {
-        id: `ann-fill${i}`, targetId: "x", targetType: "agent", text: "y", timestamp: i,
+        id: `ann-fill${i}`,
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: i,
       });
     }
     expect(annotations.size).toBe(ANNOTATION_MAX_ENTRIES);
 
-    const res = await POST(postBody({
-      id: "ann-newest", targetId: "x", targetType: "agent", text: "z", timestamp: 999999,
-    }));
+    const res = await POST(
+      postBody({
+        id: "ann-newest",
+        targetId: "x",
+        targetType: "agent",
+        text: "z",
+        timestamp: 999999,
+      }),
+    );
     expect(res.status).toBe(201);
     expect(annotations.size).toBe(ANNOTATION_MAX_ENTRIES);
     expect(annotations.has("ann-fill0")).toBe(false);
@@ -89,15 +125,25 @@ describe("/api/annotations POST", () => {
   it("broadcasts annotation:update remove for each LRU-evicted entry", async () => {
     for (let i = 0; i < ANNOTATION_MAX_ENTRIES; i++) {
       annotations.set(`ann-fill${i}`, {
-        id: `ann-fill${i}`, targetId: "x", targetType: "agent", text: "y", timestamp: i,
+        id: `ann-fill${i}`,
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: i,
       });
     }
     const client = makeClient();
     viewers.add(client);
 
-    const res = await POST(postBody({
-      id: "ann-newest", targetId: "x", targetType: "agent", text: "z", timestamp: 999999,
-    }));
+    const res = await POST(
+      postBody({
+        id: "ann-newest",
+        targetId: "x",
+        targetType: "agent",
+        text: "z",
+        timestamp: 999999,
+      }),
+    );
     expect(res.status).toBe(201);
 
     const events = client.received.map((s) => JSON.parse(s));
@@ -123,7 +169,11 @@ describe("/api/annotations POST", () => {
         "content-length": String(big.length + 32),
       },
       body: JSON.stringify({
-        id: "ann-toobig", targetId: "x", targetType: "agent", text: big, timestamp: 1,
+        id: "ann-toobig",
+        targetId: "x",
+        targetType: "agent",
+        text: big,
+        timestamp: 1,
       }),
     });
     const res = await POST(req);
@@ -135,7 +185,11 @@ describe("/api/annotations POST", () => {
     // cap based on actual buffer size before parsing.
     const big = "x".repeat(ANNOTATION_MAX_BODY_BYTES + 100);
     const body = JSON.stringify({
-      id: "ann-toobig", targetId: "x", targetType: "agent", text: big, timestamp: 1,
+      id: "ann-toobig",
+      targetId: "x",
+      targetType: "agent",
+      text: big,
+      timestamp: 1,
     });
     // Pass a ReadableStream so Content-Length is not auto-set.
     const stream = new ReadableStream({

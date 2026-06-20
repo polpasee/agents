@@ -36,13 +36,19 @@ export function Dashboard() {
 
   // Hydrate UI state from localStorage after client mount to avoid SSR mismatch
   const hydrateUI = useAgentStore((s) => s.hydrateUI);
-  useEffect(() => { hydrateUI(); }, [hydrateUI]);
+  useEffect(() => {
+    hydrateUI();
+  }, [hydrateUI]);
 
   // Default the topology to All Sessions on first agent arrival; user can pick a subset
   // via the sidebar pills. Skipped if the user has already made a choice in a prior visit
   // (hydrated from storage), unless the stored filter no longer matches any live session.
-  const sessionFilterInitialized = useAgentStore((s) => s.sessionFilterInitialized);
-  const autoSelectInitialSession = useAgentStore((s) => s.autoSelectInitialSession);
+  const sessionFilterInitialized = useAgentStore(
+    (s) => s.sessionFilterInitialized,
+  );
+  const autoSelectInitialSession = useAgentStore(
+    (s) => s.autoSelectInitialSession,
+  );
   const agentsForInit = useAgentStore((s) => s.agents);
   useEffect(() => {
     if (sessionFilterInitialized) return;
@@ -97,12 +103,18 @@ export function Dashboard() {
   }, [selectedAgentId]);
 
   return (
-    <div id="main-content" className="flex flex-col h-screen" style={{ background: "var(--color-bg)" }}>
+    <div
+      id="main-content"
+      className="flex flex-col h-screen"
+      style={{ background: "var(--color-bg)" }}
+    >
       <ErrorBoundary>
         <TopBar />
       </ErrorBoundary>
 
-      {comparison.active && comparison.leftSession && comparison.rightSession ? (
+      {comparison.active &&
+      comparison.leftSession &&
+      comparison.rightSession ? (
         <SessionComparison
           leftSession={comparison.leftSession}
           rightSession={comparison.rightSession}
@@ -110,69 +122,85 @@ export function Dashboard() {
           onExit={exitComparison}
         />
       ) : (
-      <>
-      {/* Mobile backdrop */}
-      <div
-        className={`mobile-backdrop ${mobileAgentList || mobileAgentDetail ? "visible" : ""}`}
-        onClick={closePanels}
-      />
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className={`mobile-backdrop ${mobileAgentList || mobileAgentDetail ? "visible" : ""}`}
+            onClick={closePanels}
+          />
 
-      <div className="flex flex-1 min-h-0 main-layout">
-        <div className={`sidebar-agent-list ${mobileAgentList ? "mobile-open" : ""}`}>
-          <ErrorBoundary>
-            <AgentList />
-          </ErrorBoundary>
-        </div>
-        <div className="relative flex-1 h-full">
-          {!connected && agentCount === 0 && !replayActive ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div
-                  className="inline-block w-6 h-6 rounded-full border-2 animate-spin mb-3"
-                  style={{ borderColor: `${UI.primary}33`, borderTopColor: UI.primary }}
-                />
-                <div className="text-sm font-mono" style={{ color: UI.text.muted }}>
-                  Connecting to agent monitor...
-                </div>
-              </div>
+          <div className="flex flex-1 min-h-0 main-layout">
+            <div
+              className={`sidebar-agent-list ${mobileAgentList ? "mobile-open" : ""}`}
+            >
+              <ErrorBoundary>
+                <AgentList />
+              </ErrorBoundary>
             </div>
-          ) : (
+            <div className="relative flex-1 h-full">
+              {!connected && agentCount === 0 && !replayActive ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div
+                      className="inline-block w-6 h-6 rounded-full border-2 animate-spin mb-3"
+                      style={{
+                        borderColor: `${UI.primary}33`,
+                        borderTopColor: UI.primary,
+                      }}
+                    />
+                    <div
+                      className="text-sm font-mono"
+                      style={{ color: UI.text.muted }}
+                    >
+                      Connecting to agent monitor...
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <ErrorBoundary>
+                  <AgentGraph ref={graphRef} />
+                  <TopologyUsageStatus />
+                </ErrorBoundary>
+              )}
+              {transcriptOpen && (
+                <TranscriptPanel
+                  open={transcriptOpen}
+                  onClose={() => toggleTranscript()}
+                />
+              )}
+              {fileAttentionOpen && (
+                <FileAttentionPanel
+                  open={fileAttentionOpen}
+                  onClose={() => toggleFileAttention()}
+                />
+              )}
+            </div>
+            <div
+              className={`sidebar-agent-detail ${mobileAgentDetail ? "mobile-open" : ""}`}
+            >
+              <ErrorBoundary>
+                <AgentDetail />
+              </ErrorBoundary>
+            </div>
+          </div>
+          <TimelineBar />
+          <ErrorBoundary>
+            <TeamPanel />
+          </ErrorBoundary>
+          {replayActive && (
             <ErrorBoundary>
-              <AgentGraph ref={graphRef} />
-              <TopologyUsageStatus />
+              <ReplayBar />
             </ErrorBoundary>
           )}
-          {transcriptOpen && (
-            <TranscriptPanel open={transcriptOpen} onClose={() => toggleTranscript()} />
-          )}
-          {fileAttentionOpen && (
-            <FileAttentionPanel open={fileAttentionOpen} onClose={() => toggleFileAttention()} />
-          )}
-        </div>
-        <div className={`sidebar-agent-detail ${mobileAgentDetail ? "mobile-open" : ""}`}>
           <ErrorBoundary>
-            <AgentDetail />
+            <ActivityStream />
           </ErrorBoundary>
-        </div>
-      </div>
-      <TimelineBar />
-      <ErrorBoundary>
-        <TeamPanel />
-      </ErrorBoundary>
-      {replayActive && (
-        <ErrorBoundary>
-          <ReplayBar />
-        </ErrorBoundary>
-      )}
-      <ErrorBoundary>
-        <ActivityStream />
-      </ErrorBoundary>
-      {logViewerAgentId && (
-        <ErrorBoundary>
-          <LogViewer />
-        </ErrorBoundary>
-      )}
-      </>
+          {logViewerAgentId && (
+            <ErrorBoundary>
+              <LogViewer />
+            </ErrorBoundary>
+          )}
+        </>
       )}
       <ErrorDrillDown />
       <ExportModal />

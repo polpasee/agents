@@ -16,8 +16,20 @@ function makeRun(overrides: Partial<WorkflowRunState> = {}): WorkflowRunState {
     agentCount: 2,
     phases: [{ index: 1, title: "Phase A" }],
     agents: [
-      { agentId: "ag-1", label: "find:alpha", state: "done", phaseIndex: 1, phaseTitle: "Phase A" },
-      { agentId: "ag-2", label: "verify:beta", state: "running", phaseIndex: 1, phaseTitle: "Phase A" },
+      {
+        agentId: "ag-1",
+        label: "find:alpha",
+        state: "done",
+        phaseIndex: 1,
+        phaseTitle: "Phase A",
+      },
+      {
+        agentId: "ag-2",
+        label: "verify:beta",
+        state: "running",
+        phaseIndex: 1,
+        phaseTitle: "Phase A",
+      },
     ],
     ...overrides,
   };

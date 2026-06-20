@@ -15,9 +15,16 @@ export async function DELETE(
   const { id } = await params;
   const existing = annotations.get(id);
   if (!existing) {
-    return NextResponse.json({ error: "Annotation not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Annotation not found" },
+      { status: 404 },
+    );
   }
   annotations.delete(id);
-  broadcast({ type: "annotation:update", action: "remove", annotation: existing });
+  broadcast({
+    type: "annotation:update",
+    action: "remove",
+    annotation: existing,
+  });
   return new Response(null, { status: 204 });
 }

@@ -24,8 +24,11 @@ import { CCSTATUSLINE_CACHE } from "./config";
 function resolveCcstatuslineBin(): string {
   const _require = createRequire(import.meta.url);
   const ccPkgPath = _require.resolve("ccstatusline/package.json");
-  const ccPkg = JSON.parse(fs.readFileSync(ccPkgPath, "utf8")) as { bin: Record<string, string> | string };
-  const binRel = typeof ccPkg.bin === "string" ? ccPkg.bin : Object.values(ccPkg.bin)[0];
+  const ccPkg = JSON.parse(fs.readFileSync(ccPkgPath, "utf8")) as {
+    bin: Record<string, string> | string;
+  };
+  const binRel =
+    typeof ccPkg.bin === "string" ? ccPkg.bin : Object.values(ccPkg.bin)[0];
   return path.resolve(path.dirname(ccPkgPath), binRel);
 }
 
@@ -48,7 +51,11 @@ export function triggerCcstatuslineRefresh(): boolean {
     child.on("error", () => {});
     const payload = JSON.stringify({
       workspace: { current_dir: process.cwd(), project_dir: process.cwd() },
-      cost: { total_cost_usd: 0, total_duration_ms: 0, total_api_duration_ms: 0 },
+      cost: {
+        total_cost_usd: 0,
+        total_duration_ms: 0,
+        total_api_duration_ms: 0,
+      },
       model: { display_name: "Opus 4.7" },
       session_id: "usage-refresh",
     });

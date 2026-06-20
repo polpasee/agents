@@ -34,7 +34,10 @@ describe("useFilteredAgents", () => {
     agents.set("a2", mockAgent({ id: "a2", sessionId: "session-2" }));
     agents.set("a3", mockAgent({ id: "a3", sessionId: "session-1" }));
 
-    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-1"]) });
+    useAgentStore.setState({
+      agents,
+      selectedSessionIds: new Set(["session-1"]),
+    });
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(2);
@@ -48,7 +51,10 @@ describe("useFilteredAgents", () => {
     agents.set("a2", mockAgent({ id: "a2", sessionId: "s2" }));
     agents.set("a3", mockAgent({ id: "a3", sessionId: "s3" }));
 
-    useAgentStore.setState({ agents, selectedSessionIds: new Set(["s1", "s3"]) });
+    useAgentStore.setState({
+      agents,
+      selectedSessionIds: new Set(["s1", "s3"]),
+    });
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(2);
@@ -116,7 +122,12 @@ describe("useFilteredAgents", () => {
     const ancient = Date.now() - 10 * 60 * 1000;
     agents.set(
       "main-idle",
-      mockAgent({ id: "main-idle", status: "idle", startTime: ancient, toolCalls: [] }),
+      mockAgent({
+        id: "main-idle",
+        status: "idle",
+        startTime: ancient,
+        toolCalls: [],
+      }),
     );
     useAgentStore.setState({ agents });
 
@@ -173,7 +184,10 @@ describe("useFilteredAgents", () => {
       }),
     );
 
-    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-1"]) });
+    useAgentStore.setState({
+      agents,
+      selectedSessionIds: new Set(["session-1"]),
+    });
 
     const { result } = renderHook(() => useFilteredAgents());
     expect(result.current).toHaveLength(2);
@@ -248,10 +262,7 @@ describe("useFilteredAgents", () => {
 
   it("does not hang on a parentId cycle (a -> b -> a)", () => {
     const agents = new Map<string, AgentState>();
-    agents.set(
-      "a",
-      mockAgent({ id: "a", parentId: "b", agentType: "build" }),
-    );
+    agents.set("a", mockAgent({ id: "a", parentId: "b", agentType: "build" }));
     agents.set(
       "b",
       mockAgent({ id: "b", parentId: "a", agentType: "explore" }),
@@ -280,10 +291,17 @@ describe("useFilteredAgents", () => {
     );
     agents.set(
       "other-root",
-      mockAgent({ id: "other-root", sessionId: "session-other", agentType: "main" }),
+      mockAgent({
+        id: "other-root",
+        sessionId: "session-other",
+        agentType: "main",
+      }),
     );
 
-    useAgentStore.setState({ agents, selectedSessionIds: new Set(["session-root"]) });
+    useAgentStore.setState({
+      agents,
+      selectedSessionIds: new Set(["session-root"]),
+    });
 
     const { result } = renderHook(() => useFilteredAgents());
     const ids = result.current.map((a) => a.id).sort();

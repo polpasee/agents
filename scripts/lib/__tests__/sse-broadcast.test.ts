@@ -6,7 +6,9 @@ function makeClient(): SSEClient & { received: string[] } {
   const received: string[] = [];
   return {
     received,
-    send(data: string) { received.push(data); },
+    send(data: string) {
+      received.push(data);
+    },
   };
 }
 
@@ -30,7 +32,9 @@ describe("sse-broadcast", () => {
   });
 
   it("does not throw when there are no viewers", () => {
-    expect(() => broadcast({ type: "state:remove", agentId: "x" })).not.toThrow();
+    expect(() =>
+      broadcast({ type: "state:remove", agentId: "x" }),
+    ).not.toThrow();
   });
 
   it("isolates each viewer — a removed one does not receive later events", () => {
@@ -48,7 +52,11 @@ describe("sse-broadcast", () => {
   });
 
   it("evicts a viewer whose send() throws so orphans don't accumulate", () => {
-    const dead: SSEClient = { send() { throw new Error("disconnected"); } };
+    const dead: SSEClient = {
+      send() {
+        throw new Error("disconnected");
+      },
+    };
     const alive = makeClient();
     viewers.add(dead);
     viewers.add(alive);

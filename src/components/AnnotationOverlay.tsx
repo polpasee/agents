@@ -13,7 +13,9 @@ interface AnnotationOverlayProps {
 
 export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
   const annotations = useAgentStore((s) => s.annotations);
-  const agentAnnotations = Array.from(annotations.values()).filter((a) => a.targetId === agentId);
+  const agentAnnotations = Array.from(annotations.values()).filter(
+    (a) => a.targetId === agentId,
+  );
   const [newText, setNewText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -21,9 +23,10 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
     const text = newText.trim();
     if (!text) return;
 
-    const id = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const id =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const annotation: Annotation = {
       id,
       targetId: agentId,
@@ -40,26 +43,34 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
         body: JSON.stringify(annotation),
       });
       if (!res.ok) {
-        const { error: errMsg } = await res.json().catch(() => ({ error: res.statusText }));
+        const { error: errMsg } = await res
+          .json()
+          .catch(() => ({ error: res.statusText }));
         setError(errMsg ?? "Failed to save annotation");
         return;
       }
       setNewText("");
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save annotation");
+      setError(
+        err instanceof Error ? err.message : "Failed to save annotation",
+      );
     }
   }
 
   function handleRemove(id: string) {
     void (async () => {
       try {
-        const res = await fetch(`/api/annotations/${encodeURIComponent(id)}`, { method: "DELETE" });
+        const res = await fetch(`/api/annotations/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
         if (!res.ok && res.status !== 404) {
           setError(`Failed to remove annotation: ${res.statusText}`);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to remove annotation");
+        setError(
+          err instanceof Error ? err.message : "Failed to remove annotation",
+        );
       }
     })();
   }
@@ -71,7 +82,6 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
     }
   }
 
-
   return (
     <div>
       {agentAnnotations.length > 0 && (
@@ -79,11 +89,19 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
           className="flex items-center gap-1 mb-2"
           style={{ color: ANNOTATION_COLOR }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
           </svg>
           <span className="text-xs font-medium">
-            {agentAnnotations.length} annotation{agentAnnotations.length !== 1 ? "s" : ""}
+            {agentAnnotations.length} annotation
+            {agentAnnotations.length !== 1 ? "s" : ""}
           </span>
         </div>
       )}
@@ -107,14 +125,24 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
                   style={{ color: UI.error }}
                   title="Remove annotation"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
               )}
             </div>
-            <div className="flex gap-2 mt-0.5" style={{ color: UI.text.dimmed }}>
+            <div
+              className="flex gap-2 mt-0.5"
+              style={{ color: UI.text.dimmed }}
+            >
               <span>{ann.author}</span>
               <span>{formatTimestampShort(ann.timestamp)}</span>
             </div>
@@ -140,11 +168,15 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
           }}
         />
         <button
-          onClick={() => { void handleAdd(); }}
+          onClick={() => {
+            void handleAdd();
+          }}
           disabled={!newText.trim()}
           className="text-xs px-2 py-1 rounded transition-colors"
           style={{
-            background: newText.trim() ? ANNOTATION_COLOR : `${ANNOTATION_COLOR}33`,
+            background: newText.trim()
+              ? ANNOTATION_COLOR
+              : `${ANNOTATION_COLOR}33`,
             color: newText.trim() ? "#000" : UI.text.dimmed,
             cursor: newText.trim() ? "pointer" : "default",
           }}
@@ -153,11 +185,7 @@ export function AnnotationOverlay({ agentId }: AnnotationOverlayProps) {
         </button>
       </div>
       {error && (
-        <div
-          role="alert"
-          className="text-xs mt-1"
-          style={{ color: UI.error }}
-        >
+        <div role="alert" className="text-xs mt-1" style={{ color: UI.error }}>
           {error}
         </div>
       )}

@@ -10,7 +10,11 @@ const DAY = 24 * HOUR;
 let tmpDir: string;
 const NOW = 1_700_000_000_000;
 
-function jsonlLine(timestamp: number, model: string, usage: Record<string, number>): string {
+function jsonlLine(
+  timestamp: number,
+  model: string,
+  usage: Record<string, number>,
+): string {
   return JSON.stringify({
     timestamp: new Date(timestamp).toISOString(),
     message: { role: "assistant", model, usage },
@@ -41,12 +45,15 @@ describe("scanCostHistory", () => {
     const projDir = path.join(tmpDir, "-project-a");
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "session.jsonl");
-    await fs.writeFile(file, jsonlLine(NOW - HOUR, "claude-sonnet-4-20260301", {
-      input_tokens: 1_000_000,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(NOW - HOUR, "claude-sonnet-4-20260301", {
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     // mtime must be within the 30-day horizon for the file to be scanned.
     await fs.utimes(file, NOW / 1000, NOW / 1000);
     const r = await scanCostHistory(tmpDir, NOW);
@@ -61,12 +68,15 @@ describe("scanCostHistory", () => {
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "session.jsonl");
     const ts = NOW - 10 * DAY;
-    await fs.writeFile(file, jsonlLine(ts, "claude-sonnet-4-20260301", {
-      input_tokens: 1_000_000,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(ts, "claude-sonnet-4-20260301", {
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     await fs.utimes(file, ts / 1000, ts / 1000);
     const r = await scanCostHistory(tmpDir, NOW);
     expect(r.day).toBe(0);
@@ -79,12 +89,15 @@ describe("scanCostHistory", () => {
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "session.jsonl");
     const ts = NOW - 60 * DAY;
-    await fs.writeFile(file, jsonlLine(ts, "claude-sonnet-4-20260301", {
-      input_tokens: 1_000_000,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(ts, "claude-sonnet-4-20260301", {
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     await fs.utimes(file, ts / 1000, ts / 1000);
     const r = await scanCostHistory(tmpDir, NOW);
     expect(r).toEqual({ day: 0, week: 0, month: 0 });
@@ -94,12 +107,15 @@ describe("scanCostHistory", () => {
     const projDir = path.join(tmpDir, "-project-a", "session-1", "subagents");
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "sub.jsonl");
-    await fs.writeFile(file, jsonlLine(NOW - HOUR, "claude-haiku-4-20260301", {
-      input_tokens: 1_000_000,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(NOW - HOUR, "claude-haiku-4-20260301", {
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     await fs.utimes(file, NOW / 1000, NOW / 1000);
     const r = await scanCostHistory(tmpDir, NOW);
     // haiku input rate = $0.8/M tokens
@@ -116,7 +132,10 @@ describe("scanCostHistory", () => {
       cache_read_input_tokens: 0,
       cache_creation_input_tokens: 0,
     });
-    await fs.writeFile(file, ["not json at all", "{}", goodLine, ""].join("\n"));
+    await fs.writeFile(
+      file,
+      ["not json at all", "{}", goodLine, ""].join("\n"),
+    );
     await fs.utimes(file, NOW / 1000, NOW / 1000);
     const r = await scanCostHistory(tmpDir, NOW);
     expect(r.day).toBeCloseTo(3);
@@ -126,12 +145,15 @@ describe("scanCostHistory", () => {
     const projDir = path.join(tmpDir, "-project-a");
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "session.jsonl");
-    await fs.writeFile(file, jsonlLine(NOW - HOUR, "claude-sonnet-4-20260301", {
-      input_tokens: 1_000_000,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
-      cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(NOW - HOUR, "claude-sonnet-4-20260301", {
+        input_tokens: 1_000_000,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     await fs.utimes(file, NOW / 1000, NOW / 1000);
     const first = await scanCostHistory(tmpDir, NOW);
     // Second call without advancing `now` past the cache TTL should hit cache —
@@ -149,10 +171,15 @@ describe("scanCostHistory", () => {
     const projDir = path.join(tmpDir, "-project-dedup");
     await fs.mkdir(projDir, { recursive: true });
     const file = path.join(projDir, "session.jsonl");
-    await fs.writeFile(file, jsonlLine(uniqueNow - HOUR, "claude-sonnet-4-20260301", {
-      input_tokens: 0, output_tokens: 0,
-      cache_read_input_tokens: 0, cache_creation_input_tokens: 0,
-    }));
+    await fs.writeFile(
+      file,
+      jsonlLine(uniqueNow - HOUR, "claude-sonnet-4-20260301", {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      }),
+    );
     await fs.utimes(file, uniqueNow / 1000, uniqueNow / 1000);
 
     // Fire both simultaneously — neither has resolved yet.

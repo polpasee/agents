@@ -26,7 +26,12 @@ export interface SimLink extends SimulationLinkDatum<SimNode> {
 }
 
 /* ── Straight line path between two points ───────────────── */
-export function bezierPath(sx: number, sy: number, tx: number, ty: number): string {
+export function bezierPath(
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+): string {
   return `M${sx},${sy} L${tx},${ty}`;
 }
 
@@ -40,8 +45,10 @@ export function linkPath(d: SimLink): string {
   const s = d.source as SimNode;
   const t = d.target as SimNode;
   return bezierPath(
-    (s.fx ?? s.x) ?? 0, (s.fy ?? s.y) ?? 0,
-    (t.fx ?? t.x) ?? 0, (t.fy ?? t.y) ?? 0,
+    s.fx ?? s.x ?? 0,
+    s.fy ?? s.y ?? 0,
+    t.fx ?? t.x ?? 0,
+    t.fy ?? t.y ?? 0,
   );
 }
 
@@ -77,7 +84,8 @@ export function updateLinkVisuals<E extends SVGElement>(
       // Remove existing animate children before adding new ones
       line.selectAll("animate").remove();
       if (d.edgeType !== "message" && a?.status === "running") {
-        line.append("animate")
+        line
+          .append("animate")
           .attr("attributeName", "stroke-dashoffset")
           .attr("values", "24;0")
           .attr("dur", "0.8s")

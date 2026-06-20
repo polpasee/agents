@@ -27,7 +27,7 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
       // Focus trap: cycle Tab within the modal
       if (e.key === "Tab") {
         const focusable = el!.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
         const first = focusable[0];
@@ -54,7 +54,9 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center outline-none"
       style={{ background: "rgba(0, 0, 0, 0.7)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       {children}
     </div>

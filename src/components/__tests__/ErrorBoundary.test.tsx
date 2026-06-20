@@ -20,7 +20,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary>
         <div>safe content</div>
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(screen.getByText("safe content")).toBeDefined();
   });
@@ -29,7 +29,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary>
         <ThrowingComponent message="test error" />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(screen.getByText("Something went wrong")).toBeDefined();
     expect(screen.getByText("test error")).toBeDefined();
@@ -39,7 +39,7 @@ describe("ErrorBoundary", () => {
     render(
       <ErrorBoundary fallback={<div>custom fallback</div>}>
         <ThrowingComponent message="oops" />
-      </ErrorBoundary>
+      </ErrorBoundary>,
     );
     expect(screen.getByText("custom fallback")).toBeDefined();
   });

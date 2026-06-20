@@ -12,7 +12,11 @@ import { CCSTATUSLINE_CACHE } from "../../../../scripts/lib/config";
 /** Legacy fallback: Claude Code's own file. Older versions wrote it when
  *  rate-limit headers came back; newer versions have stopped writing it
  *  entirely, so it is usually stale or missing. */
-const LEGACY_USAGE_PATH = path.join(os.homedir(), ".claude", "usage-status.json");
+const LEGACY_USAGE_PATH = path.join(
+  os.homedir(),
+  ".claude",
+  "usage-status.json",
+);
 
 /** Mark the panel stale once data is older than this. */
 const STALENESS_THRESHOLD_MS = 60 * 60 * 1000;
@@ -59,11 +63,12 @@ function readLegacyUsage(): UsagePayload | null {
 
     // resets_at from Claude Code is Unix seconds — convert to ISO string
     const toIso = (v: number | string | null | undefined) =>
-      typeof v === "number" ? new Date(v * 1000).toISOString() : v ?? null;
+      typeof v === "number" ? new Date(v * 1000).toISOString() : (v ?? null);
     const blockResetAt = toIso(data.blockResetAt);
     const weeklyResetAt = toIso(data.weeklyResetAt);
 
-    const timestamp: number | null = typeof data.timestamp === "number" ? data.timestamp : null;
+    const timestamp: number | null =
+      typeof data.timestamp === "number" ? data.timestamp : null;
     const ageMs = timestamp != null ? Date.now() - timestamp : null;
     const stale = ageMs != null ? ageMs > STALENESS_THRESHOLD_MS : true;
 

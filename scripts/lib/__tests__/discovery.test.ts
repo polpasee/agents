@@ -5,7 +5,12 @@ const mockAccess = vi.fn<(..._args: unknown[]) => Promise<void>>();
 // each project dir (returns Dirent-likes), and plain (returns string[]) for the
 // per-session `subagents` dir — so the resolved type is a union of both.
 const mockReaddir = vi.fn<(..._args: unknown[]) => Promise<unknown[]>>();
-const mockStat = vi.fn<(..._args: unknown[]) => Promise<{ isDirectory: () => boolean; mtimeMs: number; size: number }>>();
+const mockStat =
+  vi.fn<
+    (
+      ..._args: unknown[]
+    ) => Promise<{ isDirectory: () => boolean; mtimeMs: number; size: number }>
+  >();
 
 /** Minimal fs.Dirent stand-in for readdir(..., { withFileTypes: true }). */
 function dirent(name: string, isDir: boolean) {
@@ -90,12 +95,18 @@ import {
   broadcast,
   broadcastRegisterFor,
 } from "../agent-state";
-import { DISCOVERY_THRESHOLD_MS, STALE_THRESHOLD_MS, STATUS_RUNNING_THRESHOLD_MS, SUBAGENT_STALE_THRESHOLD_MS } from "../config";
+import {
+  DISCOVERY_THRESHOLD_MS,
+  STALE_THRESHOLD_MS,
+  STATUS_RUNNING_THRESHOLD_MS,
+  SUBAGENT_STALE_THRESHOLD_MS,
+} from "../config";
 
 // The unmocked module — used by the nested-subagent fixtures to restore real
 // implementations onto the vi.fn wrappers after each resetAllMocks(). State
 // maps are globalThis-backed, so both instances share the same storage.
-const actualAgentState = await vi.importActual<typeof import("../agent-state")>("../agent-state");
+const actualAgentState =
+  await vi.importActual<typeof import("../agent-state")>("../agent-state");
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -120,8 +131,12 @@ describe("discoverActiveSessions", () => {
   });
 
   it("returns early when projects directory does not exist", async () => {
-    mockAccess.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
-    await expect(discoverActiveSessions("/nonexistent")).resolves.toBeUndefined();
+    mockAccess.mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+    await expect(
+      discoverActiveSessions("/nonexistent"),
+    ).resolves.toBeUndefined();
     expect(mockReaddir).not.toHaveBeenCalled();
   });
 
@@ -150,8 +165,12 @@ describe("discoverActiveSessions", () => {
     // stat() happens at this level anymore.)
     const readDirs = mockReaddir.mock.calls.map((c) => String(c[0]));
     expect(readDirs.some((p) => p.includes("-private-tmp"))).toBe(false);
-    expect(readDirs.some((p) => p.includes("-private-var-folders"))).toBe(false);
-    expect(readDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(true);
+    expect(readDirs.some((p) => p.includes("-private-var-folders"))).toBe(
+      false,
+    );
+    expect(readDirs.some((p) => p.endsWith("-Users-erdos-Github-agents"))).toBe(
+      true,
+    );
   });
 });
 
@@ -161,7 +180,11 @@ describe("refreshTrackedAgents", () => {
     agentFilePaths.set("agent-1", "/projects/p/agent-1.jsonl");
     agentFilePaths.set("agent-2", "/projects/p/agent-2.jsonl");
     vi.mocked(readNewLines).mockReturnValue([]);
-    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: Date.now(), size: 10 });
+    mockStat.mockResolvedValue({
+      isDirectory: () => false,
+      mtimeMs: Date.now(),
+      size: 10,
+    });
 
     await refreshTrackedAgents();
 
@@ -179,7 +202,9 @@ describe("refreshTrackedAgents", () => {
     agentFilePaths.clear();
     agentFilePaths.set("gone", "/projects/p/gone.jsonl");
     vi.mocked(readNewLines).mockReturnValue([]);
-    mockStat.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+    mockStat.mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
 
     await expect(refreshTrackedAgents()).resolves.toBeUndefined();
     expect(vi.mocked(updateAgentStatus)).not.toHaveBeenCalled();
@@ -229,7 +254,10 @@ describe("selectStaleAgentIds", () => {
 
   it("protects a stale main while any sub-agent is still fresh", () => {
     const now = Date.now();
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "running", startTime: now + fresh }],
     ]);
@@ -243,7 +271,10 @@ describe("selectStaleAgentIds", () => {
 
   it("returns a stale main whose sub has also gone stale", () => {
     const now = Date.now();
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "idle", startTime: now + old }],
     ]);
@@ -258,7 +289,10 @@ describe("selectStaleAgentIds", () => {
 
   it("returns stale sub-agents regardless of parent state", () => {
     const now = Date.now();
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "running", startTime: now + fresh }],
       ["sub", { parentId: "main", status: "idle", startTime: now + old }],
     ]);
@@ -275,7 +309,10 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
   it("purges a stale main whose only child has status=completed and old mtime", () => {
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "completed", startTime: now + old }],
     ]);
@@ -295,7 +332,10 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
   it("purges a stale main whose only child has status=error and old mtime", () => {
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "error", startTime: now + old }],
     ]);
@@ -313,7 +353,10 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
     const fresh = -60_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "running", startTime: now + fresh }],
     ]);
@@ -328,7 +371,10 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
     const fresh = -60_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["sub", { parentId: "main", status: "waiting", startTime: now + fresh }],
     ]);
@@ -348,7 +394,10 @@ describe("selectStaleAgentIds — transitive shield through quiet middle spawner
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
     const fresh = -1_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["mid", { parentId: "main", status: "idle", startTime: now + old }],
       ["leaf", { parentId: "mid", status: "running", startTime: now + fresh }],
@@ -368,7 +417,10 @@ describe("selectStaleAgentIds — transitive shield through quiet middle spawner
   it("releases the chain once the deep descendant goes quiet too (control)", () => {
     const now = Date.now();
     const old = -STALE_THRESHOLD_MS - 60_000;
-    const agents = new Map<string, { parentId?: string; status: string; startTime: number }>([
+    const agents = new Map<
+      string,
+      { parentId?: string; status: string; startTime: number }
+    >([
       ["main", { status: "idle", startTime: now + old }],
       ["mid", { parentId: "main", status: "idle", startTime: now + old }],
       ["leaf", { parentId: "mid", status: "idle", startTime: now + old }],
@@ -386,7 +438,11 @@ describe("selectStaleAgentIds — transitive shield through quiet middle spawner
 });
 
 describe("selectLosingMains", () => {
-  type MainShape = { parentId?: string; startTime: number; metadata?: Record<string, unknown> };
+  type MainShape = {
+    parentId?: string;
+    startTime: number;
+    metadata?: Record<string, unknown>;
+  };
   const mkMain = (projectDir: string, startTime = 0): MainShape => ({
     startTime,
     metadata: { projectDir },
@@ -574,7 +630,11 @@ describe("settings.json cache — reads each path at most once per discovery pas
 
     // fsp.stat is now only hit for the per-file mtime/age check on the two main
     // JSONL files — directory classification comes from the Dirents above.
-    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: recentMtime, size: 100 });
+    mockStat.mockResolvedValue({
+      isDirectory: () => false,
+      mtimeMs: recentMtime,
+      size: 100,
+    });
 
     await discoverActiveSessions("/projects");
 
@@ -609,11 +669,13 @@ let runListings: Map<string, string[]>;
 let pendingLines: Map<string, string[]>;
 let metaContents: Map<string, string>;
 
-const sessionJsonlPath = () => path.join(FIX_PROJECT_PATH, `${sessionId}.jsonl`);
+const sessionJsonlPath = () =>
+  path.join(FIX_PROJECT_PATH, `${sessionId}.jsonl`);
 const subagentsDir = () => path.join(FIX_PROJECT_PATH, sessionId, "subagents");
 const workflowsDir = () => path.join(subagentsDir(), "workflows");
 const runDirPath = (runId: string) => path.join(workflowsDir(), runId);
-const agentJsonlPath = (id: string) => path.join(subagentsDir(), `agent-${id}.jsonl`);
+const agentJsonlPath = (id: string) =>
+  path.join(subagentsDir(), `agent-${id}.jsonl`);
 
 /** A JSONL line whose assistant message contains an Agent spawn tool_use. */
 function spawnLine(toolUseId: string): string {
@@ -621,7 +683,14 @@ function spawnLine(toolUseId: string): string {
     timestamp: new Date().toISOString(),
     message: {
       role: "assistant",
-      content: [{ type: "tool_use", id: toolUseId, name: "Agent", input: { description: "spawn" } }],
+      content: [
+        {
+          type: "tool_use",
+          id: toolUseId,
+          name: "Agent",
+          input: { description: "spawn" },
+        },
+      ],
     },
   });
 }
@@ -630,9 +699,16 @@ function buildFixture(opts: {
   sessionId: string;
   sessionLines?: string[];
   /** Flat sub-agents in subagents/. */
-  subagents?: Array<{ id: string; lines?: string[]; meta?: Record<string, unknown> }>;
+  subagents?: Array<{
+    id: string;
+    lines?: string[];
+    meta?: Record<string, unknown>;
+  }>;
   /** runId → files inside subagents/workflows/<runId>/. */
-  runs?: Record<string, Array<{ name: string; meta?: Record<string, unknown> }>>;
+  runs?: Record<
+    string,
+    Array<{ name: string; meta?: Record<string, unknown> }>
+  >;
   /** Non-directory entries listed directly inside subagents/workflows/. */
   looseWorkflowFiles?: string[];
 }): void {
@@ -646,7 +722,10 @@ function buildFixture(opts: {
     pendingLines.set(agentJsonlPath(sub.id), sub.lines ?? []);
     if (sub.meta) {
       subagentListing.push(`agent-${sub.id}.meta.json`);
-      metaContents.set(path.join(subagentsDir(), `agent-${sub.id}.meta.json`), JSON.stringify(sub.meta));
+      metaContents.set(
+        path.join(subagentsDir(), `agent-${sub.id}.meta.json`),
+        JSON.stringify(sub.meta),
+      );
     }
   }
 
@@ -662,7 +741,10 @@ function buildFixture(opts: {
         if (f.meta) {
           const metaName = f.name.replace(/\.jsonl$/, ".meta.json");
           names.push(metaName);
-          metaContents.set(path.join(runDirPath(runId), metaName), JSON.stringify(f.meta));
+          metaContents.set(
+            path.join(runDirPath(runId), metaName),
+            JSON.stringify(f.meta),
+          );
         }
       }
       runListings.set(runDirPath(runId), names);
@@ -676,20 +758,27 @@ function buildFixture(opts: {
   mockReaddir.mockImplementation(async (...args: unknown[]) => {
     const dir = String(args[0]);
     if (dir === "/projects") return [dirent(FIX_PROJECT, true)];
-    if (dir === FIX_PROJECT_PATH) return [dirent(`${sessionId}.jsonl`, false), dirent(sessionId, true)];
+    if (dir === FIX_PROJECT_PATH)
+      return [dirent(`${sessionId}.jsonl`, false), dirent(sessionId, true)];
     if (dir === subagentsDir()) return [...subagentListing];
     if (dir === workflowsDir()) {
       // Honor the options argument: only a withFileTypes readdir gets
       // Dirent-likes — production dropping { withFileTypes: true } at the
       // descent would get bare names and fail on isDirectory().
-      const withFileTypes = Boolean((args[1] as { withFileTypes?: boolean } | undefined)?.withFileTypes);
+      const withFileTypes = Boolean(
+        (args[1] as { withFileTypes?: boolean } | undefined)?.withFileTypes,
+      );
       return withFileTypes ? wfEntries : wfEntries.map((e) => e.name);
     }
     const run = runListings.get(dir);
     if (run) return [...run];
     return [];
   });
-  mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: Date.now() - 1_000, size: 100 });
+  mockStat.mockResolvedValue({
+    isDirectory: () => false,
+    mtimeMs: Date.now() - 1_000,
+    size: 100,
+  });
   vi.mocked(readNewLines).mockImplementation((p: string) => {
     const lines = pendingLines.get(p) ?? [];
     pendingLines.set(p, []);
@@ -697,7 +786,8 @@ function buildFixture(opts: {
   });
   vi.mocked(fs.readFileSync).mockImplementation(((p: unknown) => {
     const content = metaContents.get(String(p));
-    if (content === undefined) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    if (content === undefined)
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     return content;
   }) as typeof fs.readFileSync);
 }
@@ -706,7 +796,8 @@ function buildFixture(opts: {
 function failReaddirFor(failPath: string, code: string): void {
   const base = mockReaddir.getMockImplementation()!;
   mockReaddir.mockImplementation(async (...args: unknown[]) => {
-    if (String(args[0]) === failPath) throw Object.assign(new Error(code), { code });
+    if (String(args[0]) === failPath)
+      throw Object.assign(new Error(code), { code });
     return base(...args);
   });
 }
@@ -717,7 +808,9 @@ function failReaddirFor(failPath: string, code: string): void {
  */
 function restoreAgentStateMocks(): void {
   vi.mocked(registerAgent).mockImplementation(actualAgentState.registerAgent);
-  vi.mocked(updateAgentStatus).mockImplementation(actualAgentState.updateAgentStatus);
+  vi.mocked(updateAgentStatus).mockImplementation(
+    actualAgentState.updateAgentStatus,
+  );
   vi.mocked(processEntry).mockImplementation(actualAgentState.processEntry);
   vi.mocked(parseAgentType).mockImplementation(actualAgentState.parseAgentType);
   vi.mocked(reparentAgent).mockImplementation(actualAgentState.reparentAgent);
@@ -742,8 +835,23 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       subagents: [
         // Child sorts alphabetically before its spawner ("aaa" < "bbb"),
         // matching the real readdir order hazard.
-        { id: "aaa-child", meta: { agentType: "build", description: "child", toolUseId: "toolu_B" } },
-        { id: "bbb-parent", lines: [spawnLine("toolu_B")], meta: { agentType: "explore", description: "parent", toolUseId: "toolu_A" } },
+        {
+          id: "aaa-child",
+          meta: {
+            agentType: "build",
+            description: "child",
+            toolUseId: "toolu_B",
+          },
+        },
+        {
+          id: "bbb-parent",
+          lines: [spawnLine("toolu_B")],
+          meta: {
+            agentType: "explore",
+            description: "parent",
+            toolUseId: "toolu_A",
+          },
+        },
       ],
     });
 
@@ -763,10 +871,26 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       subagents: [
         // Listed deepest-first to force the dependency sort to reorder.
         { id: "lvl5", meta: { description: "l5", toolUseId: "toolu_5" } },
-        { id: "lvl4", lines: [spawnLine("toolu_5")], meta: { description: "l4", toolUseId: "toolu_4" } },
-        { id: "lvl3", lines: [spawnLine("toolu_4")], meta: { description: "l3", toolUseId: "toolu_3" } },
-        { id: "lvl2", lines: [spawnLine("toolu_3")], meta: { description: "l2", toolUseId: "toolu_2" } },
-        { id: "lvl1", lines: [spawnLine("toolu_2")], meta: { description: "l1", toolUseId: "toolu_1" } },
+        {
+          id: "lvl4",
+          lines: [spawnLine("toolu_5")],
+          meta: { description: "l4", toolUseId: "toolu_4" },
+        },
+        {
+          id: "lvl3",
+          lines: [spawnLine("toolu_4")],
+          meta: { description: "l3", toolUseId: "toolu_3" },
+        },
+        {
+          id: "lvl2",
+          lines: [spawnLine("toolu_3")],
+          meta: { description: "l2", toolUseId: "toolu_2" },
+        },
+        {
+          id: "lvl1",
+          lines: [spawnLine("toolu_2")],
+          meta: { description: "l1", toolUseId: "toolu_1" },
+        },
       ],
     });
 
@@ -784,7 +908,12 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
     buildFixture({
       sessionId: sess,
       sessionLines: [],
-      subagents: [{ id: "plain", meta: { agentType: "explore", description: "no spawn pointer" } }],
+      subagents: [
+        {
+          id: "plain",
+          meta: { agentType: "explore", description: "no spawn pointer" },
+        },
+      ],
     });
 
     await discoverActiveSessions("/projects");
@@ -800,7 +929,10 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       sessionLines: [spawnLine("toolu_A")],
       subagents: [
         // The parent's spawning line has not been flushed yet on the first scan.
-        { id: "late-child", meta: { description: "child", toolUseId: "toolu_B" } },
+        {
+          id: "late-child",
+          meta: { description: "child", toolUseId: "toolu_B" },
+        },
         { id: "parent", meta: { description: "parent", toolUseId: "toolu_A" } },
       ],
     });
@@ -819,11 +951,16 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
 
     expect(agents.get("late-child")?.parentId).toBe("parent");
     expect(edges).toContainEqual({ source: "parent", target: "late-child" });
-    expect(edges.some((e) => e.source === sess && e.target === "late-child")).toBe(false);
+    expect(
+      edges.some((e) => e.source === sess && e.target === "late-child"),
+    ).toBe(false);
     expect(pendingReparents.has("late-child")).toBe(false);
     // The re-parent was broadcast as a refreshed registration.
     const rebroadcast = sent.find(
-      (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "late-child",
+      (m) =>
+        m.type === "state:update" &&
+        m.event?.type === "agent:register" &&
+        m.event?.agentId === "late-child",
     );
     expect(rebroadcast?.event?.parentId).toBe("parent");
   });
@@ -836,14 +973,19 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       subagents: [
         // A fresh compact transcript containing a replayed Agent spawn line.
         { id: "compact-x", lines: [spawnLine("toolu_C")] },
-        { id: "normal", meta: { agentType: "explore", description: "real sub" } },
+        {
+          id: "normal",
+          meta: { agentType: "explore", description: "real sub" },
+        },
       ],
     });
 
     await discoverActiveSessions("/projects");
 
     // The gated file is never opened, so its replayed spawn id never lands.
-    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    const readPaths = vi
+      .mocked(readNewLines)
+      .mock.calls.map((c) => String(c[0]));
     expect(readPaths).not.toContain(agentJsonlPath("compact-x"));
     expect(spawnIndex.has("toolu_C")).toBe(false);
     expect(agents.has("compact-x")).toBe(false);
@@ -857,25 +999,43 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
     buildFixture({
       sessionId: sess,
       sessionLines: [],
-      subagents: [{ id: "X", lines: [spawnLine("toolu_X")], meta: { description: "tombstoned" } }],
+      subagents: [
+        {
+          id: "X",
+          lines: [spawnLine("toolu_X")],
+          meta: { description: "tombstoned" },
+        },
+      ],
     });
     const NOW = Date.now();
     removedAgentIds.set("X", NOW);
 
     // Scan 1: the file's mtime predates the tombstone — must stay unread.
-    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: NOW - 1_000, size: 100 });
+    mockStat.mockResolvedValue({
+      isDirectory: () => false,
+      mtimeMs: NOW - 1_000,
+      size: 100,
+    });
     await discoverActiveSessions("/projects");
 
-    const firstScanReads = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    const firstScanReads = vi
+      .mocked(readNewLines)
+      .mock.calls.map((c) => String(c[0]));
     expect(firstScanReads).not.toContain(agentJsonlPath("X"));
     expect(agents.has("X")).toBe(false);
     expect(spawnIndex.has("toolu_X")).toBe(false);
 
     // A write lands after removal: mtime now exceeds the tombstone.
-    mockStat.mockResolvedValue({ isDirectory: () => false, mtimeMs: NOW + 5_000, size: 200 });
+    mockStat.mockResolvedValue({
+      isDirectory: () => false,
+      mtimeMs: NOW + 5_000,
+      size: 200,
+    });
     await discoverActiveSessions("/projects");
 
-    expect(vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]))).toContain(agentJsonlPath("X"));
+    expect(
+      vi.mocked(readNewLines).mock.calls.map((c) => String(c[0])),
+    ).toContain(agentJsonlPath("X"));
     expect(agents.has("X")).toBe(true);
     expect(removedAgentIds.has("X")).toBe(false);
     // The unread backlog replayed: its spawn line reached the index and the
@@ -890,7 +1050,11 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       sessionId: sess,
       sessionLines: [spawnLine("toolu_A")],
       subagents: [
-        { id: "spawner", lines: [spawnLine("toolu_B")], meta: { description: "spawner", toolUseId: "toolu_A" } },
+        {
+          id: "spawner",
+          lines: [spawnLine("toolu_B")],
+          meta: { description: "spawner", toolUseId: "toolu_A" },
+        },
         { id: "c1" }, // JSONL listed, meta.json not flushed yet
       ],
     });
@@ -914,7 +1078,9 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
     expect(agents.get("c1")?.parentId).toBe("spawner");
     expect(pendingReparents.has("c1")).toBe(false);
     expect(edges).toContainEqual({ source: "spawner", target: "c1" });
-    expect(edges.some((e) => !e.edgeType && e.source === sess && e.target === "c1")).toBe(false);
+    expect(
+      edges.some((e) => !e.edgeType && e.source === sess && e.target === "c1"),
+    ).toBe(false);
   });
 
   it("does not queue a retry when meta.toolUseId points at the child itself", async () => {
@@ -925,7 +1091,11 @@ describe("discoverActiveSessions — nested sub-agent parent resolution", () => 
       subagents: [
         // The child's OWN transcript carries the tool_use id its meta names,
         // so the spawn index resolves the id to the child itself.
-        { id: "selfie", lines: [spawnLine("toolu_S")], meta: { description: "self", toolUseId: "toolu_S" } },
+        {
+          id: "selfie",
+          lines: [spawnLine("toolu_S")],
+          meta: { description: "self", toolUseId: "toolu_S" },
+        },
       ],
     });
 
@@ -946,7 +1116,11 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa1111-1111-1111-1111-111111111111";
     buildFixture({
       sessionId: sess,
-      runs: { wf_x: [{ name: "agent-a1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      runs: {
+        wf_x: [
+          { name: "agent-a1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
     });
 
     await discoverActiveSessions("/projects");
@@ -955,7 +1129,9 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     expect(agent?.parentId).toBe(sess);
     expect(agent?.agentType).toBe("generic");
     expect(agent?.displayType).toBe("workflow-subagent");
-    expect(agentFilePaths.get("a1")).toBe(path.join(runDirPath("wf_x"), "agent-a1.jsonl"));
+    expect(agentFilePaths.get("a1")).toBe(
+      path.join(runDirPath("wf_x"), "agent-a1.jsonl"),
+    );
     expect(pendingReparents.size).toBe(0);
   });
 
@@ -963,8 +1139,17 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa2222-2222-2222-2222-222222222222";
     buildFixture({
       sessionId: sess,
-      subagents: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
-      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      subagents: [
+        {
+          id: "flat1",
+          meta: { agentType: "explore", description: "flat sub" },
+        },
+      ],
+      runs: {
+        wf_x: [
+          { name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
     });
 
     await discoverActiveSessions("/projects");
@@ -1001,7 +1186,10 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
       runs: {
         wf_x: [
           { name: "agent-compact-123.jsonl" },
-          { name: "agent-real.jsonl", meta: { agentType: "workflow-subagent" } },
+          {
+            name: "agent-real.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
         ],
       },
     });
@@ -1011,9 +1199,15 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     expect(agents.has("compact-123")).toBe(false);
     // The gated transcript is never opened, same as flat compact- files —
     // while the legit sibling in the same run dir IS read.
-    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
-    expect(readPaths).not.toContain(path.join(runDirPath("wf_x"), "agent-compact-123.jsonl"));
-    expect(readPaths).toContain(path.join(runDirPath("wf_x"), "agent-real.jsonl"));
+    const readPaths = vi
+      .mocked(readNewLines)
+      .mock.calls.map((c) => String(c[0]));
+    expect(readPaths).not.toContain(
+      path.join(runDirPath("wf_x"), "agent-compact-123.jsonl"),
+    );
+    expect(readPaths).toContain(
+      path.join(runDirPath("wf_x"), "agent-real.jsonl"),
+    );
     expect(agents.get("real")?.parentId).toBe(sess);
   });
 
@@ -1021,7 +1215,14 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa5555-5555-5555-5555-555555555555";
     buildFixture({
       sessionId: sess,
-      runs: { wf_x: [{ name: "agent-in-run.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      runs: {
+        wf_x: [
+          {
+            name: "agent-in-run.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
+        ],
+      },
       looseWorkflowFiles: ["agent-loose.jsonl"],
     });
 
@@ -1038,17 +1239,24 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
       sessionId: sess,
       runs: {
         wf_x: [
-          { name: "agent-stale.jsonl", meta: { agentType: "workflow-subagent" } },
-          { name: "agent-fresh.jsonl", meta: { agentType: "workflow-subagent" } },
+          {
+            name: "agent-stale.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
+          {
+            name: "agent-fresh.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
         ],
       },
     });
     const stalePath = path.join(runDirPath("wf_x"), "agent-stale.jsonl");
     mockStat.mockImplementation(async (p: unknown) => ({
       isDirectory: () => false,
-      mtimeMs: String(p) === stalePath
-        ? Date.now() - DISCOVERY_THRESHOLD_MS - 60_000
-        : Date.now() - 1_000,
+      mtimeMs:
+        String(p) === stalePath
+          ? Date.now() - DISCOVERY_THRESHOLD_MS - 60_000
+          : Date.now() - 1_000,
       size: 100,
     }));
 
@@ -1057,7 +1265,9 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     // The stale transcript never registers and is never opened — nested
     // candidates flow through Phase A's age gate exactly like flat ones.
     expect(agents.has("stale")).toBe(false);
-    const readPaths = vi.mocked(readNewLines).mock.calls.map((c) => String(c[0]));
+    const readPaths = vi
+      .mocked(readNewLines)
+      .mock.calls.map((c) => String(c[0]));
     expect(readPaths).not.toContain(stalePath);
     expect(agents.get("fresh")?.parentId).toBe(sess);
   });
@@ -1066,11 +1276,28 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa7777-7777-7777-7777-777777777777";
     buildFixture({
       sessionId: sess,
-      subagents: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
+      subagents: [
+        {
+          id: "flat1",
+          meta: { agentType: "explore", description: "flat sub" },
+        },
+      ],
       runs: {
-        wf_bad: [{ name: "agent-bad.jsonl", meta: { agentType: "workflow-subagent" } }],
-        wf_gone: [{ name: "agent-gone.jsonl", meta: { agentType: "workflow-subagent" } }],
-        wf_good: [{ name: "agent-good.jsonl", meta: { agentType: "workflow-subagent" } }],
+        wf_bad: [
+          { name: "agent-bad.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+        wf_gone: [
+          {
+            name: "agent-gone.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
+        ],
+        wf_good: [
+          {
+            name: "agent-good.jsonl",
+            meta: { agentType: "workflow-subagent" },
+          },
+        ],
       },
     });
     failReaddirFor(runDirPath("wf_bad"), "EIO");
@@ -1085,8 +1312,15 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     expect(agents.get("good")?.parentId).toBe(sess);
     // Run-dir level mirrors workflows/: unexpected codes leave a breadcrumb,
     // routine races stay silent.
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(runDirPath("wf_bad")), expect.anything());
-    expect(warnSpy.mock.calls.some((c) => String(c[0]).includes(runDirPath("wf_gone")))).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(runDirPath("wf_bad")),
+      expect.anything(),
+    );
+    expect(
+      warnSpy.mock.calls.some((c) =>
+        String(c[0]).includes(runDirPath("wf_gone")),
+      ),
+    ).toBe(false);
     warnSpy.mockRestore();
   });
 
@@ -1094,8 +1328,17 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa8888-8888-8888-8888-888888888888";
     buildFixture({
       sessionId: sess,
-      subagents: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
-      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      subagents: [
+        {
+          id: "flat1",
+          meta: { agentType: "explore", description: "flat sub" },
+        },
+      ],
+      runs: {
+        wf_x: [
+          { name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
     });
     failReaddirFor(workflowsDir(), "EACCES");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -1104,7 +1347,10 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
 
     // A persistent failure here silently reproduces the original bug —
     // it must leave a breadcrumb, while flat discovery carries on.
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(workflowsDir()), expect.anything());
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(workflowsDir()),
+      expect.anything(),
+    );
     expect(agents.has("n1")).toBe(false);
     expect(agents.get("flat1")?.parentId).toBe(sess);
     warnSpy.mockRestore();
@@ -1114,15 +1360,26 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaa9999-9999-9999-9999-999999999999";
     buildFixture({
       sessionId: sess,
-      subagents: [{ id: "flat1", meta: { agentType: "explore", description: "flat sub" } }],
-      runs: { wf_x: [{ name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      subagents: [
+        {
+          id: "flat1",
+          meta: { agentType: "explore", description: "flat sub" },
+        },
+      ],
+      runs: {
+        wf_x: [
+          { name: "agent-n1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
     });
     failReaddirFor(workflowsDir(), "ENOENT");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await discoverActiveSessions("/projects");
 
-    const warnedWorkflows = warnSpy.mock.calls.some((c) => String(c[0]).includes(workflowsDir()));
+    const warnedWorkflows = warnSpy.mock.calls.some((c) =>
+      String(c[0]).includes(workflowsDir()),
+    );
     expect(warnedWorkflows).toBe(false);
     expect(agents.get("flat1")?.parentId).toBe(sess);
     warnSpy.mockRestore();
@@ -1193,8 +1450,14 @@ describe("discoverActiveSessions — workflow sub-agent discovery", () => {
     const sess = "aaaacccc-cccc-cccc-cccc-cccccccccccc";
     buildFixture({
       sessionId: sess,
-      subagents: [{ id: "flat-sub", meta: { agentType: "explore", description: "flat" } }],
-      runs: { wf_04630933: [{ name: "agent-wf1.jsonl", meta: { agentType: "workflow-subagent" } }] },
+      subagents: [
+        { id: "flat-sub", meta: { agentType: "explore", description: "flat" } },
+      ],
+      runs: {
+        wf_04630933: [
+          { name: "agent-wf1.jsonl", meta: { agentType: "workflow-subagent" } },
+        ],
+      },
     });
     // Simulate the live case: no wf_*.json on disk, but the script file exists.
     vi.mocked(scanWorkflowScripts).mockResolvedValue(
@@ -1212,10 +1475,32 @@ describe("pruneState — dedup purge cleans spawn bookkeeping", () => {
   it("drops the losing main's spawnIndex entries and its descendant's pendingReparents entry", async () => {
     const NOW = Date.now();
     const register = actualAgentState.registerAgent;
-    const base = { projectDir: "-Users-x-proj", task: "t", slug: "s", model: "m", startTime: NOW };
-    register({ ...base, agentId: "winner", sessionId: "winner", agentType: "main" });
-    register({ ...base, agentId: "loser", sessionId: "loser", agentType: "main" });
-    register({ ...base, agentId: "loser-child", sessionId: "loser", agentType: "generic", parentId: "loser" });
+    const base = {
+      projectDir: "-Users-x-proj",
+      task: "t",
+      slug: "s",
+      model: "m",
+      startTime: NOW,
+    };
+    register({
+      ...base,
+      agentId: "winner",
+      sessionId: "winner",
+      agentType: "main",
+    });
+    register({
+      ...base,
+      agentId: "loser",
+      sessionId: "loser",
+      agentType: "main",
+    });
+    register({
+      ...base,
+      agentId: "loser-child",
+      sessionId: "loser",
+      agentType: "generic",
+      parentId: "loser",
+    });
     agentLastModified.set("winner", NOW);
     // Quiet past the running threshold (dedup-evictable) but well inside the
     // 10-minute stale window — and its fresh child shields it from the stale
@@ -1242,8 +1527,19 @@ describe("pruneState — stale purge cleans every tracking structure", () => {
   it("purges a quiet sub-agent through the stale path: maps, spawn bookkeeping, edges, team, tombstone, broadcast", async () => {
     const NOW = Date.now();
     const register = actualAgentState.registerAgent;
-    const base = { projectDir: "-Users-x-proj", task: "t", slug: "s", model: "m", startTime: NOW };
-    register({ ...base, agentId: "main", sessionId: "main", agentType: "main" });
+    const base = {
+      projectDir: "-Users-x-proj",
+      task: "t",
+      slug: "s",
+      model: "m",
+      startTime: NOW,
+    };
+    register({
+      ...base,
+      agentId: "main",
+      sessionId: "main",
+      agentType: "main",
+    });
     register({
       ...base,
       agentId: "stale-sub",
@@ -1257,7 +1553,10 @@ describe("pruneState — stale purge cleans every tracking structure", () => {
     // Quiet beyond the 60s sub-agent stale window, with no descendants to
     // shield it — only the stale loop can evict it (its parent is a single
     // fresh main, so the dedup loop never fires).
-    agentLastModified.set("stale-sub", NOW - SUBAGENT_STALE_THRESHOLD_MS - 60_000);
+    agentLastModified.set(
+      "stale-sub",
+      NOW - SUBAGENT_STALE_THRESHOLD_MS - 60_000,
+    );
 
     // Tracking state the purge must clean.
     agentFilePaths.set("main", "/projects/p/main.jsonl");
@@ -1270,7 +1569,9 @@ describe("pruneState — stale purge cleans every tracking structure", () => {
 
     // Files vanished (session dir cleaned up) → the refresh loop skips both
     // agents without touching mtimes and leaves eviction to pruneState.
-    mockStat.mockRejectedValue(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+    mockStat.mockRejectedValue(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
 
     await refreshTrackedAgents();
 
@@ -1282,16 +1583,24 @@ describe("pruneState — stale purge cleans every tracking structure", () => {
     expect(spawnIndex.has("toolu_owned")).toBe(false);
     expect(pendingReparents.has("stale-sub")).toBe(false);
     // Incident edges spliced (parent edge + message edge).
-    expect(edges.some((e) => e.source === "stale-sub" || e.target === "stale-sub")).toBe(false);
+    expect(
+      edges.some((e) => e.source === "stale-sub" || e.target === "stale-sub"),
+    ).toBe(false);
     // Sole team member removed → empty team deleted.
     expect(teams.has("team-x")).toBe(false);
     // Tombstone set so the next scan doesn't immediately resurrect it.
     expect(removedAgentIds.has("stale-sub")).toBe(true);
     // Removal broadcast to viewers.
-    expect(vi.mocked(broadcast)).toHaveBeenCalledWith({ type: "state:remove", agentId: "stale-sub" });
+    expect(vi.mocked(broadcast)).toHaveBeenCalledWith({
+      type: "state:remove",
+      agentId: "stale-sub",
+    });
     // The fresh main survives untouched.
     expect(agents.has("main")).toBe(true);
     expect(agentFilePaths.has("main")).toBe(true);
-    expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith({ type: "state:remove", agentId: "main" });
+    expect(vi.mocked(broadcast)).not.toHaveBeenCalledWith({
+      type: "state:remove",
+      agentId: "main",
+    });
   });
 });

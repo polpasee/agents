@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { agents, edges, teams, viewers } from "../../../../../scripts/lib/agent-state";
+import {
+  agents,
+  edges,
+  teams,
+  viewers,
+} from "../../../../../scripts/lib/agent-state";
 import { annotations } from "../../../../../scripts/lib/annotation-store";
 import { broadcast } from "../../../../../scripts/lib/sse-broadcast";
 import { GET } from "../route";
 
-async function readFrames(body: ReadableStream<Uint8Array>, count: number): Promise<string[]> {
+async function readFrames(
+  body: ReadableStream<Uint8Array>,
+  count: number,
+): Promise<string[]> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const frames: string[] = [];
@@ -39,9 +47,17 @@ describe("/api/stream GET (SSE)", () => {
 
   it("returns text/event-stream and sends state:sync as the first frame", async () => {
     agents.set("main-x", {
-      id: "main-x", agentType: "main", status: "running", task: "t",
-      toolCalls: [], inputTokens: 0, outputTokens: 0,
-      cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0,
+      id: "main-x",
+      agentType: "main",
+      status: "running",
+      task: "t",
+      toolCalls: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+      contextWindow: 0,
+      startTime: 0,
     });
 
     const res = GET(new Request("http://localhost/api/stream"));
@@ -85,7 +101,11 @@ describe("/api/stream GET (SSE)", () => {
 
   it("sends annotation:sync after state:sync when annotations exist", async () => {
     annotations.set("ann-pre", {
-      id: "ann-pre", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
+      id: "ann-pre",
+      targetId: "x",
+      targetType: "agent",
+      text: "y",
+      timestamp: 1,
     });
 
     const res = GET(new Request("http://localhost/api/stream"));
@@ -106,7 +126,9 @@ describe("/api/stream GET (SSE)", () => {
     const fakeRequest = {
       headers: new Headers(),
       signal: {
-        addEventListener: (_evt: string, fn: () => void) => { abortHandler = fn; },
+        addEventListener: (_evt: string, fn: () => void) => {
+          abortHandler = fn;
+        },
       } as unknown as AbortSignal,
     } as unknown as Request;
 

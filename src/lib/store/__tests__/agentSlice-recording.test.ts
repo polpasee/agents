@@ -52,7 +52,12 @@ describe("recordedEvents ring buffer", () => {
     // calls to trigger the eviction — avoiding a 50k-iteration loop in tests.
     useAgentStore.getState().startRecording();
     const buf = useAgentStore.getState().recordedEvents;
-    const event: AgentEvent = { type: "agent:register", agentId: "seed", agentType: "build", task: "t" };
+    const event: AgentEvent = {
+      type: "agent:register",
+      agentId: "seed",
+      agentType: "build",
+      task: "t",
+    };
     // Seed RECORDING_MAX_EVENTS - 1 entries with timestamps 0 .. cap-2.
     for (let i = 0; i < RECORDING_MAX_EVENTS - 1; i++) {
       buf.push({ timestamp: i, event });
@@ -66,7 +71,9 @@ describe("recordedEvents ring buffer", () => {
     // The oldest entries (timestamp 0..98) must have been evicted.
     expect(recorded[0].timestamp).toBeGreaterThanOrEqual(99);
     // The newest timestamp must be present.
-    expect(recorded[RECORDING_MAX_EVENTS - 1].timestamp).toBe(RECORDING_MAX_EVENTS - 1 + 99);
+    expect(recorded[RECORDING_MAX_EVENTS - 1].timestamp).toBe(
+      RECORDING_MAX_EVENTS - 1 + 99,
+    );
   });
 
   it("recordedEvents is a NEW array after each event (immutable update)", () => {

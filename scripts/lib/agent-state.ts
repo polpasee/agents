@@ -3,7 +3,6 @@ import type {
   AgentState,
   AgentType,
   EdgeState,
-  ServerEvent,
   TeamState,
   ThinkingEffort,
   ToolCallEntry,
@@ -25,17 +24,19 @@ export { viewers, broadcast };
 // agent state or the in-flight viewer set.
 declare global {
   // eslint-disable-next-line no-var
-  var __agentMonitorState: {
-    agents: Map<string, AgentState>;
-    edges: EdgeState[];
-    teams: Map<string, TeamState>;
-    workflows: Map<string, WorkflowRunState>;
-    agentLastModified: Map<string, number>;
-    removedAgentIds: Map<string, number>;
-    agentFilePaths: Map<string, string>;
-    spawnIndex: Map<string, string>;
-    pendingReparents: Map<string, string>;
-  } | undefined;
+  var __agentMonitorState:
+    | {
+        agents: Map<string, AgentState>;
+        edges: EdgeState[];
+        teams: Map<string, TeamState>;
+        workflows: Map<string, WorkflowRunState>;
+        agentLastModified: Map<string, number>;
+        removedAgentIds: Map<string, number>;
+        agentFilePaths: Map<string, string>;
+        spawnIndex: Map<string, string>;
+        pendingReparents: Map<string, string>;
+      }
+    | undefined;
 }
 
 const store = (globalThis.__agentMonitorState ??= {
@@ -86,26 +87,55 @@ export function parseAgentType(raw?: string): AgentType {
 
   if (lower.includes("team-lead")) return "team-lead";
   // Compound names must resolve before their component words fire elsewhere
-  if (lower.includes("code-architect") || lower.includes("code-simplifier")) return "build";
+  if (lower.includes("code-architect") || lower.includes("code-simplifier"))
+    return "build";
   // "analyzer" (review tool) must precede the "analy" → explore catch-all below
   // "failure-hunter" and "auditor" are review signals
-  if (lower.includes("review") || lower.includes("audit") || lower.includes("critic")
-      || lower.includes("analyzer") || lower.includes("failure-hunter")) return "review";
+  if (
+    lower.includes("review") ||
+    lower.includes("audit") ||
+    lower.includes("critic") ||
+    lower.includes("analyzer") ||
+    lower.includes("failure-hunter")
+  )
+    return "review";
   // \bqa\b(?!-) avoids matching "qa-sec" namespace segments; qa as a trailing role still matches
   if (lower.includes("test") || /\bqa\b(?!-)/.test(lower)) return "test";
-  if (lower.includes("explore") || lower.includes("research")
-      || lower.includes("analy") || lower.includes("investigat")
-      || /\breader\b/.test(lower)) return "explore";
+  if (
+    lower.includes("explore") ||
+    lower.includes("research") ||
+    lower.includes("analy") ||
+    lower.includes("investigat") ||
+    /\breader\b/.test(lower)
+  )
+    return "explore";
   // "ui-designer" carve-out: listed under Build in the cheatsheet; must come before
   // the generic "design" → plan rule that would otherwise capture it
-  if (lower.includes("plan") || (lower.includes("architect") && !lower.includes("code-architect"))
-      || (lower.includes("design") && !lower.includes("ui-designer"))) return "plan";
-  if (lower.includes("build") || lower.includes("frontend") || lower.includes("backend")
-      || lower.includes("implement") || lower.includes("migrat") || lower.includes("debug")
-      || /\bfix\b/.test(lower) || /\bapi\b/.test(lower) || /\bui\b/.test(lower)
-      || lower.includes("engineer") || lower.includes("specialist") || lower.includes("developer")
-      || lower.includes("optimizer") || lower.includes("expert") || lower.includes("designer")
-      || /-pro\b/.test(lower)) return "build";
+  if (
+    lower.includes("plan") ||
+    (lower.includes("architect") && !lower.includes("code-architect")) ||
+    (lower.includes("design") && !lower.includes("ui-designer"))
+  )
+    return "plan";
+  if (
+    lower.includes("build") ||
+    lower.includes("frontend") ||
+    lower.includes("backend") ||
+    lower.includes("implement") ||
+    lower.includes("migrat") ||
+    lower.includes("debug") ||
+    /\bfix\b/.test(lower) ||
+    /\bapi\b/.test(lower) ||
+    /\bui\b/.test(lower) ||
+    lower.includes("engineer") ||
+    lower.includes("specialist") ||
+    lower.includes("developer") ||
+    lower.includes("optimizer") ||
+    lower.includes("expert") ||
+    lower.includes("designer") ||
+    /-pro\b/.test(lower)
+  )
+    return "build";
 
   return "generic";
 }
@@ -117,7 +147,10 @@ export function parseAgentType(raw?: string): AgentType {
 // child's real parent instead of anchoring it to the main session.
 
 /** Record the spawning agent for a single Agent/Task tool_use block. */
-function recordSpawnToolUse(block: Record<string, unknown>, agentId: string): void {
+function recordSpawnToolUse(
+  block: Record<string, unknown>,
+  agentId: string,
+): void {
   if (block.type !== "tool_use") return;
   if (block.name !== "Agent" && block.name !== "Task") return;
   if (typeof block.id !== "string" || block.id.length === 0) return;
@@ -134,7 +167,10 @@ function recordSpawnToolUse(block: Record<string, unknown>, agentId: string): vo
  * sub-agent file before registering anything, so the index is complete
  * even when readdir lists a child before its spawner.
  */
-export function harvestSpawnToolUses(entry: Record<string, unknown>, agentId: string): void {
+export function harvestSpawnToolUses(
+  entry: Record<string, unknown>,
+  agentId: string,
+): void {
   const msg = entry.message;
   if (!msg || typeof msg !== "object") return;
   const message = msg as Record<string, unknown>;
@@ -163,7 +199,8 @@ export function resolveLiveSpawner(
   isLive: (id: string) => boolean = (id) => agents.has(id),
 ): string | undefined {
   const owner = spawnIndex.get(toolUseId);
-  if (owner === undefined || owner === selfId || !isLive(owner)) return undefined;
+  if (owner === undefined || owner === selfId || !isLive(owner))
+    return undefined;
   return owner;
 }
 
@@ -231,7 +268,11 @@ export function registerAgent(opts: {
   // (and state:sync snapshots built from it) stays consistent with parentId.
   for (const [id, existing] of agents) {
     if (existing.parentId !== opts.agentId) continue;
-    if (!edges.some(e => !e.edgeType && e.source === opts.agentId && e.target === id)) {
+    if (
+      !edges.some(
+        (e) => !e.edgeType && e.source === opts.agentId && e.target === id,
+      )
+    ) {
       edges.push({ source: opts.agentId, target: id });
     }
   }
@@ -260,7 +301,10 @@ export function registerAgent(opts: {
     }
   }
 
-  if (opts.parentId && !edges.some(e => e.source === opts.parentId && e.target === opts.agentId)) {
+  if (
+    opts.parentId &&
+    !edges.some((e) => e.source === opts.parentId && e.target === opts.agentId)
+  ) {
     edges.push({ source: opts.parentId, target: opts.agentId });
   }
 
@@ -286,7 +330,10 @@ export function registerAgent(opts: {
 // Single builder for mid-session agent:register re-broadcasts (model
 // change, re-parent, discovery's late-meta heal), deriving the event from
 // stored state so a new AgentState field only needs adding here.
-export function broadcastRegisterFor(agent: AgentState, timestamp: number): void {
+export function broadcastRegisterFor(
+  agent: AgentState,
+  timestamp: number,
+): void {
   broadcast({
     type: "state:update",
     event: {
@@ -333,11 +380,19 @@ export function reparentAgent(agentId: string, newParentId: string): void {
   // Swap the parent edge: drop the old anchor, add the new one. Typed
   // edges (blocking/tool) are not parent anchors and must survive.
   for (let i = edges.length - 1; i >= 0; i--) {
-    if (!edges[i].edgeType && edges[i].source === oldParentId && edges[i].target === agentId) {
+    if (
+      !edges[i].edgeType &&
+      edges[i].source === oldParentId &&
+      edges[i].target === agentId
+    ) {
       edges.splice(i, 1);
     }
   }
-  if (!edges.some(e => !e.edgeType && e.source === newParentId && e.target === agentId)) {
+  if (
+    !edges.some(
+      (e) => !e.edgeType && e.source === newParentId && e.target === agentId,
+    )
+  ) {
     edges.push({ source: newParentId, target: agentId });
   }
 
@@ -391,15 +446,19 @@ export function processEntry(entry: Record<string, unknown>, agentId: string) {
   try {
     return processEntryInner(entry, agentId);
   } catch (err) {
-    console.warn(`processEntry: failed to process entry for agent ${agentId}:`, err);
+    console.warn(
+      `processEntry: failed to process entry for agent ${agentId}:`,
+      err,
+    );
     return;
   }
 }
 
 function processEntryInner(entry: Record<string, unknown>, agentId: string) {
-  const timestamp = typeof entry.timestamp === "string"
-    ? new Date(entry.timestamp).getTime()
-    : Date.now();
+  const timestamp =
+    typeof entry.timestamp === "string"
+      ? new Date(entry.timestamp).getTime()
+      : Date.now();
 
   const msg = entry.message;
   if (!msg || typeof msg !== "object") return;
@@ -431,7 +490,10 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
       recordSpawnToolUse(b, agentId);
       {
         const toolName = b.name;
-        const input = b.input && typeof b.input === "object" ? b.input as Record<string, unknown> : undefined;
+        const input =
+          b.input && typeof b.input === "object"
+            ? (b.input as Record<string, unknown>)
+            : undefined;
         let argsStr: string | undefined;
         if (input) {
           const keys = Object.keys(input);
@@ -469,7 +531,11 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
 
         const agent = agents.get(agentId);
         if (agent) {
-          const tc: ToolCallEntry = { tool: toolName, args: argsStr, timestamp };
+          const tc: ToolCallEntry = {
+            tool: toolName,
+            args: argsStr,
+            timestamp,
+          };
           agent.toolCalls.push(tc);
           if (agent.toolCalls.length > MAX_TOOL_CALLS_PER_AGENT) {
             agent.toolCalls = agent.toolCalls.slice(-MAX_TOOL_CALLS_PER_AGENT);
@@ -488,8 +554,10 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
       if (agent) {
         agent.inputTokens = (agent.inputTokens || 0) + (u.input_tokens || 0);
         agent.outputTokens = (agent.outputTokens || 0) + (u.output_tokens || 0);
-        agent.cacheReadTokens = (agent.cacheReadTokens || 0) + (u.cache_read_input_tokens || 0);
-        agent.cacheCreateTokens = (agent.cacheCreateTokens || 0) + (u.cache_creation_input_tokens || 0);
+        agent.cacheReadTokens =
+          (agent.cacheReadTokens || 0) + (u.cache_read_input_tokens || 0);
+        agent.cacheCreateTokens =
+          (agent.cacheCreateTokens || 0) + (u.cache_creation_input_tokens || 0);
 
         const event: AgentEvent = {
           type: "agent:tokens",
@@ -505,4 +573,3 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
     }
   }
 }
-

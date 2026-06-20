@@ -7,7 +7,7 @@ describe("ModalBackdrop", () => {
     render(
       <ModalBackdrop onClose={() => {}}>
         <div>child content</div>
-      </ModalBackdrop>
+      </ModalBackdrop>,
     );
     expect(screen.getByText("child content")).toBeDefined();
   });
@@ -17,7 +17,7 @@ describe("ModalBackdrop", () => {
     const { container } = render(
       <ModalBackdrop onClose={onClose}>
         <div>child content</div>
-      </ModalBackdrop>
+      </ModalBackdrop>,
     );
     // Click the backdrop div (the outer wrapper)
     fireEvent.click(container.firstChild as HTMLElement);
@@ -29,7 +29,7 @@ describe("ModalBackdrop", () => {
     render(
       <ModalBackdrop onClose={onClose}>
         <div>child content</div>
-      </ModalBackdrop>
+      </ModalBackdrop>,
     );
     fireEvent.click(screen.getByText("child content"));
     expect(onClose).not.toHaveBeenCalled();

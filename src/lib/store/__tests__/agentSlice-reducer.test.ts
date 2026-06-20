@@ -36,23 +36,51 @@ function resetState() {
 
 beforeEach(resetState);
 
-function registerAgent(agentId: string, agentType: AgentType = "build", parentId?: string) {
+function registerAgent(
+  agentId: string,
+  agentType: AgentType = "build",
+  parentId?: string,
+) {
   useAgentStore.getState().handleEvent(
-    { type: "agent:register", agentId, agentType, task: `task-${agentId}`, parentId },
+    {
+      type: "agent:register",
+      agentId,
+      agentType,
+      task: `task-${agentId}`,
+      parentId,
+    },
     Date.now(),
   );
 }
 
-function emitStatus(agentId: string, status: "running" | "waiting" | "idle" | "completed" | "error", opts: { waitingOn?: string; message?: string } = {}) {
-  useAgentStore.getState().handleEvent(
-    { type: "agent:status", agentId, status, ...opts },
-    Date.now(),
-  );
+function emitStatus(
+  agentId: string,
+  status: "running" | "waiting" | "idle" | "completed" | "error",
+  opts: { waitingOn?: string; message?: string } = {},
+) {
+  useAgentStore
+    .getState()
+    .handleEvent(
+      { type: "agent:status", agentId, status, ...opts },
+      Date.now(),
+    );
 }
 
-function emitTokens(agentId: string, inputTokens: number, outputTokens: number) {
+function emitTokens(
+  agentId: string,
+  inputTokens: number,
+  outputTokens: number,
+) {
   useAgentStore.getState().handleEvent(
-    { type: "agent:tokens", agentId, inputTokens, outputTokens, cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 200000 },
+    {
+      type: "agent:tokens",
+      agentId,
+      inputTokens,
+      outputTokens,
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+      contextWindow: 200000,
+    },
     Date.now(),
   );
 }
@@ -92,32 +120,42 @@ describe("budgetExceeded flag on agent:tokens", () => {
     registerAgent("a1", "build");
     useAgentStore.getState().setAgentTypeBudget("build", 100);
     emitTokens("a1", 80, 30); // 110 total > 100 limit
-    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(true);
+    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(
+      true,
+    );
   });
 
   it("sets budgetExceeded=false when total tokens are within the type budget", () => {
     registerAgent("a1", "build");
     useAgentStore.getState().setAgentTypeBudget("build", 100);
     emitTokens("a1", 40, 30); // 70 total < 100 limit
-    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(false);
+    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(
+      false,
+    );
   });
 
   it("leaves budgetExceeded=false when no budget is configured for the type", () => {
     registerAgent("a1", "build");
     // No budget set for "build"
     emitTokens("a1", 99999, 99999);
-    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(false);
+    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(
+      false,
+    );
   });
 
   it("becomes false again if tokens drop below budget on next event", () => {
     registerAgent("a1", "build");
     useAgentStore.getState().setAgentTypeBudget("build", 100);
     emitTokens("a1", 80, 30); // 110 → exceeded
-    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(true);
+    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(
+      true,
+    );
 
     // Token counts are cumulative-replaced (not additive) — simulate a reset
     emitTokens("a1", 20, 20); // 40 → under budget
-    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(false);
+    expect(useAgentStore.getState().agents.get("a1")?.budgetExceeded).toBe(
+      false,
+    );
   });
 });
 
@@ -134,7 +172,8 @@ describe("waitingOn / blocking edges on agent:status", () => {
     expect(state.agents.get("a2")?.waitingOn).toBe("a1");
 
     const blockingEdge = state.edges.find(
-      (e) => e.source === "a1" && e.target === "a2" && e.edgeType === "blocking",
+      (e) =>
+        e.source === "a1" && e.target === "a2" && e.edgeType === "blocking",
     );
     expect(blockingEdge).toBeDefined();
   });
@@ -146,9 +185,12 @@ describe("waitingOn / blocking edges on agent:status", () => {
     emitStatus("a2", "waiting", { waitingOn: "a1" });
     emitStatus("a2", "waiting", { waitingOn: "a1" });
 
-    const blockingEdges = useAgentStore.getState().edges.filter(
-      (e) => e.source === "a1" && e.target === "a2" && e.edgeType === "blocking",
-    );
+    const blockingEdges = useAgentStore
+      .getState()
+      .edges.filter(
+        (e) =>
+          e.source === "a1" && e.target === "a2" && e.edgeType === "blocking",
+      );
     expect(blockingEdges).toHaveLength(1);
   });
 
@@ -157,7 +199,9 @@ describe("waitingOn / blocking edges on agent:status", () => {
     registerAgent("a2");
 
     emitStatus("a2", "waiting", { waitingOn: "a1" });
-    expect(useAgentStore.getState().edges.some((e) => e.edgeType === "blocking")).toBe(true);
+    expect(
+      useAgentStore.getState().edges.some((e) => e.edgeType === "blocking"),
+    ).toBe(true);
 
     emitStatus("a2", "running");
 
@@ -171,12 +215,16 @@ describe("waitingOn / blocking edges on agent:status", () => {
     registerAgent("a2");
 
     emitStatus("a2", "waiting", { waitingOn: "a1" });
-    useAgentStore.getState().handleEvent(
-      { type: "agent:complete", agentId: "a2", duration: 1000 },
-      Date.now(),
-    );
+    useAgentStore
+      .getState()
+      .handleEvent(
+        { type: "agent:complete", agentId: "a2", duration: 1000 },
+        Date.now(),
+      );
 
-    expect(useAgentStore.getState().edges.some((e) => e.edgeType === "blocking")).toBe(false);
+    expect(
+      useAgentStore.getState().edges.some((e) => e.edgeType === "blocking"),
+    ).toBe(false);
   });
 });
 
@@ -184,38 +232,72 @@ describe("waitingOn / blocking edges on agent:status", () => {
 
 describe("isDuplicateActivity helper", () => {
   it("returns false for empty activity log", () => {
-    const event: AgentEvent = { type: "agent:status", agentId: "a1", status: "running" };
+    const event: AgentEvent = {
+      type: "agent:status",
+      agentId: "a1",
+      status: "running",
+    };
     expect(isDuplicateActivity([], event)).toBe(false);
   });
 
   it("returns true for same-agent same-status in last 5 entries", () => {
-    const event: AgentEvent = { type: "agent:status", agentId: "a1", status: "running" };
+    const event: AgentEvent = {
+      type: "agent:status",
+      agentId: "a1",
+      status: "running",
+    };
     const activity = [{ id: "act-1", timestamp: 1000, event }];
     expect(isDuplicateActivity(activity, event)).toBe(true);
   });
 
   it("returns false for same-agent different-status", () => {
-    const prev: AgentEvent = { type: "agent:status", agentId: "a1", status: "running" };
-    const next: AgentEvent = { type: "agent:status", agentId: "a1", status: "idle" };
+    const prev: AgentEvent = {
+      type: "agent:status",
+      agentId: "a1",
+      status: "running",
+    };
+    const next: AgentEvent = {
+      type: "agent:status",
+      agentId: "a1",
+      status: "idle",
+    };
     const activity = [{ id: "act-1", timestamp: 1000, event: prev }];
     expect(isDuplicateActivity(activity, next)).toBe(false);
   });
 
   it("returns false for different-agent same-status", () => {
-    const prev: AgentEvent = { type: "agent:status", agentId: "a1", status: "running" };
-    const next: AgentEvent = { type: "agent:status", agentId: "a2", status: "running" };
+    const prev: AgentEvent = {
+      type: "agent:status",
+      agentId: "a1",
+      status: "running",
+    };
+    const next: AgentEvent = {
+      type: "agent:status",
+      agentId: "a2",
+      status: "running",
+    };
     const activity = [{ id: "act-1", timestamp: 1000, event: prev }];
     expect(isDuplicateActivity(activity, next)).toBe(false);
   });
 
   it("returns true for duplicate agent:register (same agentId)", () => {
-    const event: AgentEvent = { type: "agent:register", agentId: "a1", agentType: "build", task: "t" };
+    const event: AgentEvent = {
+      type: "agent:register",
+      agentId: "a1",
+      agentType: "build",
+      task: "t",
+    };
     const activity = [{ id: "act-1", timestamp: 1000, event }];
     expect(isDuplicateActivity(activity, event)).toBe(true);
   });
 
   it("returns false for first agent:register (not yet in log)", () => {
-    const event: AgentEvent = { type: "agent:register", agentId: "a1", agentType: "build", task: "t" };
+    const event: AgentEvent = {
+      type: "agent:register",
+      agentId: "a1",
+      agentType: "build",
+      task: "t",
+    };
     expect(isDuplicateActivity([], event)).toBe(false);
   });
 

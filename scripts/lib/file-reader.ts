@@ -64,16 +64,24 @@ export function readNewLines(filePath: string): string[] {
 
 export function extractTaskFromJSONL(
   filePath: string,
-  maxBytes = JSONL_MAX_BYTES
+  maxBytes = JSONL_MAX_BYTES,
 ): { task: string; slug: string; model: string; startTime?: number } {
-  const result = { task: "", slug: "", model: "", startTime: undefined as number | undefined };
+  const result = {
+    task: "",
+    slug: "",
+    model: "",
+    startTime: undefined as number | undefined,
+  };
   try {
     const stat = fs.statSync(filePath);
     const chunk = Buffer.alloc(Math.min(stat.size, maxBytes));
     const fd = fs.openSync(filePath, "r");
     fs.readSync(fd, chunk, 0, chunk.length, 0);
     fs.closeSync(fd);
-    const lines = chunk.toString("utf-8").split("\n").filter((l: string) => l.trim());
+    const lines = chunk
+      .toString("utf-8")
+      .split("\n")
+      .filter((l: string) => l.trim());
     for (const line of lines) {
       try {
         const parsed = JSON.parse(line);
@@ -87,14 +95,21 @@ export function extractTaskFromJSONL(
           if (typeof content === "string") {
             result.task = cleanTaskText(content).slice(0, MAX_TASK_LENGTH);
           } else if (Array.isArray(content)) {
-            const textBlock = content.find((b: Record<string, unknown>) => b.type === "text");
+            const textBlock = content.find(
+              (b: Record<string, unknown>) => b.type === "text",
+            );
             if (textBlock && typeof textBlock.text === "string") {
-              result.task = cleanTaskText(textBlock.text).slice(0, MAX_TASK_LENGTH);
+              result.task = cleanTaskText(textBlock.text).slice(
+                0,
+                MAX_TASK_LENGTH,
+              );
             }
           }
         }
         if (result.task && result.model) break;
-      } catch { /* skip malformed lines */ }
+      } catch {
+        /* skip malformed lines */
+      }
     }
   } catch (err) {
     console.warn(`Failed to extract task from ${filePath}:`, err);

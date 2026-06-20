@@ -22,7 +22,9 @@ describe("AnnotationOverlay — F7 error handling", () => {
 
     render(<AnnotationOverlay agentId="agent-a" />);
 
-    const input = screen.getByPlaceholderText("Add annotation...") as HTMLInputElement;
+    const input = screen.getByPlaceholderText(
+      "Add annotation...",
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "test note" } });
     fireEvent.click(screen.getByText("Add"));
 
@@ -45,7 +47,9 @@ describe("AnnotationOverlay — F7 error handling", () => {
     );
 
     render(<AnnotationOverlay agentId="agent-a" />);
-    const input = screen.getByPlaceholderText("Add annotation...") as HTMLInputElement;
+    const input = screen.getByPlaceholderText(
+      "Add annotation...",
+    ) as HTMLInputElement;
 
     fireEvent.change(input, { target: { value: "test note" } });
     fireEvent.click(screen.getByText("Add"));
@@ -68,7 +72,9 @@ describe("AnnotationOverlay — F7 error handling", () => {
     );
 
     render(<AnnotationOverlay agentId="agent-a" />);
-    const input = screen.getByPlaceholderText("Add annotation...") as HTMLInputElement;
+    const input = screen.getByPlaceholderText(
+      "Add annotation...",
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "happy path" } });
     fireEvent.click(screen.getByText("Add"));
 

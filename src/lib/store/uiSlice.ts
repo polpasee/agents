@@ -4,22 +4,45 @@ import { loadLocalStorage, saveLocalStorage } from "./helpers";
 import type { ThemeMode } from "../types";
 import { resolveSessionId } from "../sessions";
 
-export type UISlice = Pick<AgentStore,
-  | "selectedAgentId" | "selectedTeamId" | "selectedWorkflowId" | "selectedSessionIds"
+export type UISlice = Pick<
+  AgentStore,
+  | "selectedAgentId"
+  | "selectedTeamId"
+  | "selectedWorkflowId"
+  | "selectedSessionIds"
   | "sessionFilterInitialized"
-  | "viewMode" | "hiddenAgentTypes"
-  | "transcriptOpen" | "fileAttentionOpen"
-  | "heatmapEnabled" | "heatmapMetric"
-  | "graphLayout" | "showExportModal" | "showLiveMetrics"
-  | "theme" | "soundMuted" | "comparison"
-  | "selectAgent" | "selectTeam" | "selectWorkflow" | "toggleSession" | "selectOnlySession" | "selectAllSessions"
+  | "viewMode"
+  | "hiddenAgentTypes"
+  | "transcriptOpen"
+  | "fileAttentionOpen"
+  | "heatmapEnabled"
+  | "heatmapMetric"
+  | "graphLayout"
+  | "showExportModal"
+  | "showLiveMetrics"
+  | "theme"
+  | "soundMuted"
+  | "comparison"
+  | "selectAgent"
+  | "selectTeam"
+  | "selectWorkflow"
+  | "toggleSession"
+  | "selectOnlySession"
+  | "selectAllSessions"
   | "autoSelectInitialSession"
-  | "setViewMode" | "toggleAgentType"
-  | "toggleTranscript" | "toggleFileAttention"
-  | "toggleHeatmap" | "setHeatmapMetric"
-  | "setGraphLayout" | "toggleExportModal" | "toggleLiveMetrics"
-  | "toggleTheme" | "toggleSoundMute"
-  | "loadComparison" | "exitComparison"
+  | "setViewMode"
+  | "toggleAgentType"
+  | "toggleTranscript"
+  | "toggleFileAttention"
+  | "toggleHeatmap"
+  | "setHeatmapMetric"
+  | "setGraphLayout"
+  | "toggleExportModal"
+  | "toggleLiveMetrics"
+  | "toggleTheme"
+  | "toggleSoundMute"
+  | "loadComparison"
+  | "exitComparison"
   | "hydrateUI"
 >;
 
@@ -29,7 +52,10 @@ function persistSessionFilter(ids: Set<string>) {
   saveLocalStorage(SESSION_FILTER_KEY, [...ids]);
 }
 
-export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, get) => ({
+export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
+  set,
+  get,
+) => ({
   selectedAgentId: null,
   selectedTeamId: null,
   selectedWorkflowId: null,
@@ -46,7 +72,11 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
     if (next.has(sessionId)) next.delete(sessionId);
     else next.add(sessionId);
     persistSessionFilter(next);
-    set({ selectedSessionIds: next, selectedAgentId: null, sessionFilterInitialized: true });
+    set({
+      selectedSessionIds: next,
+      selectedAgentId: null,
+      sessionFilterInitialized: true,
+    });
   },
 
   // Single-session pick from the TopBar selector. Like toggleSession but
@@ -55,13 +85,21 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   selectOnlySession: (sessionId) => {
     const next = new Set<string>([sessionId]);
     persistSessionFilter(next);
-    set({ selectedSessionIds: next, selectedAgentId: null, sessionFilterInitialized: true });
+    set({
+      selectedSessionIds: next,
+      selectedAgentId: null,
+      sessionFilterInitialized: true,
+    });
   },
 
   selectAllSessions: () => {
     const empty = new Set<string>();
     persistSessionFilter(empty);
-    set({ selectedSessionIds: empty, selectedAgentId: null, sessionFilterInitialized: true });
+    set({
+      selectedSessionIds: empty,
+      selectedAgentId: null,
+      sessionFilterInitialized: true,
+    });
   },
 
   autoSelectInitialSession: () => {
@@ -83,7 +121,10 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
     if (selectedSessionIds.size > 0) {
       let anyLive = false;
       for (const id of selectedSessionIds) {
-        if (liveSessionIds.has(id)) { anyLive = true; break; }
+        if (liveSessionIds.has(id)) {
+          anyLive = true;
+          break;
+        }
       }
       if (anyLive) {
         set({ sessionFilterInitialized: true });
@@ -93,11 +134,17 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
       // filter. If the WS sync just hasn't landed yet, the filter may still
       // be valid. Only drop it once we have agents but no overlap.
       if (liveSessionIds.size === 0) {
-        console.warn("[uiSlice] Stored session filter does not match any live session; waiting for a main agent to register.", { stored: [...selectedSessionIds] });
+        console.warn(
+          "[uiSlice] Stored session filter does not match any live session; waiting for a main agent to register.",
+          { stored: [...selectedSessionIds] },
+        );
         return;
       }
       // Fall through: we have live sessions but none match the stored ids.
-      console.warn("[uiSlice] Stored session filter is stale; defaulting to All Sessions.", { stale: [...selectedSessionIds], live: [...liveSessionIds] });
+      console.warn(
+        "[uiSlice] Stored session filter is stale; defaulting to All Sessions.",
+        { stale: [...selectedSessionIds], live: [...liveSessionIds] },
+      );
     }
 
     // Default: show ALL sessions. Wait until at least one live session exists
@@ -127,7 +174,8 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   transcriptOpen: false,
   fileAttentionOpen: false,
   toggleTranscript: () => set((s) => ({ transcriptOpen: !s.transcriptOpen })),
-  toggleFileAttention: () => set((s) => ({ fileAttentionOpen: !s.fileAttentionOpen })),
+  toggleFileAttention: () =>
+    set((s) => ({ fileAttentionOpen: !s.fileAttentionOpen })),
 
   // ── Heatmap ───────────────────────────────────────────
   heatmapEnabled: false,
@@ -160,13 +208,15 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (set, ge
   // ── F14: Session Comparison ───────────────────────────
   comparison: { active: false, leftSession: null, rightSession: null },
 
-  loadComparison: (left, right) => set({
-    comparison: { active: true, leftSession: left, rightSession: right },
-  }),
+  loadComparison: (left, right) =>
+    set({
+      comparison: { active: true, leftSession: left, rightSession: right },
+    }),
 
-  exitComparison: () => set({
-    comparison: { active: false, leftSession: null, rightSession: null },
-  }),
+  exitComparison: () =>
+    set({
+      comparison: { active: false, leftSession: null, rightSession: null },
+    }),
 
   // ── Sound ──────────────────────────────────────────
   soundMuted: false, // Hydrated from localStorage on client mount

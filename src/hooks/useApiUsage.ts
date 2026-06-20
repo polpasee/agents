@@ -92,7 +92,9 @@ function ensurePolling(): void {
   // Fire one immediately so a freshly mounted consumer doesn't wait 30s
   // for its first value.
   void fetchOnce();
-  timer = setInterval(() => { void fetchOnce(); }, POLL_MS);
+  timer = setInterval(() => {
+    void fetchOnce();
+  }, POLL_MS);
 }
 
 function maybeStopPolling(): void {

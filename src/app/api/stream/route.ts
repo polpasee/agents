@@ -62,14 +62,18 @@ export function GET(request: Request): Response {
           workflows: Array.from(workflows.values()),
           protocolVersion: PROTOCOL_VERSION,
         };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(syncEvent)}\n\n`));
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(syncEvent)}\n\n`),
+        );
 
         if (annotations.size > 0) {
           const annSync: ServerEvent = {
             type: "annotation:sync",
             annotations: Array.from(annotations.values()),
           };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(annSync)}\n\n`));
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(annSync)}\n\n`),
+          );
         }
       } catch {
         teardown();
@@ -77,8 +81,11 @@ export function GET(request: Request): Response {
       }
 
       keepalive = setInterval(() => {
-        try { controller.enqueue(encoder.encode(`: keepalive\n\n`)); }
-        catch { /* stream closed; cancel() removed us */ }
+        try {
+          controller.enqueue(encoder.encode(`: keepalive\n\n`));
+        } catch {
+          /* stream closed; cancel() removed us */
+        }
       }, KEEPALIVE_MS);
     },
     cancel() {

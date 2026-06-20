@@ -46,9 +46,15 @@ export function ErrorDrillDown() {
           <div className="flex items-center gap-2">
             <div
               className="w-2.5 h-2.5 rounded-full"
-              style={{ background: errorColor, boxShadow: `0 0 8px ${errorColor}` }}
+              style={{
+                background: errorColor,
+                boxShadow: `0 0 8px ${errorColor}`,
+              }}
             />
-            <span className="text-sm font-bold uppercase tracking-wider" style={{ color: errorColor }}>
+            <span
+              className="text-sm font-bold uppercase tracking-wider"
+              style={{ color: errorColor }}
+            >
               Error Details
             </span>
           </div>
@@ -72,13 +78,19 @@ export function ErrorDrillDown() {
             <div className="flex items-center gap-2 mt-1">
               <div
                 className="w-2 h-2 rounded-full"
-                style={{ background: nodeColor, boxShadow: `0 0 6px ${nodeColor}` }}
+                style={{
+                  background: nodeColor,
+                  boxShadow: `0 0 6px ${nodeColor}`,
+                }}
               />
               <span className="text-sm font-bold" style={{ color: nodeColor }}>
                 {AGENT_LABELS[agent.agentType]}
               </span>
             </div>
-            <div className="text-xs mt-0.5 truncate" style={{ color: UI.text.dimmed }}>
+            <div
+              className="text-xs mt-0.5 truncate"
+              style={{ color: UI.text.dimmed }}
+            >
               {agent.id}
             </div>
           </div>
@@ -135,12 +147,21 @@ export function ErrorDrillDown() {
                     >
                       <div
                         className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        style={{ background: cColor, boxShadow: `0 0 4px ${cColor}` }}
+                        style={{
+                          background: cColor,
+                          boxShadow: `0 0 4px ${cColor}`,
+                        }}
                       />
-                      <span className="text-xs font-bold" style={{ color: cColor }}>
+                      <span
+                        className="text-xs font-bold"
+                        style={{ color: cColor }}
+                      >
                         {AGENT_LABELS[cascadeAgent.agentType]}
                       </span>
-                      <span className="text-xs truncate flex-1" style={{ color: UI.text.dimmed }}>
+                      <span
+                        className="text-xs truncate flex-1"
+                        style={{ color: UI.text.dimmed }}
+                      >
                         {id}
                       </span>
                       <span className="text-xs" style={{ color: errorColor }}>
@@ -162,15 +183,21 @@ export function ErrorDrillDown() {
                   No tool calls recorded
                 </span>
               ) : (
-                recentTools.map((tc, i) => (
+                recentTools.map((tc) => (
                   <div
                     key={`${tc.tool}-${tc.timestamp}`}
                     className="text-xs px-2 py-1 rounded"
-                    style={{ background: "var(--color-border)", color: UI.tool }}
+                    style={{
+                      background: "var(--color-border)",
+                      color: UI.tool,
+                    }}
                   >
                     {tc.tool}
                     {tc.args && (
-                      <span style={{ color: UI.text.dimmed }}> — {tc.args}</span>
+                      <span style={{ color: UI.text.dimmed }}>
+                        {" "}
+                        — {tc.args}
+                      </span>
                     )}
                   </div>
                 ))

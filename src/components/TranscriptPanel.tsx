@@ -5,7 +5,13 @@ import { useAgentStore } from "@/lib/store";
 import { AGENT_COLORS, UI } from "@/lib/colors";
 import { truncateId, formatTimestamp } from "@/lib/utils";
 
-export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function TranscriptPanel({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const activity = useAgentStore((s) => s.activity);
   const agents = useAgentStore((s) => s.agents);
   const [search, setSearch] = useState("");
@@ -36,14 +42,23 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
         backdropFilter: "blur(8px)",
       }}
     >
-      <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
-        <span className="text-xs uppercase tracking-wider font-mono" style={{ color: UI.text.muted }}>
+      <div
+        className="flex items-center justify-between px-3 py-2"
+        style={{ borderBottom: "1px solid var(--color-border)" }}
+      >
+        <span
+          className="text-xs uppercase tracking-wider font-mono"
+          style={{ color: UI.text.muted }}
+        >
           Transcript ({filtered.length}/{activity.length})
         </span>
         <button
           onClick={onClose}
           className="text-xs font-mono px-1.5 py-0.5 rounded"
-          style={{ color: UI.text.muted, border: "1px solid var(--color-border)" }}
+          style={{
+            color: UI.text.muted,
+            border: "1px solid var(--color-border)",
+          }}
           aria-label="Close transcript panel"
         >
           x
@@ -51,7 +66,10 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
       </div>
 
       {/* Search */}
-      <div className="px-3 py-1.5" style={{ borderBottom: "1px solid var(--color-border)" }}>
+      <div
+        className="px-3 py-1.5"
+        style={{ borderBottom: "1px solid var(--color-border)" }}
+      >
         <input
           type="text"
           value={search}
@@ -66,7 +84,10 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
         />
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"
+      >
         {filtered.map((entry) => {
           const event = entry.event;
           const time = formatTimestamp(entry.timestamp);
@@ -113,15 +134,26 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
             <div
               key={entry.id}
               className="rounded px-2 py-1"
-              style={{ background: `${color}08`, borderLeft: `2px solid ${color}44` }}
+              style={{
+                background: `${color}08`,
+                borderLeft: `2px solid ${color}44`,
+              }}
             >
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono" style={{ color: UI.text.dimmed }}>{time}</span>
+                <span
+                  className="text-xs font-mono"
+                  style={{ color: UI.text.dimmed }}
+                >
+                  {time}
+                </span>
                 <span className="text-xs font-mono font-bold" style={{ color }}>
                   {truncateId(agentId)}
                 </span>
               </div>
-              <div className="text-xs font-mono mt-0.5 break-words" style={{ color: UI.text.secondary }}>
+              <div
+                className="text-xs font-mono mt-0.5 break-words"
+                style={{ color: UI.text.secondary }}
+              >
                 {content}
               </div>
             </div>

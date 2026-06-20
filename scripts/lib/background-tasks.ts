@@ -19,10 +19,19 @@ export async function startBackgroundTasks(): Promise<void> {
   // Flip the started flag only AFTER all dynamic imports resolve. If any
   // import rejects, the flag stays false so a later caller can retry —
   // previously a failed import would permanently wedge polling off.
-  const { discoverActiveSessions, refreshTrackedAgents } = await import("./discovery");
-  const { PROJECTS_DIR, TEAMS_DIR, POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
+  const { discoverActiveSessions, refreshTrackedAgents } =
+    await import("./discovery");
+  const {
+    PROJECTS_DIR,
+    TEAMS_DIR,
+    POLL_INTERVAL_MS,
+    USAGE_REFRESH_INTERVAL_MS,
+    USAGE_REFRESH_THRESHOLD_MS,
+    FULL_SCAN_EVERY_N_POLLS,
+  } = await import("./config");
   const { discoverTeams } = await import("./teams-discovery");
-  const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
+  const { readCacheMtime, triggerCcstatuslineRefresh } =
+    await import("./ccstatusline");
   const { loadWebhookConfig } = await import("./webhooks");
 
   loadWebhookConfig();

@@ -34,7 +34,9 @@ export async function readAgentLog(filePath: string): Promise<LogEntry[]> {
       if (!obj.type || !obj.message) continue;
 
       const role = obj.message.role;
-      const timestamp = obj.timestamp ? new Date(obj.timestamp).getTime() : Date.now();
+      const timestamp = obj.timestamp
+        ? new Date(obj.timestamp).getTime()
+        : Date.now();
 
       if (role === "user") {
         // User message - extract text content
@@ -48,9 +50,10 @@ export async function readAgentLog(filePath: string): Promise<LogEntry[]> {
             if (block.type === "tool_result" && block.tool_use_id) {
               const pending = pendingToolCalls.get(block.tool_use_id);
               if (pending) {
-                pending.result = typeof block.content === "string"
-                  ? block.content.slice(0, 2000)
-                  : JSON.stringify(block.content).slice(0, 2000);
+                pending.result =
+                  typeof block.content === "string"
+                    ? block.content.slice(0, 2000)
+                    : JSON.stringify(block.content).slice(0, 2000);
                 pendingToolCalls.delete(block.tool_use_id);
               }
             }
@@ -66,7 +69,10 @@ export async function readAgentLog(filePath: string): Promise<LogEntry[]> {
               const tc: LogToolCall = {
                 id: block.id || "",
                 name: block.name || "unknown",
-                input: typeof block.input === "string" ? block.input.slice(0, 2000) : JSON.stringify(block.input ?? {}).slice(0, 2000),
+                input:
+                  typeof block.input === "string"
+                    ? block.input.slice(0, 2000)
+                    : JSON.stringify(block.input ?? {}).slice(0, 2000),
               };
               toolCalls.push(tc);
               pendingToolCalls.set(tc.id, tc);
@@ -91,15 +97,21 @@ export async function readAgentLog(filePath: string): Promise<LogEntry[]> {
 }
 
 function isTextBlock(b: unknown): b is { type: "text"; text: string } {
-  return b != null && typeof b === "object"
-    && (b as Record<string, unknown>).type === "text"
-    && typeof (b as Record<string, unknown>).text === "string";
+  return (
+    b != null &&
+    typeof b === "object" &&
+    (b as Record<string, unknown>).type === "text" &&
+    typeof (b as Record<string, unknown>).text === "string"
+  );
 }
 
 function extractTextContent(content: unknown): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
-    return content.filter(isTextBlock).map((b) => b.text).join("\n");
+    return content
+      .filter(isTextBlock)
+      .map((b) => b.text)
+      .join("\n");
   }
   return "";
 }

@@ -26,7 +26,9 @@ describe("isAllowedRequestOrigin", () => {
     expect(isAllowedRequestOrigin(req("http://192.168.1.42:3000"))).toBe(true);
     expect(isAllowedRequestOrigin(req("http://172.16.0.1:3000"))).toBe(true);
     expect(isAllowedRequestOrigin(req("http://172.20.5.5:3000"))).toBe(true);
-    expect(isAllowedRequestOrigin(req("http://172.31.255.254:3000"))).toBe(true);
+    expect(isAllowedRequestOrigin(req("http://172.31.255.254:3000"))).toBe(
+      true,
+    );
   });
 
   it("rejects 172.x.x.x outside the 16-31 range", () => {
@@ -57,6 +59,8 @@ describe("isAllowedRequestOrigin", () => {
   });
 
   it("still rejects a public IPv6 host", () => {
-    expect(isAllowedRequestOrigin(req("http://[2001:db8::1]:3000"))).toBe(false);
+    expect(isAllowedRequestOrigin(req("http://[2001:db8::1]:3000"))).toBe(
+      false,
+    );
   });
 });

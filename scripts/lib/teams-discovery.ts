@@ -73,30 +73,46 @@ export async function discoverTeams(teamsDir: string): Promise<void> {
     // JSON.parse only guarantees valid JSON, not TeamConfig shape. A
     // half-written/corrupt config must skip this team — NOT throw out of the
     // per-entry loop, which would abort sibling teams this tick.
-    if (typeof leadSessionId !== "string" || typeof leadAgentId !== "string"
-        || !Array.isArray(members)) continue;
+    if (
+      typeof leadSessionId !== "string" ||
+      typeof leadAgentId !== "string" ||
+      !Array.isArray(members)
+    )
+      continue;
 
     // Only attach teammates under an already-registered main session.
     // If the lead isn't known yet, skip the whole team — avoids orphan nodes.
     if (!agents.has(leadSessionId)) continue;
 
-    const projectDir = agents.get(leadSessionId)?.metadata?.projectDir as string | undefined;
+    const projectDir = agents.get(leadSessionId)?.metadata?.projectDir as
+      | string
+      | undefined;
     if (!projectDir) continue;
 
     for (const member of members) {
       // Defend against malformed member records in a partial config write.
-      if (!member || typeof member.agentId !== "string" || typeof member.name !== "string") continue;
+      if (
+        !member ||
+        typeof member.agentId !== "string" ||
+        typeof member.name !== "string"
+      )
+        continue;
       // Skip the lead — it is already the main session node
       if (member.agentId === leadAgentId) continue;
 
       // joinedAt may be absent/non-numeric mid-write — fall back to config
       // mtime so startTime/activity never become NaN.
-      const joinedAt = typeof member.joinedAt === "number" ? member.joinedAt : configMtimeMs;
+      const joinedAt =
+        typeof member.joinedAt === "number" ? member.joinedAt : configMtimeMs;
 
       // Compute activity mtime: max(configJson mtime, inbox file mtime, joinedAt)
       let activityMtime = Math.max(configMtimeMs, joinedAt);
       try {
-        const inboxPath = path.join(sessionPath, "inboxes", `${member.name}.json`);
+        const inboxPath = path.join(
+          sessionPath,
+          "inboxes",
+          `${member.name}.json`,
+        );
         const inboxStat = await fsp.stat(inboxPath);
         activityMtime = Math.max(activityMtime, inboxStat.mtimeMs);
       } catch {

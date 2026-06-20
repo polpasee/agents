@@ -45,11 +45,23 @@ describe("store – team functionality", () => {
     it("adds agent to existing team", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+          teamId: "team-1",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+          teamId: "team-1",
+        },
         1001,
       );
 
@@ -60,7 +72,13 @@ describe("store – team functionality", () => {
     it("sets leader and status to active when team-lead registers", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "lead-1", agentType: "team-lead", task: "lead", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "lead-1",
+          agentType: "team-lead",
+          task: "lead",
+          teamId: "team-1",
+        },
         1000,
       );
 
@@ -74,11 +92,23 @@ describe("store – team functionality", () => {
     beforeEach(() => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+          teamId: "team-1",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+          teamId: "team-1",
+        },
         1001,
       );
     });
@@ -86,7 +116,10 @@ describe("store – team functionality", () => {
     it("transitions to active when a member is running", () => {
       const { handleEvent } = getState();
       // Agents start as "running" on register, so agent:status running should keep active
-      handleEvent({ type: "agent:status", agentId: "a1", status: "running" }, 1002);
+      handleEvent(
+        { type: "agent:status", agentId: "a1", status: "running" },
+        1002,
+      );
 
       const team = getState().teams.get("team-1")!;
       expect(team.status).toBe("active");
@@ -94,8 +127,14 @@ describe("store – team functionality", () => {
 
     it("transitions to completed when all members complete", () => {
       const { handleEvent } = getState();
-      handleEvent({ type: "agent:complete", agentId: "a1", duration: 500 }, 1002);
-      handleEvent({ type: "agent:complete", agentId: "a2", duration: 600 }, 1003);
+      handleEvent(
+        { type: "agent:complete", agentId: "a1", duration: 500 },
+        1002,
+      );
+      handleEvent(
+        { type: "agent:complete", agentId: "a2", duration: 600 },
+        1003,
+      );
 
       const team = getState().teams.get("team-1")!;
       expect(team.status).toBe("completed");
@@ -103,7 +142,10 @@ describe("store – team functionality", () => {
 
     it("transitions to error when any member has error status", () => {
       const { handleEvent } = getState();
-      handleEvent({ type: "agent:status", agentId: "a1", status: "error" }, 1002);
+      handleEvent(
+        { type: "agent:status", agentId: "a1", status: "error" },
+        1002,
+      );
 
       const team = getState().teams.get("team-1")!;
       expect(team.status).toBe("error");
@@ -126,11 +168,23 @@ describe("store – team functionality", () => {
     it("calculates correct stats for team members", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+          teamId: "team-1",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+          teamId: "team-1",
+        },
         1001,
       );
       // Set tokens for a1
@@ -147,7 +201,10 @@ describe("store – team functionality", () => {
         1002,
       );
       // Complete a2
-      handleEvent({ type: "agent:complete", agentId: "a2", duration: 500 }, 1003);
+      handleEvent(
+        { type: "agent:complete", agentId: "a2", duration: 500 },
+        1003,
+      );
 
       const stats = getState().getTeamStats("team-1");
       expect(stats.memberCount).toBe(2);
@@ -161,11 +218,23 @@ describe("store – team functionality", () => {
     it("removes agent from team memberIds", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+          teamId: "team-1",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+          teamId: "team-1",
+        },
         1001,
       );
 
@@ -178,7 +247,13 @@ describe("store – team functionality", () => {
     it("deletes team when last member is removed", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task", teamId: "team-1" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+          teamId: "team-1",
+        },
         1000,
       );
 
@@ -193,11 +268,21 @@ describe("store – team functionality", () => {
     it("creates a message edge between agents", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+        },
         1001,
       );
       handleEvent(
@@ -206,18 +291,31 @@ describe("store – team functionality", () => {
       );
 
       const { edges } = getState();
-      const msgEdge = edges.find(e => e.source === "a1" && e.target === "a2" && e.edgeType === "message");
+      const msgEdge = edges.find(
+        (e) =>
+          e.source === "a1" && e.target === "a2" && e.edgeType === "message",
+      );
       expect(msgEdge).toBeDefined();
     });
 
     it("does not duplicate message edges", () => {
       const { handleEvent } = getState();
       handleEvent(
-        { type: "agent:register", agentId: "a1", agentType: "build", task: "task" },
+        {
+          type: "agent:register",
+          agentId: "a1",
+          agentType: "build",
+          task: "task",
+        },
         1000,
       );
       handleEvent(
-        { type: "agent:register", agentId: "a2", agentType: "test", task: "task" },
+        {
+          type: "agent:register",
+          agentId: "a2",
+          agentType: "test",
+          task: "task",
+        },
         1001,
       );
       handleEvent(
@@ -225,12 +323,20 @@ describe("store – team functionality", () => {
         1002,
       );
       handleEvent(
-        { type: "agent:message", fromId: "a1", toId: "a2", content: "hello again" },
+        {
+          type: "agent:message",
+          fromId: "a1",
+          toId: "a2",
+          content: "hello again",
+        },
         1003,
       );
 
       const { edges } = getState();
-      const msgEdges = edges.filter(e => e.source === "a1" && e.target === "a2" && e.edgeType === "message");
+      const msgEdges = edges.filter(
+        (e) =>
+          e.source === "a1" && e.target === "a2" && e.edgeType === "message",
+      );
       expect(msgEdges).toHaveLength(1);
     });
   });

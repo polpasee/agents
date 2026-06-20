@@ -13,7 +13,9 @@ export function LogViewer() {
   const closeLogViewer = useAgentStore((s) => s.closeLogViewer);
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "system" | "user" | "assistant" | "tools">("all");
+  const [roleFilter, setRoleFilter] = useState<
+    "all" | "system" | "user" | "assistant" | "tools"
+  >("all");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   if (!logViewerAgentId) return null;
@@ -21,11 +23,12 @@ export function LogViewer() {
   const entries = logEntries.get(logViewerAgentId) || [];
   const isLoading = logLoading.has(logViewerAgentId);
 
-  const roleFiltered = roleFilter === "all"
-    ? entries
-    : roleFilter === "tools"
-      ? entries.filter((e) => e.toolCalls && e.toolCalls.length > 0)
-      : entries.filter((e) => e.role === roleFilter);
+  const roleFiltered =
+    roleFilter === "all"
+      ? entries
+      : roleFilter === "tools"
+        ? entries.filter((e) => e.toolCalls && e.toolCalls.length > 0)
+        : entries.filter((e) => e.role === roleFilter);
 
   const filtered = search
     ? roleFiltered.filter(
@@ -35,8 +38,9 @@ export function LogViewer() {
             (tc) =>
               tc.name.toLowerCase().includes(search.toLowerCase()) ||
               tc.input.toLowerCase().includes(search.toLowerCase()) ||
-              (tc.result && tc.result.toLowerCase().includes(search.toLowerCase()))
-          )
+              (tc.result &&
+                tc.result.toLowerCase().includes(search.toLowerCase())),
+          ),
       )
     : roleFiltered;
 
@@ -61,7 +65,6 @@ export function LogViewer() {
         return "#94a3b8";
     }
   };
-
 
   return (
     <ModalBackdrop onClose={closeLogViewer}>
@@ -106,7 +109,12 @@ export function LogViewer() {
         </div>
 
         {/* Search */}
-        <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--color-border, #1e293b)" }}>
+        <div
+          style={{
+            padding: "8px 16px",
+            borderBottom: "1px solid var(--color-border, #1e293b)",
+          }}
+        >
           <input
             type="text"
             placeholder="Search log entries..."
@@ -126,30 +134,48 @@ export function LogViewer() {
         </div>
 
         {/* Role filter tabs */}
-        <div style={{ display: "flex", gap: 4, padding: "8px 16px", borderBottom: "1px solid var(--color-border, #1e293b)" }}>
-          {(["all", "system", "user", "assistant", "tools"] as const).map((role) => {
-            const isActive = roleFilter === role;
-            const color = role === "all" ? "#94a3b8" : role === "tools" ? UI.tool : roleBadgeColor(role);
-            return (
-              <button
-                key={role}
-                onClick={() => setRoleFilter(role)}
-                style={{
-                  fontSize: 11,
-                  fontFamily: "monospace",
-                  padding: "2px 8px",
-                  borderRadius: 9999,
-                  cursor: "pointer",
-                  textTransform: "capitalize",
-                  background: isActive ? `${color}22` : "transparent",
-                  color: isActive ? color : UI.text.muted,
-                  border: isActive ? `1px solid ${color}` : "1px solid var(--color-border, #1e293b)",
-                }}
-              >
-                {role === "all" ? "All" : role.charAt(0).toUpperCase() + role.slice(1)}
-              </button>
-            );
-          })}
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            padding: "8px 16px",
+            borderBottom: "1px solid var(--color-border, #1e293b)",
+          }}
+        >
+          {(["all", "system", "user", "assistant", "tools"] as const).map(
+            (role) => {
+              const isActive = roleFilter === role;
+              const color =
+                role === "all"
+                  ? "#94a3b8"
+                  : role === "tools"
+                    ? UI.tool
+                    : roleBadgeColor(role);
+              return (
+                <button
+                  key={role}
+                  onClick={() => setRoleFilter(role)}
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    padding: "2px 8px",
+                    borderRadius: 9999,
+                    cursor: "pointer",
+                    textTransform: "capitalize",
+                    background: isActive ? `${color}22` : "transparent",
+                    color: isActive ? color : UI.text.muted,
+                    border: isActive
+                      ? `1px solid ${color}`
+                      : "1px solid var(--color-border, #1e293b)",
+                  }}
+                >
+                  {role === "all"
+                    ? "All"
+                    : role.charAt(0).toUpperCase() + role.slice(1)}
+                </button>
+              );
+            },
+          )}
         </div>
 
         {/* Entries */}
@@ -187,7 +213,10 @@ export function LogViewer() {
                 style={{
                   marginBottom: 8,
                   padding: "8px 10px",
-                  backgroundColor: entry.role === "system" ? `${UI.text.muted}11` : "var(--color-bg, #010409)",
+                  backgroundColor:
+                    entry.role === "system"
+                      ? `${UI.text.muted}11`
+                      : "var(--color-bg, #010409)",
                   borderRadius: 4,
                   border: "1px solid var(--color-border, #1e293b)",
                 }}
@@ -201,7 +230,13 @@ export function LogViewer() {
                     marginBottom: entry.content || entry.toolCalls ? 6 : 0,
                   }}
                 >
-                  <span style={{ color: UI.text.muted, fontSize: 11, fontFamily: "monospace" }}>
+                  <span
+                    style={{
+                      color: UI.text.muted,
+                      fontSize: 11,
+                      fontFamily: "monospace",
+                    }}
+                  >
                     {formatTimestamp(entry.timestamp)}
                   </span>
                   <span
@@ -220,7 +255,11 @@ export function LogViewer() {
                   </span>
                   {entry.role === "system" && (
                     <button
-                      onClick={() => { navigator.clipboard.writeText(entry.content).catch(() => {}); }}
+                      onClick={() => {
+                        navigator.clipboard
+                          .writeText(entry.content)
+                          .catch(() => {});
+                      }}
                       style={{
                         fontSize: 10,
                         padding: "1px 4px",
@@ -282,13 +321,19 @@ export function LogViewer() {
                             textAlign: "left",
                           }}
                         >
-                          <span style={{ fontSize: 10 }}>{isExpanded ? "\u25BC" : "\u25B6"}</span>
+                          <span style={{ fontSize: 10 }}>
+                            {isExpanded ? "\u25BC" : "\u25B6"}
+                          </span>
                           {tc.name}
                         </button>
                         {isExpanded && (
                           <div style={{ padding: "6px 8px" }}>
                             <div style={{ marginBottom: 4 }}>
-                              <span style={{ color: UI.text.muted, fontSize: 11 }}>Input:</span>
+                              <span
+                                style={{ color: UI.text.muted, fontSize: 11 }}
+                              >
+                                Input:
+                              </span>
                               <pre
                                 style={{
                                   color: UI.text.secondary,
@@ -306,7 +351,11 @@ export function LogViewer() {
                             </div>
                             {tc.result && (
                               <div>
-                                <span style={{ color: UI.text.muted, fontSize: 11 }}>Result:</span>
+                                <span
+                                  style={{ color: UI.text.muted, fontSize: 11 }}
+                                >
+                                  Result:
+                                </span>
                                 <pre
                                   style={{
                                     color: UI.text.secondary,

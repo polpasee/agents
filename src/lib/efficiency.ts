@@ -1,11 +1,16 @@
 import type { AgentState, EfficiencyScore } from "./types";
 
 /** Calculate a composite efficiency score for an agent (0-100 scale) */
-export function calculateEfficiency(agent: AgentState, allAgents: AgentState[]): EfficiencyScore {
+export function calculateEfficiency(
+  agent: AgentState,
+  allAgents: AgentState[],
+): EfficiencyScore {
   const tokenEfficiency = calculateTokenEfficiency(agent);
   const toolSuccessRate = calculateToolSuccessRate(agent);
   const completionSpeed = calculateCompletionSpeed(agent, allAgents);
-  const overall = Math.round(tokenEfficiency * 0.4 + toolSuccessRate * 0.3 + completionSpeed * 0.3);
+  const overall = Math.round(
+    tokenEfficiency * 0.4 + toolSuccessRate * 0.3 + completionSpeed * 0.3,
+  );
   return { overall, tokenEfficiency, toolSuccessRate, completionSpeed };
 }
 
@@ -26,19 +31,28 @@ function calculateToolSuccessRate(agent: AgentState): number {
   // Simple heuristic: completed agents with tool calls are successful
   const hasError = agent.status === "error";
   if (hasError) return Math.max(10, 50 - agent.toolCalls.length * 5);
-  if (agent.status === "completed") return Math.min(100, 60 + agent.toolCalls.length * 2);
+  if (agent.status === "completed")
+    return Math.min(100, 60 + agent.toolCalls.length * 2);
   return 50 + Math.min(30, agent.toolCalls.length * 3);
 }
 
-function calculateCompletionSpeed(agent: AgentState, allAgents: AgentState[]): number {
+function calculateCompletionSpeed(
+  agent: AgentState,
+  allAgents: AgentState[],
+): number {
   if (!agent.duration && agent.status !== "completed") return 50;
-  const elapsed = agent.duration || (Date.now() - agent.startTime);
+  const elapsed = agent.duration || Date.now() - agent.startTime;
   // Compare to peers of the same type
-  const peers = allAgents.filter(a => a.agentType === agent.agentType && a.id !== agent.id);
+  const peers = allAgents.filter(
+    (a) => a.agentType === agent.agentType && a.id !== agent.id,
+  );
   if (peers.length === 0) return 50;
-  const peerDurations = peers.map(a => a.duration || (Date.now() - a.startTime)).filter(d => d > 0);
+  const peerDurations = peers
+    .map((a) => a.duration || Date.now() - a.startTime)
+    .filter((d) => d > 0);
   if (peerDurations.length === 0) return 50;
-  const avgPeer = peerDurations.reduce((a, b) => a + b, 0) / peerDurations.length;
+  const avgPeer =
+    peerDurations.reduce((a, b) => a + b, 0) / peerDurations.length;
   if (avgPeer === 0) return 50;
   // Faster than average = higher score
   const ratio = elapsed / avgPeer;

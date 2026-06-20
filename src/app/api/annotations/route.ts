@@ -42,11 +42,17 @@ export async function POST(request: Request): Promise<Response> {
 
   const ann = sanitizeAnnotation(raw);
   if (!ann) {
-    return NextResponse.json({ error: "Invalid annotation payload" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid annotation payload" },
+      { status: 400 },
+    );
   }
 
   if (annotations.has(ann.id)) {
-    return NextResponse.json({ error: "Annotation id already exists" }, { status: 409 });
+    return NextResponse.json(
+      { error: "Annotation id already exists" },
+      { status: 409 },
+    );
   }
 
   while (annotations.size >= ANNOTATION_MAX_ENTRIES) {
@@ -55,7 +61,11 @@ export async function POST(request: Request): Promise<Response> {
     const evicted = annotations.get(oldestKey);
     annotations.delete(oldestKey);
     if (evicted) {
-      broadcast({ type: "annotation:update", action: "remove", annotation: evicted });
+      broadcast({
+        type: "annotation:update",
+        action: "remove",
+        annotation: evicted,
+      });
     }
   }
 

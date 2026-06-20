@@ -61,10 +61,23 @@ export function AgentGraph({ ref }: Props) {
   }, [topologyVersion, fitToView]);
 
   useTopologyEffect(refs, {
-    filteredAgents, edges, agents, teams, workflows,
-    selectedAgentId, selectedTeamId, selectedWorkflowId, topologyVersion, selectAgent,
+    filteredAgents,
+    edges,
+    agents,
+    teams,
+    workflows,
+    selectedAgentId,
+    selectedTeamId,
+    selectedWorkflowId,
+    topologyVersion,
+    selectAgent,
   });
-  useNodeVisualsEffect(refs, { agents, selectedAgentId, heatmapEnabled, heatmapMetric });
+  useNodeVisualsEffect(refs, {
+    agents,
+    selectedAgentId,
+    heatmapEnabled,
+    heatmapMetric,
+  });
   useToolNodesEffect(refs, { agents });
   useLifecycleEffectsLayer(refs, { agents, activity });
   useLayoutModeEffect(refs, { graphLayout, topologyVersion });
@@ -96,7 +109,11 @@ export function AgentGraph({ ref }: Props) {
   }));
 
   return (
-    <div ref={refs.containerRef} className="flex-1 h-full" style={{ background: "var(--color-bg)" }}>
+    <div
+      ref={refs.containerRef}
+      className="flex-1 h-full"
+      style={{ background: "var(--color-bg)" }}
+    >
       <svg ref={refs.svgRef} style={{ display: "block" }} />
     </div>
   );

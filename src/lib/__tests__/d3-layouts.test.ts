@@ -87,9 +87,7 @@ describe("applyRadialLayout", () => {
 
 describe("applyHierarchicalLayout", () => {
   it("does not throw with an empty array", () => {
-    expect(() =>
-      applyHierarchicalLayout([], WIDTH, HEIGHT),
-    ).not.toThrow();
+    expect(() => applyHierarchicalLayout([], WIDTH, HEIGHT)).not.toThrow();
   });
 
   it("sets fx/fy on a single node", () => {

@@ -2,7 +2,11 @@ import { useEffect } from "react";
 import { select } from "d3-selection";
 import { linkPath } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
-import { applyTreeLayout, applyRadialLayout, applyHierarchicalLayout } from "@/lib/d3/layouts";
+import {
+  applyTreeLayout,
+  applyRadialLayout,
+  applyHierarchicalLayout,
+} from "@/lib/d3/layouts";
 import type { GraphLayout } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 
@@ -40,21 +44,30 @@ export function useLayoutModeEffect(refs: AgentGraphRefs, opts: Options) {
     } else {
       // Stop simulation and apply layout
       simulation.stop();
-      const layoutFn = graphLayout === "tree"
-        ? applyTreeLayout
-        : graphLayout === "radial"
-          ? applyRadialLayout
-          : applyHierarchicalLayout;
+      const layoutFn =
+        graphLayout === "tree"
+          ? applyTreeLayout
+          : graphLayout === "radial"
+            ? applyRadialLayout
+            : applyHierarchicalLayout;
       layoutFn(nodes, width, height);
 
       // Update SVG positions directly
       const d3svg = select(svg);
-      d3svg.selectAll<SVGGElement, SimNode>("g.node")
-        .attr("transform", (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`);
+      d3svg
+        .selectAll<SVGGElement, SimNode>("g.node")
+        .attr(
+          "transform",
+          (d) => `translate(${d.fx ?? d.x ?? 0}, ${d.fy ?? d.y ?? 0})`,
+        );
       const linkGroup = d3svg.select<SVGGElement>("g.links");
       if (!linkGroup.empty()) {
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.glow").attr("d", (d) => (d.pathD = linkPath(d)));
-        linkGroup.selectAll<SVGPathElement, SimLink>("path.main").attr("d", (d) => d.pathD ?? "");
+        linkGroup
+          .selectAll<SVGPathElement, SimLink>("path.glow")
+          .attr("d", (d) => (d.pathD = linkPath(d)));
+        linkGroup
+          .selectAll<SVGPathElement, SimLink>("path.main")
+          .attr("d", (d) => d.pathD ?? "");
       }
     }
   }, [refs, graphLayout, topologyVersion]);

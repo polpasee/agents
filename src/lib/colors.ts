@@ -146,7 +146,7 @@ export function resetAgentColorRegistry(): void {
  *  The registry key is resolved as the first non-empty value of: id → slug →
  *  displayType. When all three are empty, returns UI.text.secondary. */
 export function agentColor(
-  agent: Pick<AgentState, "id" | "agentType" | "slug" | "displayType">
+  agent: Pick<AgentState, "id" | "agentType" | "slug" | "displayType">,
 ): string {
   if (agent.agentType === "main") return MAIN_AGENT_COLOR;
   const key = agent.id || agent.slug || agent.displayType;

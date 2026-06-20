@@ -23,7 +23,11 @@ describe("useKeyboardShortcuts", () => {
   it("Escape clears selectedAgentId", () => {
     useAgentStore.setState({ selectedAgentId: "a1" });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
 
@@ -33,7 +37,11 @@ describe("useKeyboardShortcuts", () => {
   it("ArrowDown selects next agent", () => {
     useAgentStore.setState({ selectedAgentId: "a1" });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
 
@@ -43,7 +51,11 @@ describe("useKeyboardShortcuts", () => {
   it("ArrowUp selects previous agent", () => {
     useAgentStore.setState({ selectedAgentId: "a2" });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
 
@@ -53,7 +65,11 @@ describe("useKeyboardShortcuts", () => {
   it("ArrowDown wraps around to first agent", () => {
     useAgentStore.setState({ selectedAgentId: "a3" });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
 
@@ -63,7 +79,11 @@ describe("useKeyboardShortcuts", () => {
   it("ArrowUp wraps around to last agent", () => {
     useAgentStore.setState({ selectedAgentId: "a1" });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
 
@@ -73,7 +93,11 @@ describe("useKeyboardShortcuts", () => {
   it("ArrowDown selects first agent when none selected", () => {
     useAgentStore.setState({ selectedAgentId: null });
 
-    renderHook(() => useKeyboardShortcuts(graphRef as any));
+    renderHook(() =>
+      useKeyboardShortcuts(
+        graphRef as unknown as Parameters<typeof useKeyboardShortcuts>[0],
+      ),
+    );
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
 

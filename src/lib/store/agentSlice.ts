@@ -1,9 +1,5 @@
 import type { StateCreator } from "zustand";
-import type {
-  AgentState,
-  TeamState,
-  WorkflowRunState,
-} from "../types";
+import type { AgentState, TeamState, WorkflowRunState } from "../types";
 import { ACTIVITY_MAX_ENTRIES, RECORDING_MAX_EVENTS } from "../config";
 import { calculateCost } from "../costs";
 import { isValidAgentEvent } from "../validation";
@@ -21,16 +17,37 @@ import {
   applyMessage,
 } from "./eventHandlers";
 
-export type AgentSlice = Pick<AgentStore,
-  | "agents" | "edges" | "activity" | "nextActivityId" | "topologyVersion" | "teams" | "workflows" | "connected" | "recording" | "recordedEvents"
-  | "setConnected" | "syncState" | "handleEvent" | "removeAgent" | "getTeamStats"
-  | "upsertWorkflow" | "removeWorkflow"
-  | "startRecording" | "downloadRecording"
-  | "errorDetails" | "setErrorDetail"
-  | "agentTypeBudgets" | "setAgentTypeBudget"
+export type AgentSlice = Pick<
+  AgentStore,
+  | "agents"
+  | "edges"
+  | "activity"
+  | "nextActivityId"
+  | "topologyVersion"
+  | "teams"
+  | "workflows"
+  | "connected"
+  | "recording"
+  | "recordedEvents"
+  | "setConnected"
+  | "syncState"
+  | "handleEvent"
+  | "removeAgent"
+  | "getTeamStats"
+  | "upsertWorkflow"
+  | "removeWorkflow"
+  | "startRecording"
+  | "downloadRecording"
+  | "errorDetails"
+  | "setErrorDetail"
+  | "agentTypeBudgets"
+  | "setAgentTypeBudget"
 >;
 
-export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (set, get) => ({
+export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (
+  set,
+  get,
+) => ({
   agents: new Map(),
   edges: [],
   activity: [],
@@ -47,7 +64,15 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
   getTeamStats: (teamId) => {
     const { agents, teams } = get();
     const team = teams.get(teamId);
-    if (!team) return { totalTokens: 0, totalCost: 0, memberCount: 0, completedCount: 0, errorCount: 0, activeCount: 0 };
+    if (!team)
+      return {
+        totalTokens: 0,
+        totalCost: 0,
+        memberCount: 0,
+        completedCount: 0,
+        errorCount: 0,
+        activeCount: 0,
+      };
     const members = teamMembers(team.memberIds, agents);
     let totalTokens = 0;
     let totalCost = 0;
@@ -61,7 +86,14 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
       else if (m.status === "error") errorCount++;
       else if (m.status === "running" || m.status === "idle") activeCount++;
     }
-    return { totalTokens, totalCost, memberCount: members.length, completedCount, errorCount, activeCount };
+    return {
+      totalTokens,
+      totalCost,
+      memberCount: members.length,
+      completedCount,
+      errorCount,
+      activeCount,
+    };
   },
 
   syncState: (agentsList, edges, teamsList, workflowsList = []) => {
@@ -77,7 +109,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     for (const run of workflowsList) {
       workflows.set(run.runId, run);
     }
-    set({ agents, edges, teams, workflows, topologyVersion: get().topologyVersion + 1 });
+    set({
+      agents,
+      edges,
+      teams,
+      workflows,
+      topologyVersion: get().topologyVersion + 1,
+    });
   },
 
   handleEvent: (event, timestamp) => {
@@ -92,30 +130,53 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     });
 
     switch (event.type) {
-      case "agent:register":  applyRegister(ctx, event, timestamp); break;
-      case "agent:status":    applyStatus(ctx, event, timestamp); break;
-      case "agent:tool_call": applyToolCall(ctx, event, timestamp); break;
-      case "agent:tokens":    applyTokens(ctx, event); break;
-      case "agent:complete":  applyComplete(ctx, event); break;
-      case "agent:message":   applyMessage(ctx, event); break;
-      default: { const _exhaustive: never = event; void _exhaustive; }
+      case "agent:register":
+        applyRegister(ctx, event, timestamp);
+        break;
+      case "agent:status":
+        applyStatus(ctx, event, timestamp);
+        break;
+      case "agent:tool_call":
+        applyToolCall(ctx, event, timestamp);
+        break;
+      case "agent:tokens":
+        applyTokens(ctx, event);
+        break;
+      case "agent:complete":
+        applyComplete(ctx, event);
+        break;
+      case "agent:message":
+        applyMessage(ctx, event);
+        break;
+      default: {
+        const _exhaustive: never = event;
+        void _exhaustive;
+      }
     }
 
-    const { activity, nextActivityId, recording, recordedEvents, topologyVersion, edges } = snapshot;
+    const {
+      activity,
+      nextActivityId,
+      recording,
+      recordedEvents,
+      topologyVersion,
+      edges,
+    } = snapshot;
     const isDuplicate = isDuplicateActivity(activity, event);
     const newActivityId = isDuplicate ? nextActivityId : nextActivityId + 1;
     const newActivity = isDuplicate
       ? activity
-      : [
-          ...activity,
-          { id: `act-${newActivityId}`, timestamp, event },
-        ].slice(-ACTIVITY_MAX_ENTRIES);
+      : [...activity, { id: `act-${newActivityId}`, timestamp, event }].slice(
+          -ACTIVITY_MAX_ENTRIES,
+        );
 
     let newRecordedEvents = recordedEvents;
     if (recording) {
       newRecordedEvents = [...recordedEvents, { timestamp, event }];
       if (newRecordedEvents.length > RECORDING_MAX_EVENTS) {
-        newRecordedEvents = newRecordedEvents.slice(newRecordedEvents.length - RECORDING_MAX_EVENTS);
+        newRecordedEvents = newRecordedEvents.slice(
+          newRecordedEvents.length - RECORDING_MAX_EVENTS,
+        );
       }
     }
 
@@ -139,7 +200,9 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
         startTime: recordedEvents[0]?.timestamp ?? Date.now(),
         events: recordedEvents,
       };
-      const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(session, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -159,13 +222,13 @@ export const createAgentSlice: StateCreator<AgentStore, [], [], AgentSlice> = (s
     const newAgents = new Map(agents);
     newAgents.delete(agentId);
     const newEdges = edges.filter(
-      (e) => e.source !== agentId && e.target !== agentId
+      (e) => e.source !== agentId && e.target !== agentId,
     );
     const newTeams = new Map(teams);
     if (agent?.teamId) {
       const team = newTeams.get(agent.teamId);
       if (team) {
-        const updatedMembers = team.memberIds.filter(id => id !== agentId);
+        const updatedMembers = team.memberIds.filter((id) => id !== agentId);
         if (updatedMembers.length === 0) {
           newTeams.delete(agent.teamId);
         } else {

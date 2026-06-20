@@ -1,16 +1,33 @@
-import type { ActivityEntry, AgentEvent, AgentState, ErrorDetail, TeamState, TeamStatus } from "../types";
+import type {
+  ActivityEntry,
+  AgentEvent,
+  AgentState,
+  ErrorDetail,
+  TeamState,
+  TeamStatus,
+} from "../types";
 
 /** Resolve a team's memberIds to live AgentState entries (unknown ids dropped). */
-export function teamMembers(memberIds: string[], agents: Map<string, AgentState>): AgentState[] {
-  return memberIds.map(id => agents.get(id)).filter((a): a is AgentState => a !== undefined);
+export function teamMembers(
+  memberIds: string[],
+  agents: Map<string, AgentState>,
+): AgentState[] {
+  return memberIds
+    .map((id) => agents.get(id))
+    .filter((a): a is AgentState => a !== undefined);
 }
 
 /** Derive team status from member statuses */
-function computeTeamStatus(memberIds: string[], agents: Map<string, AgentState>, fallback: TeamStatus): TeamStatus {
+function computeTeamStatus(
+  memberIds: string[],
+  agents: Map<string, AgentState>,
+  fallback: TeamStatus,
+): TeamStatus {
   const members = teamMembers(memberIds, agents);
-  if (members.some(a => a.status === "error")) return "error";
-  if (members.every(a => a.status === "completed")) return "completed";
-  if (members.some(a => a.status === "running" || a.status === "idle")) return "active";
+  if (members.some((a) => a.status === "error")) return "error";
+  if (members.every((a) => a.status === "completed")) return "completed";
+  if (members.some((a) => a.status === "running" || a.status === "idle"))
+    return "active";
   return fallback;
 }
 
@@ -85,10 +102,17 @@ export function findCascadeRelations(
  *   the activity log.
  * Other event types are never treated as duplicates.
  */
-export function isDuplicateActivity(activity: ActivityEntry[], event: AgentEvent): boolean {
+export function isDuplicateActivity(
+  activity: ActivityEntry[],
+  event: AgentEvent,
+): boolean {
   if (event.type === "agent:status") {
     if (activity.length === 0) return false;
-    for (let i = activity.length - 1; i >= Math.max(0, activity.length - 5); i--) {
+    for (
+      let i = activity.length - 1;
+      i >= Math.max(0, activity.length - 5);
+      i--
+    ) {
       const prev = activity[i].event;
       if (prev.type === "agent:status" && prev.agentId === event.agentId) {
         return prev.status === event.status;
@@ -97,7 +121,10 @@ export function isDuplicateActivity(activity: ActivityEntry[], event: AgentEvent
     return false;
   }
   if (event.type === "agent:register") {
-    return activity.some((e) => e.event.type === "agent:register" && e.event.agentId === event.agentId);
+    return activity.some(
+      (e) =>
+        e.event.type === "agent:register" && e.event.agentId === event.agentId,
+    );
   }
   return false;
 }
@@ -107,8 +134,14 @@ export function loadLocalStorage<T>(key: string, fallback: T): T {
   try {
     const val = localStorage.getItem(key);
     if (val === null) return fallback;
-    try { return JSON.parse(val); } catch { return val as T; }
-  } catch { return fallback; }
+    try {
+      return JSON.parse(val);
+    } catch {
+      return val as T;
+    }
+  } catch {
+    return fallback;
+  }
 }
 
 /**
@@ -123,6 +156,12 @@ export function saveLocalStorage(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
   try {
     if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
-  } catch (err) { console.warn(`localStorage write failed for ${key}:`, err); }
+    else
+      localStorage.setItem(
+        key,
+        typeof value === "string" ? value : JSON.stringify(value),
+      );
+  } catch (err) {
+    console.warn(`localStorage write failed for ${key}:`, err);
+  }
 }

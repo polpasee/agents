@@ -32,7 +32,9 @@ function playClick(freq: number) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
     osc.start();
     osc.stop(ctx.currentTime + 0.025);
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playSpawnShimmer() {
@@ -52,7 +54,9 @@ function playSpawnShimmer() {
       osc.start(start);
       osc.stop(start + 0.2);
     });
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playCompleteArpeggio() {
@@ -73,7 +77,9 @@ function playCompleteArpeggio() {
       osc.start(start);
       osc.stop(start + 0.5);
     });
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playErrorTone() {
@@ -90,7 +96,9 @@ function playErrorTone() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
     osc.start();
     osc.stop(ctx.currentTime + 0.25);
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 export function useSoundNotifications() {

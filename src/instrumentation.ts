@@ -12,6 +12,7 @@ export async function register(): Promise<void> {
   // The state singleton uses Node-only APIs (fs, path). Guard so the edge
   // runtime instance — if Next ever spins one up — does not import them.
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { startBackgroundTasks } = await import("../scripts/lib/background-tasks");
+  const { startBackgroundTasks } =
+    await import("../scripts/lib/background-tasks");
   await startBackgroundTasks();
 }

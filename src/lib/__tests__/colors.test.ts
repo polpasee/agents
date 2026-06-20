@@ -34,7 +34,7 @@ describe("AGENT_COLORS", () => {
 
   it("has no extra keys beyond AgentType values", () => {
     expect(Object.keys(AGENT_COLORS).sort()).toEqual(
-      [...ALL_AGENT_TYPES].sort()
+      [...ALL_AGENT_TYPES].sort(),
     );
   });
 
@@ -54,14 +54,17 @@ describe("AGENT_LABELS", () => {
 
   it("has no extra keys beyond AgentType values", () => {
     expect(Object.keys(AGENT_LABELS).sort()).toEqual(
-      [...ALL_AGENT_TYPES].sort()
+      [...ALL_AGENT_TYPES].sort(),
     );
   });
 
   it("labels are non-empty strings", () => {
     for (const [type, label] of Object.entries(AGENT_LABELS)) {
       expect(typeof label).toBe("string");
-      expect(label.length, `AGENT_LABELS["${type}"] should be non-empty`).toBeGreaterThan(0);
+      expect(
+        label.length,
+        `AGENT_LABELS["${type}"] should be non-empty`,
+      ).toBeGreaterThan(0);
     }
   });
 });
@@ -75,7 +78,7 @@ describe("STATUS_COLORS", () => {
 
   it("has no extra keys beyond AgentStatus values", () => {
     expect(Object.keys(STATUS_COLORS).sort()).toEqual(
-      [...ALL_AGENT_STATUSES].sort()
+      [...ALL_AGENT_STATUSES].sort(),
     );
   });
 
@@ -114,7 +117,7 @@ describe("UI color object", () => {
       expect(UI.text).toHaveProperty(key);
       expect(
         (UI.text as Record<string, string>)[key],
-        `UI.text.${key}`
+        `UI.text.${key}`,
       ).toMatch(HEX_COLOR_RE);
     }
   });
@@ -263,8 +266,12 @@ describe("agentColor", () => {
   beforeEach(() => resetAgentColorRegistry());
 
   it("returns the reserved orange for any main agent regardless of id", () => {
-    expect(agentColor({ id: "main-1", agentType: "main" })).toBe(AGENT_COLORS.main);
-    expect(agentColor({ id: "main-2", agentType: "main" })).toBe(AGENT_COLORS.main);
+    expect(agentColor({ id: "main-1", agentType: "main" })).toBe(
+      AGENT_COLORS.main,
+    );
+    expect(agentColor({ id: "main-2", agentType: "main" })).toBe(
+      AGENT_COLORS.main,
+    );
   });
 
   it("gives two sub-agents with the same displayType different colors (per-instance)", () => {
@@ -279,25 +286,56 @@ describe("agentColor", () => {
   });
 
   it("uses slug as key when id is empty, giving distinct slugs distinct colors", () => {
-    const a = agentColor({ id: "", agentType: "review" as const, slug: "silent-failure-hunter" });
-    const b = agentColor({ id: "", agentType: "review" as const, slug: "pr-test-analyzer" });
+    const a = agentColor({
+      id: "",
+      agentType: "review" as const,
+      slug: "silent-failure-hunter",
+    });
+    const b = agentColor({
+      id: "",
+      agentType: "review" as const,
+      slug: "pr-test-analyzer",
+    });
     expect(a).toMatch(HEX_COLOR_RE);
     expect(b).toMatch(HEX_COLOR_RE);
     expect(a).not.toBe(b);
     // same slug must be stable
-    expect(agentColor({ id: "", agentType: "review" as const, slug: "silent-failure-hunter" })).toBe(a);
+    expect(
+      agentColor({
+        id: "",
+        agentType: "review" as const,
+        slug: "silent-failure-hunter",
+      }),
+    ).toBe(a);
   });
 
   it("uses displayType as key when id and slug are both empty", () => {
-    const a = agentColor({ id: "", agentType: "review" as const, slug: "", displayType: "dt-alpha" });
-    const b = agentColor({ id: "", agentType: "review" as const, slug: "", displayType: "dt-beta" });
+    const a = agentColor({
+      id: "",
+      agentType: "review" as const,
+      slug: "",
+      displayType: "dt-alpha",
+    });
+    const b = agentColor({
+      id: "",
+      agentType: "review" as const,
+      slug: "",
+      displayType: "dt-beta",
+    });
     expect(a).toMatch(HEX_COLOR_RE);
     expect(b).toMatch(HEX_COLOR_RE);
     expect(a).not.toBe(b);
   });
 
   it("returns UI.text.secondary when id, slug, and displayType are all empty", () => {
-    expect(agentColor({ id: "", agentType: "explore" as const, slug: "", displayType: "" })).toBe(UI.text.secondary);
+    expect(
+      agentColor({
+        id: "",
+        agentType: "explore" as const,
+        slug: "",
+        displayType: "",
+      }),
+    ).toBe(UI.text.secondary);
   });
 
   it("three sibling 'review' agents with distinct ids never share a color", () => {

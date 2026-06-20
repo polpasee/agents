@@ -38,7 +38,9 @@ interface WebhookPayload {
 }
 
 export async function dispatchWebhooks(payload: WebhookPayload): Promise<void> {
-  const configs = webhookConfigs.filter(c => c.events.includes(payload.eventType));
+  const configs = webhookConfigs.filter((c) =>
+    c.events.includes(payload.eventType),
+  );
   for (const config of configs) {
     try {
       const body = formatPayload(config.format, payload);
@@ -55,7 +57,10 @@ export async function dispatchWebhooks(payload: WebhookPayload): Promise<void> {
   }
 }
 
-function formatPayload(format: WebhookConfig["format"], payload: WebhookPayload): unknown {
+function formatPayload(
+  format: WebhookConfig["format"],
+  payload: WebhookPayload,
+): unknown {
   const time = new Date(payload.timestamp).toISOString();
   switch (format) {
     case "slack":
@@ -67,8 +72,16 @@ function formatPayload(format: WebhookConfig["format"], payload: WebhookPayload)
   }
 }
 
-export function formatSlackMessage(payload: WebhookPayload, time: string): unknown {
-  const emoji = payload.eventType === "error" ? ":x:" : payload.eventType === "budget_exceeded" ? ":warning:" : ":white_check_mark:";
+export function formatSlackMessage(
+  payload: WebhookPayload,
+  time: string,
+): unknown {
+  const emoji =
+    payload.eventType === "error"
+      ? ":x:"
+      : payload.eventType === "budget_exceeded"
+        ? ":warning:"
+        : ":white_check_mark:";
   return {
     text: `${emoji} *Agent Monitor*: ${payload.message}`,
     blocks: [
@@ -83,17 +96,31 @@ export function formatSlackMessage(payload: WebhookPayload, time: string): unkno
   };
 }
 
-export function formatDiscordMessage(payload: WebhookPayload, time: string): unknown {
-  const color = payload.eventType === "error" ? 0xff4444 : payload.eventType === "budget_exceeded" ? 0xeab308 : 0x00ff88;
+export function formatDiscordMessage(
+  payload: WebhookPayload,
+  time: string,
+): unknown {
+  const color =
+    payload.eventType === "error"
+      ? 0xff4444
+      : payload.eventType === "budget_exceeded"
+        ? 0xeab308
+        : 0x00ff88;
   return {
-    embeds: [{
-      title: `Agent Monitor: ${payload.eventType.replace("_", " ")}`,
-      description: payload.message,
-      color,
-      fields: [
-        { name: "Agent", value: `${payload.agentId} (${payload.agentType})`, inline: true },
-        { name: "Time", value: time, inline: true },
-      ],
-    }],
+    embeds: [
+      {
+        title: `Agent Monitor: ${payload.eventType.replace("_", " ")}`,
+        description: payload.message,
+        color,
+        fields: [
+          {
+            name: "Agent",
+            value: `${payload.agentId} (${payload.agentType})`,
+            inline: true,
+          },
+          { name: "Time", value: time, inline: true },
+        ],
+      },
+    ],
   };
 }

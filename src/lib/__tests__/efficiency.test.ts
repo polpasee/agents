@@ -10,20 +10,27 @@ describe("calculateEfficiency", () => {
   });
 
   it("scores higher for completed agents", () => {
-    const completed = mockAgent({ status: "completed", duration: 5000, toolCalls: [
-      { tool: "Read", timestamp: Date.now() },
-      { tool: "Edit", timestamp: Date.now() },
-    ]});
+    const completed = mockAgent({
+      status: "completed",
+      duration: 5000,
+      toolCalls: [
+        { tool: "Read", timestamp: Date.now() },
+        { tool: "Edit", timestamp: Date.now() },
+      ],
+    });
     const running = mockAgent({ status: "running" });
     const resultCompleted = calculateEfficiency(completed, [running]);
     const resultRunning = calculateEfficiency(running, [completed]);
-    expect(resultCompleted.toolSuccessRate).toBeGreaterThan(resultRunning.toolSuccessRate);
+    expect(resultCompleted.toolSuccessRate).toBeGreaterThan(
+      resultRunning.toolSuccessRate,
+    );
   });
 
   it("scores lower for errored agents", () => {
-    const errored = mockAgent({ status: "error", toolCalls: [
-      { tool: "Bash", timestamp: Date.now() },
-    ]});
+    const errored = mockAgent({
+      status: "error",
+      toolCalls: [{ tool: "Bash", timestamp: Date.now() }],
+    });
     const result = calculateEfficiency(errored, []);
     expect(result.toolSuccessRate).toBeLessThan(50);
   });
@@ -35,17 +42,33 @@ describe("calculateEfficiency", () => {
   });
 
   it("overall is 0-100 range", () => {
-    const agent = mockAgent({ inputTokens: 1000, outputTokens: 500, status: "completed", duration: 3000 });
+    const agent = mockAgent({
+      inputTokens: 1000,
+      outputTokens: 500,
+      status: "completed",
+      duration: 3000,
+    });
     const result = calculateEfficiency(agent, []);
     expect(result.overall).toBeGreaterThanOrEqual(0);
     expect(result.overall).toBeLessThanOrEqual(100);
   });
 
   it("completion speed compares to peers", () => {
-    const fast = mockAgent({ agentType: "explore", status: "completed", duration: 2000 });
-    const slow = mockAgent({ id: "a2", agentType: "explore", status: "completed", duration: 10000 });
+    const fast = mockAgent({
+      agentType: "explore",
+      status: "completed",
+      duration: 2000,
+    });
+    const slow = mockAgent({
+      id: "a2",
+      agentType: "explore",
+      status: "completed",
+      duration: 10000,
+    });
     const fastScore = calculateEfficiency(fast, [slow]);
     const slowScore = calculateEfficiency(slow, [fast]);
-    expect(fastScore.completionSpeed).toBeGreaterThan(slowScore.completionSpeed);
+    expect(fastScore.completionSpeed).toBeGreaterThan(
+      slowScore.completionSpeed,
+    );
   });
 });

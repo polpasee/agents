@@ -88,7 +88,10 @@ describe("replayPlay — single-event session rewind", () => {
       startTime: t0,
       events: [
         { timestamp: t0, event: registerEvent },
-        { timestamp: t1, event: { type: "agent:complete", agentId: "a1", duration: 500 } },
+        {
+          timestamp: t1,
+          event: { type: "agent:complete", agentId: "a1", duration: 500 },
+        },
       ],
     });
 

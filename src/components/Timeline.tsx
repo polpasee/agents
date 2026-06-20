@@ -12,7 +12,10 @@ export function Timeline() {
 
   if (agents.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center" style={{ color: UI.text.empty }}>
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ color: UI.text.empty }}
+      >
         No agents to display
       </div>
     );
@@ -30,15 +33,22 @@ export function Timeline() {
   });
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-4" style={{ background: "var(--color-bg)" }}>
+    <div
+      className="flex-1 overflow-y-auto custom-scrollbar p-4"
+      style={{ background: "var(--color-bg)" }}
+    >
       {sorted.map((agent) => {
         const color = AGENT_COLORS[agent.agentType];
         const statusColor = STATUS_COLORS[agent.status];
         const startPct = ((agent.startTime - earliest) / totalRange) * 100;
-        const endTime = agent.duration != null ? agent.startTime + agent.duration : now;
-        const widthPct = Math.max(((endTime - agent.startTime) / totalRange) * 100, 1);
+        const endTime =
+          agent.duration != null ? agent.startTime + agent.duration : now;
+        const widthPct = Math.max(
+          ((endTime - agent.startTime) / totalRange) * 100,
+          1,
+        );
         const isSelected = agent.id === selectedAgentId;
-        const elapsed = agent.duration ?? (now - agent.startTime);
+        const elapsed = agent.duration ?? now - agent.startTime;
 
         return (
           <div
@@ -73,7 +83,13 @@ export function Timeline() {
               >
                 {agent.toolCalls.map((tc, i) => {
                   const range = endTime - agent.startTime;
-                  const tickPct = range > 0 ? Math.min(((tc.timestamp - agent.startTime) / range) * 100, 100) : 0;
+                  const tickPct =
+                    range > 0
+                      ? Math.min(
+                          ((tc.timestamp - agent.startTime) / range) * 100,
+                          100,
+                        )
+                      : 0;
                   return (
                     <div
                       key={i}
@@ -91,12 +107,21 @@ export function Timeline() {
             </div>
 
             <div className="flex-shrink-0 text-right" style={{ width: 80 }}>
-              <div className="text-xs font-mono" style={{ color: UI.text.secondary }}>
+              <div
+                className="text-xs font-mono"
+                style={{ color: UI.text.secondary }}
+              >
                 {formatDuration(elapsed)}
               </div>
               <div className="flex items-center justify-end gap-1">
-                <div className="w-1 h-1 rounded-full" style={{ background: statusColor }} />
-                <span className="text-xs capitalize" style={{ color: statusColor }}>
+                <div
+                  className="w-1 h-1 rounded-full"
+                  style={{ background: statusColor }}
+                />
+                <span
+                  className="text-xs capitalize"
+                  style={{ color: statusColor }}
+                >
                   {agent.status}
                 </span>
               </div>

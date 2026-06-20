@@ -39,7 +39,9 @@ describe("useMetricSampler", () => {
 
     vi.advanceTimersByTime(METRIC_SAMPLE_INTERVAL_MS);
 
-    expect(useAgentStore.getState().metricHistory.length).toBeGreaterThanOrEqual(1);
+    expect(
+      useAgentStore.getState().metricHistory.length,
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("computes costPerMin > 0 when prev.totalCost is 0 and current totalCost > 0", () => {
@@ -60,7 +62,11 @@ describe("useMetricSampler", () => {
     });
 
     // Give the store an agent with real tokens so totalCost > 0 on the next tick
-    const agent = mockAgent({ id: "a1", inputTokens: 10_000, outputTokens: 5_000 });
+    const agent = mockAgent({
+      id: "a1",
+      inputTokens: 10_000,
+      outputTokens: 5_000,
+    });
     useAgentStore.setState({ agents: new Map([["a1", agent]]) });
 
     renderHook(() => useMetricSampler());
@@ -85,6 +91,8 @@ describe("useMetricSampler", () => {
     unmount();
 
     vi.advanceTimersByTime(METRIC_SAMPLE_INTERVAL_MS * 5);
-    expect(useAgentStore.getState().metricHistory.length).toBe(countAfterOneTick);
+    expect(useAgentStore.getState().metricHistory.length).toBe(
+      countAfterOneTick,
+    );
   });
 });

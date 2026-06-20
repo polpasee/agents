@@ -20,17 +20,39 @@
 /** Current protocol version. Bump on any backwards-incompatible change. */
 export const PROTOCOL_VERSION = 1;
 
-export const AGENT_STATUSES = ["running", "waiting", "idle", "completed", "error"] as const;
-export type AgentStatus = typeof AGENT_STATUSES[number];
+export const AGENT_STATUSES = [
+  "running",
+  "waiting",
+  "idle",
+  "completed",
+  "error",
+] as const;
+export type AgentStatus = (typeof AGENT_STATUSES)[number];
 
-export const AGENT_TYPES = ["main", "explore", "plan", "build", "review", "test", "team-lead", "generic"] as const;
-export type AgentType = typeof AGENT_TYPES[number];
+export const AGENT_TYPES = [
+  "main",
+  "explore",
+  "plan",
+  "build",
+  "review",
+  "test",
+  "team-lead",
+  "generic",
+] as const;
+export type AgentType = (typeof AGENT_TYPES)[number];
 
 export type TeamStatus = "forming" | "active" | "completed" | "error";
 
 /** Extended-thinking effort tier surfaced on the topology under main agents. */
-export const THINKING_EFFORTS = ["low", "medium", "high", "xhigh", "max", "auto"] as const;
-export type ThinkingEffort = typeof THINKING_EFFORTS[number];
+export const THINKING_EFFORTS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+  "auto",
+] as const;
+export type ThinkingEffort = (typeof THINKING_EFFORTS)[number];
 
 // Events sent from the file watcher to the dashboard
 export type AgentEvent =
@@ -88,11 +110,22 @@ export type AgentEvent =
 
 // Events sent from server to dashboard
 export type ServerEvent =
-  | { type: "state:sync"; agents: AgentState[]; edges: EdgeState[]; teams: TeamState[]; workflows?: WorkflowRunState[]; protocolVersion?: number }
+  | {
+      type: "state:sync";
+      agents: AgentState[];
+      edges: EdgeState[];
+      teams: TeamState[];
+      workflows?: WorkflowRunState[];
+      protocolVersion?: number;
+    }
   | { type: "state:update"; event: AgentEvent; timestamp: number }
   | { type: "state:remove"; agentId: string }
   | { type: "annotation:sync"; annotations: Annotation[] }
-  | { type: "annotation:update"; annotation: Annotation; action: "add" | "remove" }
+  | {
+      type: "annotation:update";
+      annotation: Annotation;
+      action: "add" | "remove";
+    }
   | { type: "workflow:update"; workflow: WorkflowRunState }
   | { type: "workflow:remove"; runId: string };
 
@@ -251,7 +284,11 @@ export interface CostProjectionData {
 }
 
 // ── Performance Heatmap ───────────────────────────────
-export type HeatmapMetric = "idleRatio" | "tokenEfficiency" | "timeToFirstTool" | "avgToolLatency";
+export type HeatmapMetric =
+  | "idleRatio"
+  | "tokenEfficiency"
+  | "timeToFirstTool"
+  | "avgToolLatency";
 
 // ── F1: Agent Dependency Graph ────────────────────────
 // (waitingOn on AgentState and agent:status event, blocking edge type on EdgeState)

@@ -45,10 +45,25 @@ export class ErrorBoundary extends Component<Props, State> {
             fontFamily: "monospace",
           }}
         >
-          <div style={{ color: UI.error, fontSize: 18, fontWeight: "bold", marginBottom: 12 }}>
+          <div
+            style={{
+              color: UI.error,
+              fontSize: 18,
+              fontWeight: "bold",
+              marginBottom: 12,
+            }}
+          >
             Something went wrong
           </div>
-          <div style={{ color: UI.text.muted, fontSize: 13, maxWidth: 500, textAlign: "center", marginBottom: 16 }}>
+          <div
+            style={{
+              color: UI.text.muted,
+              fontSize: 13,
+              maxWidth: 500,
+              textAlign: "center",
+              marginBottom: 16,
+            }}
+          >
             {this.state.error?.message || "An unexpected error occurred"}
           </div>
           <button

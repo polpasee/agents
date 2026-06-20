@@ -26,7 +26,10 @@ describe("AgentDetail", () => {
 
   it("shows agent info when an agent is selected", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", task: "implement feature", model: "claude-3" }));
+    agents.set(
+      "a1",
+      mockAgent({ id: "a1", task: "implement feature", model: "claude-3" }),
+    );
 
     useAgentStore.setState({ agents, selectedAgentId: "a1" });
     render(<AgentDetail />);
@@ -38,7 +41,10 @@ describe("AgentDetail", () => {
 
   it("shows the workflow label instead of displayType for a workflow agent", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("wf1", mockAgent({ id: "wf1", displayType: "workflow-subagent", task: "t" }));
+    agents.set(
+      "wf1",
+      mockAgent({ id: "wf1", displayType: "workflow-subagent", task: "t" }),
+    );
 
     const run = mockWorkflowRun({
       runId: "r1",
@@ -60,7 +66,15 @@ describe("AgentDetail", () => {
 
   it("shows displayType unchanged for a non-workflow agent", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("c1", mockAgent({ id: "c1", agentType: "build", displayType: "api-builder", task: "t" }));
+    agents.set(
+      "c1",
+      mockAgent({
+        id: "c1",
+        agentType: "build",
+        displayType: "api-builder",
+        task: "t",
+      }),
+    );
 
     useAgentStore.setState({ agents, selectedAgentId: "c1" });
     render(<AgentDetail />);
@@ -70,9 +84,16 @@ describe("AgentDetail", () => {
 
   it("shows workflowName verbatim as secondary when agent has workflowName and no store label", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("live2", mockAgent({ id: "live2", workflowName: "code-review-max", task: "t" }));
+    agents.set(
+      "live2",
+      mockAgent({ id: "live2", workflowName: "code-review-max", task: "t" }),
+    );
 
-    useAgentStore.setState({ agents, selectedAgentId: "live2", workflows: new Map() });
+    useAgentStore.setState({
+      agents,
+      selectedAgentId: "live2",
+      workflows: new Map(),
+    });
     render(<AgentDetail />);
 
     expect(screen.getByText("code-review-max")).toBeDefined();
@@ -80,7 +101,10 @@ describe("AgentDetail", () => {
 
   it("real store label wins over workflowName in AgentDetail", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("wf3", mockAgent({ id: "wf3", workflowName: "code-review-max", task: "t" }));
+    agents.set(
+      "wf3",
+      mockAgent({ id: "wf3", workflowName: "code-review-max", task: "t" }),
+    );
 
     const run = mockWorkflowRun({
       runId: "r3",
@@ -101,12 +125,18 @@ describe("AgentDetail", () => {
   // F4 — body.entries from /api/logs/[agentId] must be Array-validated before
   // it lands in the store. A non-array (e.g. null) MUST be ignored.
   describe("handleViewLog body.entries validation", () => {
-    afterEach(() => { vi.restoreAllMocks(); });
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
 
     it("does not pollute logEntries when /api/logs returns non-array entries", async () => {
       const agents = new Map<string, AgentState>();
       agents.set("a1", mockAgent({ id: "a1" }));
-      useAgentStore.setState({ agents, selectedAgentId: "a1", logEntries: new Map() });
+      useAgentStore.setState({
+        agents,
+        selectedAgentId: "a1",
+        logEntries: new Map(),
+      });
 
       vi.spyOn(global, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ entries: null }), {

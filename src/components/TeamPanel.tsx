@@ -2,7 +2,13 @@
 
 import { useAgentStore } from "@/lib/store";
 import { teamMembers } from "@/lib/store/helpers";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, TEAM_STATUS_COLORS } from "@/lib/colors";
+import {
+  AGENT_COLORS,
+  STATUS_COLORS,
+  AGENT_LABELS,
+  UI,
+  TEAM_STATUS_COLORS,
+} from "@/lib/colors";
 import { formatNumber, formatDuration, truncateId } from "@/lib/utils";
 import { formatCost } from "@/lib/costs";
 
@@ -30,11 +36,17 @@ export function TeamPanel() {
     >
       <div
         className="px-3 py-1.5 text-xs uppercase tracking-wider flex-shrink-0 flex items-center justify-between"
-        style={{ color: UI.text.muted, borderBottom: "1px solid var(--color-border)" }}
+        style={{
+          color: UI.text.muted,
+          borderBottom: "1px solid var(--color-border)",
+        }}
       >
         <span>Teams ({teamList.length})</span>
       </div>
-      <div className="overflow-y-auto custom-scrollbar p-2 space-y-2" style={{ maxHeight: 300 }}>
+      <div
+        className="overflow-y-auto custom-scrollbar p-2 space-y-2"
+        style={{ maxHeight: 300 }}
+      >
         {teamList.map((team) => {
           const isSelected = team.id === selectedTeamId;
           const statusColor = TEAM_STATUS_COLORS[team.status];
@@ -65,36 +77,60 @@ export function TeamPanel() {
                   <div className="flex items-center gap-1.5">
                     <div
                       className="w-2 h-2 rounded-full"
-                      style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
+                      style={{
+                        background: statusColor,
+                        boxShadow: `0 0 4px ${statusColor}`,
+                      }}
                     />
-                    <span className="text-sm font-bold font-mono" style={{ color: UI.primary }}>
+                    <span
+                      className="text-sm font-bold font-mono"
+                      style={{ color: UI.primary }}
+                    >
                       {team.name}
                     </span>
                   </div>
-                  <span className="text-xs capitalize" style={{ color: statusColor }}>
+                  <span
+                    className="text-xs capitalize"
+                    style={{ color: statusColor }}
+                  >
                     {team.status}
                   </span>
                 </div>
 
                 {/* Task */}
-                <div className="text-xs mt-1 truncate" style={{ color: UI.text.muted }}>
+                <div
+                  className="text-xs mt-1 truncate"
+                  style={{ color: UI.text.muted }}
+                >
                   {team.task}
                 </div>
 
                 {/* Stats row */}
                 <div className="flex gap-3 mt-1.5 text-xs">
                   <span style={{ color: UI.text.dimmed }}>
-                    Members: <span style={{ color: UI.text.secondary }}>{stats.memberCount}</span>
+                    Members:{" "}
+                    <span style={{ color: UI.text.secondary }}>
+                      {stats.memberCount}
+                    </span>
                   </span>
                   <span style={{ color: UI.text.dimmed }}>
-                    Active: <span style={{ color: STATUS_COLORS.running }}>{stats.activeCount}</span>
+                    Active:{" "}
+                    <span style={{ color: STATUS_COLORS.running }}>
+                      {stats.activeCount}
+                    </span>
                   </span>
                   <span style={{ color: UI.text.dimmed }}>
-                    Done: <span style={{ color: STATUS_COLORS.completed }}>{stats.completedCount}</span>
+                    Done:{" "}
+                    <span style={{ color: STATUS_COLORS.completed }}>
+                      {stats.completedCount}
+                    </span>
                   </span>
                   {stats.errorCount > 0 && (
                     <span style={{ color: UI.text.dimmed }}>
-                      Errors: <span style={{ color: UI.error }}>{stats.errorCount}</span>
+                      Errors:{" "}
+                      <span style={{ color: UI.error }}>
+                        {stats.errorCount}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -102,13 +138,22 @@ export function TeamPanel() {
                 {/* Tokens + Cost + Duration */}
                 <div className="flex gap-3 mt-1 text-xs">
                   <span style={{ color: UI.text.dimmed }}>
-                    Tokens: <span style={{ color: UI.primary }}>{formatNumber(stats.totalTokens)}</span>
+                    Tokens:{" "}
+                    <span style={{ color: UI.primary }}>
+                      {formatNumber(stats.totalTokens)}
+                    </span>
                   </span>
                   <span style={{ color: UI.text.dimmed }}>
-                    Cost: <span style={{ color: UI.primary }}>{formatCost(stats.totalCost)}</span>
+                    Cost:{" "}
+                    <span style={{ color: UI.primary }}>
+                      {formatCost(stats.totalCost)}
+                    </span>
                   </span>
                   <span style={{ color: UI.text.dimmed }}>
-                    Time: <span style={{ color: UI.text.secondary }}>{formatDuration(elapsed)}</span>
+                    Time:{" "}
+                    <span style={{ color: UI.text.secondary }}>
+                      {formatDuration(elapsed)}
+                    </span>
                   </span>
                 </div>
               </button>
@@ -133,7 +178,10 @@ export function TeamPanel() {
                     if (m.id === team.leaderId) return null;
                     const color = AGENT_COLORS[m.agentType];
                     return (
-                      <div key={m.id} className="flex items-center gap-1.5 text-xs">
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-1.5 text-xs"
+                      >
                         <div
                           className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                           style={{ background: color }}
@@ -145,7 +193,10 @@ export function TeamPanel() {
                         >
                           {AGENT_LABELS[m.agentType]}:{truncateId(m.id)}
                         </button>
-                        <span className="capitalize" style={{ color: STATUS_COLORS[m.status] }}>
+                        <span
+                          className="capitalize"
+                          style={{ color: STATUS_COLORS[m.status] }}
+                        >
                           {m.status}
                         </span>
                       </div>

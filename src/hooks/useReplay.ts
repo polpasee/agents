@@ -29,6 +29,8 @@ export function useReplay() {
     }
 
     timerRef.current = setTimeout(tick, REPLAY_TICK_MS);
-    return () => { clearTimeout(timerRef.current); };
+    return () => {
+      clearTimeout(timerRef.current);
+    };
   }, [active, playing, speed, endTime, replayTick, replayPause]);
 }

@@ -40,7 +40,15 @@ describe("TopBar", () => {
   it("lists one option per main session and labels the default with the session count", () => {
     useAgentStore.setState({
       agents: new Map([
-        ["m1", mockAgent({ id: "m1", agentType: "main", sessionId: "s1", metadata: { projectName: "ProjA" } })],
+        [
+          "m1",
+          mockAgent({
+            id: "m1",
+            agentType: "main",
+            sessionId: "s1",
+            metadata: { projectName: "ProjA" },
+          }),
+        ],
         ["m2", mockAgent({ id: "m2", agentType: "main", sessionId: "s2" })],
         ["sub", mockAgent({ id: "sub", agentType: "build", parentId: "m1" })],
       ]),
@@ -58,7 +66,9 @@ describe("TopBar", () => {
       ]),
     });
     render(<TopBar />);
-    fireEvent.change(screen.getByLabelText("Filter sessions"), { target: { value: "s1" } });
+    fireEvent.change(screen.getByLabelText("Filter sessions"), {
+      target: { value: "s1" },
+    });
 
     const state = useAgentStore.getState();
     expect([...state.selectedSessionIds]).toEqual(["s1"]);
@@ -75,7 +85,9 @@ describe("TopBar", () => {
       selectedSessionIds: new Set(["s1"]),
     });
     render(<TopBar />);
-    const select = screen.getByLabelText("Filter sessions") as HTMLSelectElement;
+    const select = screen.getByLabelText(
+      "Filter sessions",
+    ) as HTMLSelectElement;
     // Single active filter is reflected as the dropdown's value.
     expect(select.value).toBe("s1");
 

@@ -59,14 +59,22 @@ describe("setLogEntries", () => {
   });
 
   it("can store entries for multiple agents", () => {
-    const entries1: LogEntry[] = [{ timestamp: 1000, role: "user", content: "A" }];
-    const entries2: LogEntry[] = [{ timestamp: 2000, role: "assistant", content: "B" }];
+    const entries1: LogEntry[] = [
+      { timestamp: 1000, role: "user", content: "A" },
+    ];
+    const entries2: LogEntry[] = [
+      { timestamp: 2000, role: "assistant", content: "B" },
+    ];
 
     useAgentStore.getState().setLogEntries("agent-1", entries1);
     useAgentStore.getState().setLogEntries("agent-2", entries2);
 
-    expect(useAgentStore.getState().logEntries.get("agent-1")).toEqual(entries1);
-    expect(useAgentStore.getState().logEntries.get("agent-2")).toEqual(entries2);
+    expect(useAgentStore.getState().logEntries.get("agent-1")).toEqual(
+      entries1,
+    );
+    expect(useAgentStore.getState().logEntries.get("agent-2")).toEqual(
+      entries2,
+    );
   });
 });
 

@@ -86,7 +86,8 @@ function costFromLine(line: string): ParsedEntry | null {
   } catch {
     return null;
   }
-  const ts = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+  const ts =
+    typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
   if (!Number.isFinite(ts)) return null;
   const message = entry.message as Record<string, unknown> | undefined;
   if (!message || typeof message !== "object") return null;
@@ -155,12 +156,14 @@ async function runWithConcurrency<T>(
   let cursor = 0;
   const runners: Promise<void>[] = [];
   for (let k = 0; k < Math.min(limit, items.length); k++) {
-    runners.push((async () => {
-      while (cursor < items.length) {
-        const idx = cursor++;
-        await worker(items[idx]);
-      }
-    })());
+    runners.push(
+      (async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          await worker(items[idx]);
+        }
+      })(),
+    );
   }
   await Promise.all(runners);
 }
@@ -221,7 +224,10 @@ export async function scanCostHistory(
       if (!seen.has(key)) fileCache.delete(key);
     }
 
-    resultCache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
+    resultCache.set(projectsDir, {
+      expires: now + CACHE_TTL_MS,
+      result: buckets,
+    });
     return buckets;
   })();
 

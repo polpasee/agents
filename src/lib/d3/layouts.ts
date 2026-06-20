@@ -19,7 +19,7 @@ function buildHierarchy(nodes: LayoutNode[]) {
   for (const n of nodes) nodeMap.set(n.id, n);
 
   const roots = nodes.filter(
-    (n) => !n.agent.parentId || !nodeMap.has(n.agent.parentId)
+    (n) => !n.agent.parentId || !nodeMap.has(n.agent.parentId),
   );
 
   const childrenMap = new Map<string, LayoutNode[]>();
@@ -50,7 +50,9 @@ function buildHierarchy(nodes: LayoutNode[]) {
     return {
       id: node.id,
       realNode: node,
-      children: children ? children.map((c) => toHierNode(c, nextVisited)) : undefined,
+      children: children
+        ? children.map((c) => toHierNode(c, nextVisited))
+        : undefined,
     };
   }
 
@@ -67,11 +69,11 @@ function buildHierarchy(nodes: LayoutNode[]) {
     };
   }
 
-  return hierarchy<HierNode>(root)
-    .sum(() => 1);
+  return hierarchy<HierNode>(root).sum(() => 1);
 }
 
-type HierNodeData = ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never;
+type HierNodeData =
+  ReturnType<typeof buildHierarchy> extends HierarchyNode<infer T> ? T : never;
 
 /**
  * Shared tree-based layout engine. The three public layout functions delegate
@@ -89,7 +91,12 @@ function applyTreeBasedLayout(
   width: number,
   height: number,
   sizer: (width: number, height: number) => [number, number],
-  project: (dx: number, dy: number, width: number, height: number) => { fx: number; fy: number },
+  project: (
+    dx: number,
+    dy: number,
+    width: number,
+    height: number,
+  ) => { fx: number; fy: number },
 ): void {
   if (nodes.length === 0) return;
   if (nodes.length === 1) {
@@ -115,7 +122,7 @@ function applyTreeBasedLayout(
 export function applyTreeLayout(
   nodes: LayoutNode[],
   width: number,
-  height: number
+  height: number,
 ): void {
   applyTreeBasedLayout(
     nodes,
@@ -130,7 +137,7 @@ export function applyTreeLayout(
 export function applyRadialLayout(
   nodes: LayoutNode[],
   width: number,
-  height: number
+  height: number,
 ): void {
   const radius = Math.min(width, height) * 0.35;
   applyTreeBasedLayout(
@@ -153,7 +160,7 @@ export function applyRadialLayout(
 export function applyHierarchicalLayout(
   nodes: LayoutNode[],
   width: number,
-  height: number
+  height: number,
 ): void {
   applyTreeBasedLayout(
     nodes,

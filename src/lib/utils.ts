@@ -2,7 +2,12 @@ import type { AgentState } from "./types";
 
 /** Sum all four token fields for an agent. */
 export function totalTokens(agent: AgentState): number {
-  return agent.inputTokens + agent.outputTokens + agent.cacheReadTokens + agent.cacheCreateTokens;
+  return (
+    agent.inputTokens +
+    agent.outputTokens +
+    agent.cacheReadTokens +
+    agent.cacheCreateTokens
+  );
 }
 
 /** Calculate context window usage as a percentage (0–100). */
@@ -18,7 +23,7 @@ export function getTokenPercent(agent: AgentState): number {
  *  ~80k+ items. Fold instead so this scales linearly without limit. */
 export function earliestStartTime(
   agents: Iterable<Pick<AgentState, "startTime">>,
-  fallback: number
+  fallback: number,
 ): number {
   let earliest = Infinity;
   for (const a of agents) if (a.startTime < earliest) earliest = a.startTime;

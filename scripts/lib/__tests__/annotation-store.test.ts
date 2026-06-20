@@ -3,7 +3,9 @@ import { annotations, sanitizeAnnotation } from "../annotation-store";
 import { ANNOTATION_MAX_ENTRIES, ANNOTATION_MAX_TEXT_LENGTH } from "../config";
 
 describe("annotation-store", () => {
-  beforeEach(() => { annotations.clear(); });
+  beforeEach(() => {
+    annotations.clear();
+  });
 
   it("accepts a well-formed annotation", () => {
     const out = sanitizeAnnotation({
@@ -18,23 +20,39 @@ describe("annotation-store", () => {
   });
 
   it("rejects an annotation with a malformed id", () => {
-    expect(sanitizeAnnotation({ id: "bad", targetId: "x", targetType: "agent", text: "y", timestamp: 1 })).toBeNull();
+    expect(
+      sanitizeAnnotation({
+        id: "bad",
+        targetId: "x",
+        targetType: "agent",
+        text: "y",
+        timestamp: 1,
+      }),
+    ).toBeNull();
   });
 
   it("rejects an annotation whose text exceeds the cap", () => {
-    expect(sanitizeAnnotation({
-      id: "ann-abc",
-      targetId: "x",
-      targetType: "agent",
-      text: "x".repeat(ANNOTATION_MAX_TEXT_LENGTH + 1),
-      timestamp: 1,
-    })).toBeNull();
+    expect(
+      sanitizeAnnotation({
+        id: "ann-abc",
+        targetId: "x",
+        targetType: "agent",
+        text: "x".repeat(ANNOTATION_MAX_TEXT_LENGTH + 1),
+        timestamp: 1,
+      }),
+    ).toBeNull();
   });
 
   it("rejects an annotation with an unknown targetType", () => {
-    expect(sanitizeAnnotation({
-      id: "ann-abc", targetId: "x", targetType: "comment", text: "y", timestamp: 1,
-    })).toBeNull();
+    expect(
+      sanitizeAnnotation({
+        id: "ann-abc",
+        targetId: "x",
+        targetType: "comment",
+        text: "y",
+        timestamp: 1,
+      }),
+    ).toBeNull();
   });
 
   it("rejects non-object input", () => {
@@ -45,7 +63,11 @@ describe("annotation-store", () => {
 
   it("shares its Map across module re-imports", async () => {
     annotations.set("ann-hmr", {
-      id: "ann-hmr", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
+      id: "ann-hmr",
+      targetId: "x",
+      targetType: "agent",
+      text: "y",
+      timestamp: 1,
     });
     // @ts-expect-error — query-string imports are runtime-only, not resolvable by tsc
     const reimport = await import("../annotation-store?bust=1");

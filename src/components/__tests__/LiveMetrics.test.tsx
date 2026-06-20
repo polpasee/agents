@@ -6,7 +6,9 @@ import { useAgentStore } from "@/lib/store";
 vi.mock("d3", () => ({
   scaleLinear: () => ({ domain: () => ({ range: () => () => 0 }) }),
   line: () => ({ x: () => ({ y: () => ({ curve: () => () => "" }) }) }),
-  area: () => ({ x: () => ({ y0: () => ({ y1: () => ({ curve: () => () => "" }) }) }) }),
+  area: () => ({
+    x: () => ({ y0: () => ({ y1: () => ({ curve: () => () => "" }) }) }),
+  }),
   curveMonotoneX: {},
   max: () => 1,
   select: () => ({

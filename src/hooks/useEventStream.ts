@@ -39,7 +39,10 @@ export function useEventStream() {
     function enqueueEvent(event: AgentEvent, timestamp: number) {
       eventBuffer.push({ event, timestamp });
       if (eventBuffer.length >= STREAM_BATCH_MAX_SIZE) {
-        if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }
+        if (batchTimer !== null) {
+          clearTimeout(batchTimer);
+          batchTimer = null;
+        }
         flushEventBuffer();
       } else if (batchTimer === null) {
         batchTimer = setTimeout(flushEventBuffer, STREAM_BATCH_INTERVAL_MS);
@@ -62,8 +65,11 @@ export function useEventStream() {
     es.onmessage = (msg) => {
       if (destroyed) return;
       let data: unknown;
-      try { data = JSON.parse(msg.data); }
-      catch { return; }
+      try {
+        data = JSON.parse(msg.data);
+      } catch {
+        return;
+      }
 
       if (!isValidServerEvent(data)) return;
       const event = data;
@@ -80,9 +86,18 @@ export function useEventStream() {
           }
           // Drop any buffered deltas from the pre-disconnect connection — they
           // reference the old snapshot and would corrupt the fresh one.
-          if (batchTimer !== null) { clearTimeout(batchTimer); batchTimer = null; }
+          if (batchTimer !== null) {
+            clearTimeout(batchTimer);
+            batchTimer = null;
+          }
           eventBuffer = [];
-          if (!replayActive) store.syncState(event.agents, event.edges, event.teams, event.workflows ?? []);
+          if (!replayActive)
+            store.syncState(
+              event.agents,
+              event.edges,
+              event.teams,
+              event.workflows ?? [],
+            );
           break;
         case "state:update":
           if (!replayActive) enqueueEvent(event.event, event.timestamp);

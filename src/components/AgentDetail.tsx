@@ -3,7 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAgentStore } from "@/lib/store";
 import { useShallow } from "zustand/react/shallow";
-import { AGENT_COLORS, STATUS_COLORS, AGENT_LABELS, UI, EFFICIENCY_COLORS, BUDGET_COLORS } from "@/lib/colors";
+import {
+  AGENT_COLORS,
+  STATUS_COLORS,
+  AGENT_LABELS,
+  UI,
+  EFFICIENCY_COLORS,
+  BUDGET_COLORS,
+} from "@/lib/colors";
 import { getTokenPercent, formatNumber, formatDuration } from "@/lib/utils";
 import { calculateCost, formatCost } from "@/lib/costs";
 import { calculateEfficiency } from "@/lib/efficiency";
@@ -12,15 +19,31 @@ import { AnnotationOverlay } from "./AnnotationOverlay";
 import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 
 function efficiencyColor(v: number): string {
-  return v >= 70 ? EFFICIENCY_COLORS.excellent : v >= 40 ? EFFICIENCY_COLORS.good : EFFICIENCY_COLORS.poor;
+  return v >= 70
+    ? EFFICIENCY_COLORS.excellent
+    : v >= 40
+      ? EFFICIENCY_COLORS.good
+      : EFFICIENCY_COLORS.poor;
 }
 
 export function AgentDetail() {
-  const { agents, teams, selectedAgentId, logEntries, agentTypeBudgets, agentDiffs } =
-    useAgentStore(useShallow((s) => ({
-      agents: s.agents, teams: s.teams, selectedAgentId: s.selectedAgentId,
-      logEntries: s.logEntries, agentTypeBudgets: s.agentTypeBudgets, agentDiffs: s.agentDiffs,
-    })));
+  const {
+    agents,
+    teams,
+    selectedAgentId,
+    logEntries,
+    agentTypeBudgets,
+    agentDiffs,
+  } = useAgentStore(
+    useShallow((s) => ({
+      agents: s.agents,
+      teams: s.teams,
+      selectedAgentId: s.selectedAgentId,
+      logEntries: s.logEntries,
+      agentTypeBudgets: s.agentTypeBudgets,
+      agentDiffs: s.agentDiffs,
+    })),
+  );
   const agent = selectedAgentId ? agents.get(selectedAgentId) : null;
   const openLogViewer = useAgentStore((s) => s.openLogViewer);
   const setLogLoading = useAgentStore((s) => s.setLogLoading);
@@ -41,7 +64,9 @@ export function AgentDetail() {
         try {
           const res = await fetch(`/api/logs/${encodeURIComponent(agent.id)}`);
           if (!res.ok) {
-            const { error } = await res.json().catch(() => ({ error: res.statusText }));
+            const { error } = await res
+              .json()
+              .catch(() => ({ error: res.statusText }));
             fail("Log fetch failed:", error);
             return;
           }
@@ -60,7 +85,8 @@ export function AgentDetail() {
 
   // Live timer for running agents — force re-render every second
   const [, tick] = useState(0);
-  const isRunning = agent && agent.status !== "completed" && agent.status !== "error";
+  const isRunning =
+    agent && agent.status !== "completed" && agent.status !== "error";
   useEffect(() => {
     if (!isRunning) return;
     const id = setInterval(() => tick((n) => n + 1), 1000);
@@ -92,7 +118,7 @@ export function AgentDetail() {
   const secondary = wfLabel ?? agent.workflowName ?? agent.displayType;
   const totalTokens = agent.inputTokens + agent.outputTokens;
   const tokenPercent = getTokenPercent(agent);
-  const elapsed = agent.duration ?? (Date.now() - agent.startTime);
+  const elapsed = agent.duration ?? Date.now() - agent.startTime;
 
   const recentTools = agent.toolCalls.slice(-5).reverse();
 
@@ -120,11 +146,16 @@ export function AgentDetail() {
           <span className="text-sm font-bold" style={{ color }}>
             {AGENT_LABELS[agent.agentType]}
           </span>
-          {secondary && secondary.toLowerCase() !== AGENT_LABELS[agent.agentType].toLowerCase() && (
-            <span className="text-xs font-mono" style={{ color: UI.text.muted }}>
-              {secondary}
-            </span>
-          )}
+          {secondary &&
+            secondary.toLowerCase() !==
+              AGENT_LABELS[agent.agentType].toLowerCase() && (
+              <span
+                className="text-xs font-mono"
+                style={{ color: UI.text.muted }}
+              >
+                {secondary}
+              </span>
+            )}
           <button
             onClick={handleViewLog}
             className="ml-auto px-1.5 py-0.5 rounded text-xs font-mono"
@@ -152,7 +183,10 @@ export function AgentDetail() {
             </button>
           )}
         </div>
-        <div className="text-xs mt-0.5 truncate" style={{ color: UI.text.dimmed }}>
+        <div
+          className="text-xs mt-0.5 truncate"
+          style={{ color: UI.text.dimmed }}
+        >
           {agent.id}
         </div>
       </div>
@@ -164,7 +198,10 @@ export function AgentDetail() {
           <div className="flex items-center gap-1">
             <div
               className="w-1.5 h-1.5 rounded-full"
-              style={{ background: statusColor, boxShadow: `0 0 4px ${statusColor}` }}
+              style={{
+                background: statusColor,
+                boxShadow: `0 0 4px ${statusColor}`,
+              }}
             />
             <span className="capitalize text-sm" style={{ color: statusColor }}>
               {agent.status}
@@ -253,19 +290,31 @@ export function AgentDetail() {
             </div>
             <div className="flex gap-3 mt-1.5 text-xs">
               <span style={{ color: UI.text.dimmed }}>
-                in: <span style={{ color: UI.text.secondary }}>{formatNumber(agent.inputTokens)}</span>
+                in:{" "}
+                <span style={{ color: UI.text.secondary }}>
+                  {formatNumber(agent.inputTokens)}
+                </span>
               </span>
               <span style={{ color: UI.text.dimmed }}>
-                out: <span style={{ color: UI.text.secondary }}>{formatNumber(agent.outputTokens)}</span>
+                out:{" "}
+                <span style={{ color: UI.text.secondary }}>
+                  {formatNumber(agent.outputTokens)}
+                </span>
               </span>
             </div>
             {(agent.cacheReadTokens > 0 || agent.cacheCreateTokens > 0) && (
               <div className="flex gap-3 text-xs">
                 <span style={{ color: UI.text.dimmed }}>
-                  cache read: <span style={{ color: UI.cache.read }}>{formatNumber(agent.cacheReadTokens)}</span>
+                  cache read:{" "}
+                  <span style={{ color: UI.cache.read }}>
+                    {formatNumber(agent.cacheReadTokens)}
+                  </span>
                 </span>
                 <span style={{ color: UI.text.dimmed }}>
-                  cache write: <span style={{ color: UI.cache.write }}>{formatNumber(agent.cacheCreateTokens)}</span>
+                  cache write:{" "}
+                  <span style={{ color: UI.cache.write }}>
+                    {formatNumber(agent.cacheCreateTokens)}
+                  </span>
                 </span>
               </div>
             )}
@@ -276,9 +325,16 @@ export function AgentDetail() {
         {(() => {
           const budgetLimit = agentTypeBudgets[agent.agentType];
           if (budgetLimit == null) return null;
-          const budgetPercent = Math.min((totalTokens / budgetLimit) * 100, 100);
+          const budgetPercent = Math.min(
+            (totalTokens / budgetLimit) * 100,
+            100,
+          );
           const exceeded = agent.budgetExceeded;
-          const barColor = exceeded ? BUDGET_COLORS.critical : budgetPercent > 80 ? BUDGET_COLORS.warning : BUDGET_COLORS.ok;
+          const barColor = exceeded
+            ? BUDGET_COLORS.critical
+            : budgetPercent > 80
+              ? BUDGET_COLORS.warning
+              : BUDGET_COLORS.ok;
           return (
             <DetailRow label="TOKEN BUDGET">
               <div>
@@ -290,13 +346,22 @@ export function AgentDetail() {
                     / {formatNumber(budgetLimit)}
                   </span>
                   {exceeded && (
-                    <span className="text-xs font-bold" style={{ color: BUDGET_COLORS.critical }}>
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: BUDGET_COLORS.critical }}
+                    >
                       EXCEEDED
                     </span>
                   )}
                 </div>
-                <div className="mt-1 h-1 rounded-full overflow-hidden" style={{ background: "var(--color-border)" }}>
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${budgetPercent}%`, background: barColor }} />
+                <div
+                  className="mt-1 h-1 rounded-full overflow-hidden"
+                  style={{ background: "var(--color-border)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${budgetPercent}%`, background: barColor }}
+                  />
                 </div>
               </div>
             </DetailRow>
@@ -361,10 +426,24 @@ export function AgentDetail() {
   );
 }
 
-function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<string, AgentState> }) {
+function EfficiencyDisplay({
+  agent,
+  agents,
+}: {
+  agent: AgentState;
+  agents: Map<string, AgentState>;
+}) {
   const score = useMemo(
     () => calculateEfficiency(agent, Array.from(agents.values())),
-    [agent.inputTokens, agent.outputTokens, agent.toolCalls.length, agent.status, agent.duration, agents.size]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally memoized on the scalar fields that affect the score, not the whole agent/agents object identities
+    [
+      agent.inputTokens,
+      agent.outputTokens,
+      agent.toolCalls.length,
+      agent.status,
+      agent.duration,
+      agents.size,
+    ],
   );
   const color = efficiencyColor(score.overall);
 
@@ -380,7 +459,10 @@ function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<s
         <span className="text-sm font-bold" style={{ color }}>
           {score.overall}
         </span>
-        <span className="text-xs" style={{ color: UI.text.dimmed }}> / 100</span>
+        <span className="text-xs" style={{ color: UI.text.dimmed }}>
+          {" "}
+          / 100
+        </span>
         <div className="mt-1.5 space-y-1">
           {bars.map((bar) => {
             const barColor = efficiencyColor(bar.value);

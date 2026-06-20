@@ -1,10 +1,16 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 
-export type ReplaySlice = Pick<AgentStore,
+export type ReplaySlice = Pick<
+  AgentStore,
   | "replay"
-  | "loadReplaySession" | "replayPlay" | "replayPause"
-  | "replaySeek" | "replaySetSpeed" | "replayExit" | "replayTick"
+  | "loadReplaySession"
+  | "replayPlay"
+  | "replayPause"
+  | "replaySeek"
+  | "replaySetSpeed"
+  | "replayExit"
+  | "replayTick"
 >;
 
 /** Graph-state reset applied whenever replay rebuilds from scratch
@@ -21,7 +27,12 @@ function graphReset(prevTopologyVersion: number): Partial<AgentStore> {
   };
 }
 
-export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = (set, get) => ({
+export const createReplaySlice: StateCreator<
+  AgentStore,
+  [],
+  [],
+  ReplaySlice
+> = (set, get) => ({
   replay: {
     active: false,
     session: null,
@@ -34,9 +45,10 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
   },
 
   loadReplaySession: (session) => {
-    const endTime = session.events.length > 0
-      ? session.events[session.events.length - 1].timestamp
-      : session.startTime;
+    const endTime =
+      session.events.length > 0
+        ? session.events[session.events.length - 1].timestamp
+        : session.startTime;
     set({
       ...graphReset(get().topologyVersion),
       selectedAgentId: null,
@@ -75,7 +87,10 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
     const { replay } = get();
     if (!replay.active || !replay.session) return;
     // Clamp to [startTime, endTime] — out-of-range seeks leave UI at nonsensical times
-    const clamped = Math.max(replay.startTime, Math.min(timestamp, replay.endTime));
+    const clamped = Math.max(
+      replay.startTime,
+      Math.min(timestamp, replay.endTime),
+    );
     set({
       ...graphReset(get().topologyVersion),
       replay: { ...replay, currentIndex: 0, currentTime: replay.startTime },
@@ -107,7 +122,10 @@ export const createReplaySlice: StateCreator<AgentStore, [], [], ReplaySlice> = 
   replayTick: (upToTimestamp) => {
     const { replay, handleEvent } = get();
     if (!replay.active || !replay.session) return;
-    const clamped = Math.max(replay.startTime, Math.min(upToTimestamp, replay.endTime));
+    const clamped = Math.max(
+      replay.startTime,
+      Math.min(upToTimestamp, replay.endTime),
+    );
     const events = replay.session.events;
     let idx = replay.currentIndex;
     while (idx < events.length && events[idx].timestamp <= clamped) {

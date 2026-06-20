@@ -12,6 +12,9 @@ export async function GET() {
     return NextResponse.json(buckets);
   } catch (err) {
     console.warn("/api/costs failed:", err);
-    return NextResponse.json({ error: "Failed to read cost history" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to read cost history" },
+      { status: 500 },
+    );
   }
 }
