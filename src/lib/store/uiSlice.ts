@@ -1,7 +1,7 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import { loadLocalStorage, saveLocalStorage } from "./helpers";
-import type { ThemeMode, GraphLayout, ComparisonState, HeatmapMetric } from "../types";
+import type { ThemeMode } from "../types";
 import { resolveSessionId } from "../sessions";
 
 export type UISlice = Pick<AgentStore,

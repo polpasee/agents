@@ -11,6 +11,10 @@ import type { AgentState } from "@/lib/types";
 import { AnnotationOverlay } from "./AnnotationOverlay";
 import { useWorkflowLabels } from "@/hooks/useWorkflowLabels";
 
+function efficiencyColor(v: number): string {
+  return v >= 70 ? EFFICIENCY_COLORS.excellent : v >= 40 ? EFFICIENCY_COLORS.good : EFFICIENCY_COLORS.poor;
+}
+
 export function AgentDetail() {
   const { agents, teams, selectedAgentId, logEntries, agentTypeBudgets, agentDiffs } =
     useAgentStore(useShallow((s) => ({
@@ -272,7 +276,6 @@ export function AgentDetail() {
         {(() => {
           const budgetLimit = agentTypeBudgets[agent.agentType];
           if (budgetLimit == null) return null;
-          const totalTokens = agent.inputTokens + agent.outputTokens;
           const budgetPercent = Math.min((totalTokens / budgetLimit) * 100, 100);
           const exceeded = agent.budgetExceeded;
           const barColor = exceeded ? BUDGET_COLORS.critical : budgetPercent > 80 ? BUDGET_COLORS.warning : BUDGET_COLORS.ok;
@@ -363,11 +366,7 @@ function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<s
     () => calculateEfficiency(agent, Array.from(agents.values())),
     [agent.inputTokens, agent.outputTokens, agent.toolCalls.length, agent.status, agent.duration, agents.size]
   );
-  const color = score.overall >= 70
-    ? EFFICIENCY_COLORS.excellent
-    : score.overall >= 40
-      ? EFFICIENCY_COLORS.good
-      : EFFICIENCY_COLORS.poor;
+  const color = efficiencyColor(score.overall);
 
   const bars: { label: string; value: number }[] = [
     { label: "Token Eff.", value: score.tokenEfficiency },
@@ -384,11 +383,7 @@ function EfficiencyDisplay({ agent, agents }: { agent: AgentState; agents: Map<s
         <span className="text-xs" style={{ color: UI.text.dimmed }}> / 100</span>
         <div className="mt-1.5 space-y-1">
           {bars.map((bar) => {
-            const barColor = bar.value >= 70
-              ? EFFICIENCY_COLORS.excellent
-              : bar.value >= 40
-                ? EFFICIENCY_COLORS.good
-                : EFFICIENCY_COLORS.poor;
+            const barColor = efficiencyColor(bar.value);
             return (
               <div key={bar.label}>
                 <div className="flex justify-between text-xs mb-0.5">

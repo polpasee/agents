@@ -76,11 +76,13 @@ export function TranscriptPanel({ open, onClose }: { open: boolean; onClose: () 
           let content = "";
 
           switch (event.type) {
-            case "agent:register":
+            case "agent:register": {
               agentId = event.agentId;
-              color = agents.get(agentId) ? AGENT_COLORS[agents.get(agentId)!.agentType] : UI.primary;
+              const a = agents.get(agentId);
+              color = a ? AGENT_COLORS[a.agentType] : UI.primary;
               content = `Spawned: ${event.task}`;
               break;
+            }
             case "agent:tool_call":
               agentId = event.agentId;
               color = UI.tool;

@@ -58,12 +58,10 @@ function readLegacyUsage(): UsagePayload | null {
     if (!data) return null;
 
     // resets_at from Claude Code is Unix seconds — convert to ISO string
-    const blockResetAt = typeof data.blockResetAt === "number"
-      ? new Date(data.blockResetAt * 1000).toISOString()
-      : data.blockResetAt ?? null;
-    const weeklyResetAt = typeof data.weeklyResetAt === "number"
-      ? new Date(data.weeklyResetAt * 1000).toISOString()
-      : data.weeklyResetAt ?? null;
+    const toIso = (v: number | string | null | undefined) =>
+      typeof v === "number" ? new Date(v * 1000).toISOString() : v ?? null;
+    const blockResetAt = toIso(data.blockResetAt);
+    const weeklyResetAt = toIso(data.weeklyResetAt);
 
     const timestamp: number | null = typeof data.timestamp === "number" ? data.timestamp : null;
     const ageMs = timestamp != null ? Date.now() - timestamp : null;
