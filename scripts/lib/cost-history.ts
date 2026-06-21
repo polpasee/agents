@@ -15,6 +15,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
 import { costFromUsage } from "../../src/lib/costs";
+import { warnUnlessMissing } from "./fs-warn";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -111,10 +112,7 @@ async function collectJsonlFiles(dir: string): Promise<string[]> {
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
   } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT" && code !== "ENOTDIR") {
-      console.warn(`Failed to read dir ${dir}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to read dir ${dir}:`);
     return [];
   }
   const out: string[] = [];
@@ -202,7 +200,11 @@ export async function scanCostHistory(
       let stat;
       try {
         stat = await fs.stat(file);
-      } catch {
+      } catch (err) {
+        // ENOENT means the file was deleted between collectJsonlFiles and the
+        // stat — normal during /clear or project cleanup; skip silently.
+        // Any other code (EACCES, …) is unexpected and deserves a breadcrumb.
+        warnUnlessMissing(err, `Failed to stat cost file ${file}:`);
         return;
       }
       if (stat.mtimeMs < horizon) {

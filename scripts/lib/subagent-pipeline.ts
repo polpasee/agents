@@ -30,6 +30,7 @@ import {
   readIs1MContextCached,
 } from "./settings-cache";
 import { registerMainAgent } from "./main-session-discovery";
+import { warnUnlessMissing } from "./fs-warn";
 
 /**
  * Phase-A buffer for one fresh sub-agent JSONL: stat + parsed lines read
@@ -129,10 +130,7 @@ export async function buildSubagentListings(
     try {
       runEntries = await fsp.readdir(workflowsDir, { withFileTypes: true });
     } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT" && code !== "ENOTDIR") {
-        console.warn(`Failed to read workflows dir ${workflowsDir}:`, err);
-      }
+      warnUnlessMissing(err, `Failed to read workflows dir ${workflowsDir}:`);
     }
     for (const runEntry of runEntries) {
       if (!runEntry.isDirectory()) continue;
@@ -140,10 +138,7 @@ export async function buildSubagentListings(
       try {
         listings.push({ dir: runDir, names: await fsp.readdir(runDir) });
       } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== "ENOENT" && code !== "ENOTDIR") {
-          console.warn(`Failed to read workflow run dir ${runDir}:`, err);
-        }
+        warnUnlessMissing(err, `Failed to read workflow run dir ${runDir}:`);
       }
     }
   }

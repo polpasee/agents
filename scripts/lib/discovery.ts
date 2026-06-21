@@ -15,22 +15,17 @@ import {
 } from "./subagent-pipeline";
 import { pruneState } from "./pruning";
 import type { SettingsCache } from "./settings-cache";
+import { warnUnlessMissing } from "./fs-warn";
 
 // ---------------------------------------------------------------------------
 // Re-exports for importers (background-tasks.ts via dynamic import, tests).
 // ---------------------------------------------------------------------------
 
-export {
-  workflowRunIdsForSession,
-  selectLosingMains,
-  selectStaleAgentIds,
-} from "./main-session-discovery";
+export { workflowRunIdsForSession } from "./main-session-discovery";
+export { selectLosingMains, selectStaleAgentIds } from "./pruning";
 export { isEphemeralProjectDir, pendingReparents } from "./subagent-pipeline";
 
-// Re-export pendingReparents from agent-state via subagent-pipeline is already
-// handled above. The original file also re-exported pendingReparents from
-// agent-state directly — subagent-pipeline now re-exports it from agent-state,
-// so the chain is: agent-state → subagent-pipeline → discovery.
+// pendingReparents originates in agent-state and is re-exported by subagent-pipeline above.
 
 export async function discoverActiveSessions(
   projectsDir: string,
@@ -43,10 +38,7 @@ export async function discoverActiveSessions(
     // A missing projects root (ENOENT) is normal before Claude Code has ever
     // run; bail silently. An unexpected code (EACCES, …) means the root exists
     // but we can't reach it — surface it before bailing.
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT" && code !== "ENOTDIR") {
-      console.warn(`Failed to access projects dir ${projectsDir}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to access projects dir ${projectsDir}:`);
     return;
   }
 
@@ -57,10 +49,7 @@ export async function discoverActiveSessions(
     // access() just succeeded, so ENOENT/ENOTDIR here is a teardown race and
     // skips silently; any other code (EACCES, EMFILE, …) blanks the entire
     // topology and deserves a breadcrumb.
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code !== "ENOENT" && code !== "ENOTDIR") {
-      console.warn(`Failed to read projects dir ${projectsDir}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to read projects dir ${projectsDir}:`);
     return;
   }
 
@@ -83,10 +72,7 @@ export async function discoverActiveSessions(
       // mid-scan); skip silently. An unexpected code (EACCES, EMFILE, …) is a
       // real signal — permission/fd trouble that would otherwise hide every
       // session in this project — so leave a breadcrumb before skipping.
-      const code = (err as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT" && code !== "ENOTDIR") {
-        console.warn(`Failed to read project dir ${projectPath}:`, err);
-      }
+      warnUnlessMissing(err, `Failed to read project dir ${projectPath}:`);
       continue;
     }
 
@@ -111,10 +97,10 @@ export async function discoverActiveSessions(
         // a session dir can vanish mid-scan (ENOTDIR); both are normal and
         // skip silently. An unexpected code (EACCES, …) means we can't tell
         // whether sub-agents exist — surface it.
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== "ENOENT" && code !== "ENOTDIR") {
-          console.warn(`Failed to access subagents dir ${subagentsDir}:`, err);
-        }
+        warnUnlessMissing(
+          err,
+          `Failed to access subagents dir ${subagentsDir}:`,
+        );
         continue;
       }
 
@@ -126,10 +112,7 @@ export async function discoverActiveSessions(
         // ENOENT/ENOTDIR are routine and skip silently; an unexpected code
         // (EMFILE/ENFILE fd-exhaustion, EACCES) would silently drop every
         // sub-agent in this session, so leave a breadcrumb.
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== "ENOENT" && code !== "ENOTDIR") {
-          console.warn(`Failed to read subagents dir ${subagentsDir}:`, err);
-        }
+        warnUnlessMissing(err, `Failed to read subagents dir ${subagentsDir}:`);
         continue;
       }
 

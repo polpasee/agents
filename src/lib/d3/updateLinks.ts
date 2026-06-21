@@ -62,48 +62,65 @@ export function updateLinkVisuals<E extends SVGElement>(
   linkLine: Selection<E, SimLink, SVGGElement, unknown>,
   agents: Map<string, AgentState>,
 ) {
-  const strokeFor = (d: SimLink) => {
-    if (d.edgeType === "message") {
-      return UI.tool; // amber for message edges
-    }
-    const a = agents.get(endpointId(d.target));
-    return a ? agentColor(a) : UI.text.secondary;
-  };
-  linkGlow.attr("stroke", strokeFor);
-  linkLine
-    .attr("stroke", strokeFor)
-    .attr("stroke-dasharray", (d) => {
-      if (d.edgeType === "message") return "4 3";
-      const a = agents.get(endpointId(d.target));
-      const active = a?.status === "running" || a?.status === "idle";
-      return active ? "8 4" : "none";
-    })
-    .each(function (d) {
-      const a = agents.get(endpointId(d.target));
-      const line = select(this);
-      // Remove existing animate children before adding new ones
-      line.selectAll("animate").remove();
-      if (d.edgeType !== "message" && a?.status === "running") {
-        line
-          .append("animate")
-          .attr("attributeName", "stroke-dashoffset")
-          .attr("values", "24;0")
-          .attr("dur", "0.8s")
-          .attr("repeatCount", "indefinite");
-      }
-    });
+  // Resolve the target agent once per link and set all visuals in a single
+  // pass — avoids repeated agents.get(endpointId(d.target)) calls across
+  // the separate attr/each chains for stroke, dasharray, animate, and opacity.
+  linkLine.each(function (d) {
+    const a =
+      d.edgeType === "message" ? undefined : agents.get(endpointId(d.target));
+    const stroke =
+      d.edgeType === "message"
+        ? UI.tool // amber for message edges
+        : a
+          ? agentColor(a)
+          : UI.text.secondary;
+    const dasharray =
+      d.edgeType === "message"
+        ? "4 3"
+        : a?.status === "running" || a?.status === "idle"
+          ? "8 4"
+          : "none";
+    const opacity =
+      d.edgeType === "message"
+        ? 0.5
+        : a?.status === "completed" || a?.status === "error"
+          ? 0.2
+          : 0.6;
 
-  linkLine.attr("stroke-opacity", (d) => {
-    if (d.edgeType === "message") return 0.5;
-    const a = agents.get(endpointId(d.target));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.2 : 0.6;
+    const line = select(this);
+    line
+      .attr("stroke", stroke)
+      .attr("stroke-dasharray", dasharray)
+      .attr("stroke-opacity", opacity);
+
+    // Remove existing animate children before adding new ones
+    line.selectAll("animate").remove();
+    if (d.edgeType !== "message" && a?.status === "running") {
+      line
+        .append("animate")
+        .attr("attributeName", "stroke-dashoffset")
+        .attr("values", "24;0")
+        .attr("dur", "0.8s")
+        .attr("repeatCount", "indefinite");
+    }
   });
 
-  linkGlow.attr("stroke-opacity", (d) => {
-    if (d.edgeType === "message") return 0.05;
-    const a = agents.get(endpointId(d.target));
-    const finished = a?.status === "completed" || a?.status === "error";
-    return finished ? 0.03 : 0.1;
+  linkGlow.each(function (d) {
+    const a =
+      d.edgeType === "message" ? undefined : agents.get(endpointId(d.target));
+    const stroke =
+      d.edgeType === "message"
+        ? UI.tool
+        : a
+          ? agentColor(a)
+          : UI.text.secondary;
+    const opacity =
+      d.edgeType === "message"
+        ? 0.05
+        : a?.status === "completed" || a?.status === "error"
+          ? 0.03
+          : 0.1;
+
+    select(this).attr("stroke", stroke).attr("stroke-opacity", opacity);
   });
 }
