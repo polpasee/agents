@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isAllowedRequestOrigin, isAllowedHost } from "../origin-check";
+import {
+  isAllowedRequestOrigin,
+  isAllowedMutatingOrigin,
+} from "../origin-check";
 
 function req(origin?: string): Request {
   const headers: Record<string, string> = {};
@@ -65,36 +68,16 @@ describe("isAllowedRequestOrigin", () => {
   });
 });
 
-function reqWithHost(host?: string, origin?: string): Request {
-  const headers: Record<string, string> = {};
-  if (host !== undefined) headers.host = host;
-  if (origin !== undefined) headers.origin = origin;
-  return new Request("http://localhost/api/x", { headers });
-}
-
-describe("isAllowedHost / Host allowlist", () => {
-  it("allows localhost Host on any port", () => {
-    expect(isAllowedHost(reqWithHost("localhost:4000"))).toBe(true);
+describe("isAllowedMutatingOrigin", () => {
+  it("rejects a missing Origin (CSRF guard on POST/DELETE)", () => {
+    expect(isAllowedMutatingOrigin(req(undefined))).toBe(false);
   });
 
-  it("allows RFC1918 LAN Host on any port", () => {
-    expect(isAllowedHost(reqWithHost("192.168.1.42:4000"))).toBe(true);
+  it("allows a present, allowlisted Origin", () => {
+    expect(isAllowedMutatingOrigin(req("http://localhost:4000"))).toBe(true);
   });
 
-  it("allows IPv6 loopback Host (bracket notation) with port", () => {
-    expect(isAllowedHost(reqWithHost("[::1]:4000"))).toBe(true);
-  });
-
-  it("rejects an external Host", () => {
-    expect(isAllowedHost(reqWithHost("evil.com"))).toBe(false);
-    expect(isAllowedHost(reqWithHost("evil.com:4000"))).toBe(false);
-  });
-
-  it("blocks DNS-rebinding: bad Host + no Origin → request rejected", () => {
-    expect(isAllowedRequestOrigin(reqWithHost("evil.com:4000"))).toBe(false);
-  });
-
-  it("still allows a legit localhost read (Host localhost, no Origin)", () => {
-    expect(isAllowedRequestOrigin(reqWithHost("localhost"))).toBe(true);
+  it("rejects a present but non-allowlisted Origin", () => {
+    expect(isAllowedMutatingOrigin(req("http://evil.com"))).toBe(false);
   });
 });

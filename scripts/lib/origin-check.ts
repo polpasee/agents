@@ -6,14 +6,21 @@
 // still exposes routes to LAN devices. Mirror the same dev allowlist here
 // so route handlers reject unknown origins.
 //
-// Rules:
-//  - Missing Origin header → allow (curl, server-side internal calls).
-//  - Origin host is localhost / 127.0.0.1 → allow on any port.
+// Rules (isAllowedRequestOrigin — read routes: stream/logs/costs/usage):
+//  - Missing Origin header → allow (curl, server-side internal calls, and
+//    same-origin EventSource/GET, which browsers send without an Origin).
+//  - Origin host is localhost / 127.0.0.1 / [::1] → allow on any port.
 //  - Origin host is a private/RFC1918 LAN address → allow on any port.
 //  - Anything else → reject.
 //
-// The Host header is also allowlisted (same loopback/LAN set) as a
-// DNS-rebinding defense; see `isAllowedHost`.
+// State-changing routes (annotation POST/DELETE) use isAllowedMutatingOrigin,
+// which additionally REQUIRES a present Origin (browsers always send one on
+// POST/DELETE) — a cheap CSRF guard that does not affect the dashboard.
+//
+// Out of scope (see SECURITY.md): remote/internet exposure, DNS rebinding, and
+// other cross-origin attacks — this tool is intended for localhost / trusted-LAN
+// use only, so the Host header is intentionally not allowlisted (that would
+// break legitimate Origin-less access via Bonjour `.local` / VPN hostnames).
 
 /** True when `host` matches the dev-mode LAN allowlist (mirror of
  *  `next.config.ts::allowedDevOrigins`). */
@@ -31,40 +38,14 @@ function isPrivateLanHost(host: string): boolean {
   return false;
 }
 
-/** True when a bare hostname (no port) is on the loopback/LAN allowlist. */
+/** True when a hostname is on the loopback/LAN allowlist. */
 function isAllowedHostname(host: string): boolean {
   if (host === "localhost" || host === "127.0.0.1" || host === "[::1]")
     return true;
   return isPrivateLanHost(host);
 }
 
-/** Strip a trailing `:port` from a Host header value, preserving bracketed
- *  IPv6 literals. */
-function stripPort(hostHeader: string): string {
-  // IPv6 literals are bracketed: "[::1]" or "[::1]:4000". Strip only a
-  // trailing :port that follows the closing bracket / the bare host.
-  if (hostHeader.startsWith("[")) {
-    const end = hostHeader.indexOf("]");
-    return end === -1 ? hostHeader : hostHeader.slice(0, end + 1);
-  }
-  const colon = hostHeader.indexOf(":");
-  return colon === -1 ? hostHeader : hostHeader.slice(0, colon);
-}
-
-/** Host-header allowlist (DNS-rebinding defense). A rebinding attack resolves
- *  an attacker domain to 127.0.0.1 so the browser sends Origin:null/absent
- *  (allowed on reads) with Host:attacker.com; gating the Host on the same
- *  loopback/LAN set blocks that. A missing Host is allowed to mirror the
- *  "missing Origin allowed" rule for internal/server-side callers. */
-export function isAllowedHost(request: Request): boolean {
-  const host = request.headers.get("host");
-  if (!host) return true; // internal/server-side callers may omit Host
-  return isAllowedHostname(stripPort(host));
-}
-
 export function isAllowedRequestOrigin(request: Request): boolean {
-  if (!isAllowedHost(request)) return false;
-
   const origin = request.headers.get("origin");
   if (!origin) return true;
 

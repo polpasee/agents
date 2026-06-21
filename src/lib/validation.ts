@@ -18,7 +18,10 @@ function isAnnotationShape(v: unknown): v is Annotation {
     typeof ann.targetId === "string" &&
     (ann.targetType === "agent" || ann.targetType === "edge") &&
     typeof ann.text === "string" &&
-    typeof ann.timestamp === "number"
+    typeof ann.timestamp === "number" &&
+    (ann.author === undefined || typeof ann.author === "string") &&
+    (ann.x === undefined || typeof ann.x === "number") &&
+    (ann.y === undefined || typeof ann.y === "number")
   );
 }
 
@@ -34,7 +37,13 @@ function isWorkflowAgentRefShape(v: unknown): v is WorkflowAgentRef {
   return (
     typeof r.agentId === "string" &&
     typeof r.label === "string" &&
-    typeof r.state === "string"
+    // state must be a member of the closed WorkflowAgentState union, not just
+    // any string — otherwise the predicate lies about the narrowed type.
+    (r.state === "pending" ||
+      r.state === "running" ||
+      r.state === "done" ||
+      r.state === "failed" ||
+      r.state === "unknown")
   );
 }
 
