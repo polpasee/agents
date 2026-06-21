@@ -255,6 +255,49 @@ and route handlers restrict origins via `scripts/lib/origin-check.ts`
 
 > **Note**: Recorded sessions are held in browser memory, capped at **50,000 events** (`RECORDING_MAX_EVENTS` in `src/lib/config.ts`). Once the cap is reached, the oldest events are dropped. At ~20 events/sec sustained, that's ~40 minutes of recording. Stop and download recordings periodically during long sessions.
 
+## Webhooks
+
+Outbound webhooks push agent events to external endpoints (Slack, Discord, or any HTTP receiver). The feature is **opt-in**: configs are read once at startup from `~/.claude/monitor-webhooks.json`. A missing file is fine (webhooks stay off); invalid JSON logs a warning and disables them.
+
+The file holds either a single config object **or** an array of them. Each config:
+
+| Field | Type | Allowed values |
+|-------|------|----------------|
+| `url` | string | The POST target URL |
+| `events` | string[] | Any of `error`, `budget_exceeded`, `agent_complete` |
+| `format` | string | `slack`, `discord`, or `generic` |
+
+A webhook fires only for events whose type is listed in its `events` array:
+
+| Event | Meaning |
+|-------|---------|
+| `error` | An agent reported an error |
+| `budget_exceeded` | An agent crossed its token/cost budget |
+| `agent_complete` | An agent finished its run |
+
+`slack` sends Slack blocks JSON, `discord` sends an embed, and `generic` posts the raw payload (`{ eventType, agentId, agentType, message, timestamp, time }`). Each event is delivered as a `POST` with a 5s timeout.
+
+```json
+[
+  {
+    "url": "https://hooks.slack.com/services/T000/B000/XXXX",
+    "events": ["error", "budget_exceeded", "agent_complete"],
+    "format": "slack"
+  },
+  {
+    "url": "https://discord.com/api/webhooks/000/XXXX",
+    "events": ["error"],
+    "format": "discord"
+  }
+]
+```
+
+A single object is also accepted:
+
+```json
+{ "url": "https://example.com/hook", "events": ["agent_complete"], "format": "generic" }
+```
+
 ## Keyboard Shortcuts
 
 | Key | Action |

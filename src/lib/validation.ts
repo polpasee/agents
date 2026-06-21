@@ -5,9 +5,12 @@ import type {
   AgentStatus,
   AgentType,
   WorkflowRunState,
+  Annotation,
+  WorkflowPhase,
+  WorkflowAgentRef,
 } from "./types";
 
-function isAnnotationShape(v: unknown): boolean {
+function isAnnotationShape(v: unknown): v is Annotation {
   if (!v || typeof v !== "object") return false;
   const ann = v as Record<string, unknown>;
   return (
@@ -19,13 +22,13 @@ function isAnnotationShape(v: unknown): boolean {
   );
 }
 
-function isWorkflowPhaseShape(v: unknown): boolean {
+function isWorkflowPhaseShape(v: unknown): v is WorkflowPhase {
   if (!v || typeof v !== "object") return false;
   const p = v as Record<string, unknown>;
   return typeof p.index === "number" && typeof p.title === "string";
 }
 
-function isWorkflowAgentRefShape(v: unknown): boolean {
+function isWorkflowAgentRefShape(v: unknown): v is WorkflowAgentRef {
   if (!v || typeof v !== "object") return false;
   const r = v as Record<string, unknown>;
   return (

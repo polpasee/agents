@@ -20,7 +20,9 @@ export function readNewLines(filePath: string): string[] {
   try {
     stat = fs.statSync(normalized);
   } catch (err) {
-    console.warn(`Failed to stat ${normalized}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to stat ${normalized}:`, err);
+    }
     return [];
   }
   if (stat.size <= offset) return [];
@@ -32,7 +34,9 @@ export function readNewLines(filePath: string): string[] {
   } catch (err) {
     // File vanished between stat and open — degrade to "no new lines"
     // instead of throwing out of the caller's discovery loop.
-    console.warn(`Failed to open ${normalized}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to open ${normalized}:`, err);
+    }
     return [];
   }
   let buf: Buffer;
@@ -126,7 +130,9 @@ export function extractTaskFromJSONL(
       }
     }
   } catch (err) {
-    console.warn(`Failed to extract task from ${filePath}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to extract task from ${filePath}:`, err);
+    }
   }
   return result;
 }

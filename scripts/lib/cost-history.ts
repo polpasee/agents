@@ -110,7 +110,11 @@ async function collectJsonlFiles(dir: string): Promise<string[]> {
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      console.warn(`Failed to read dir ${dir}:`, err);
+    }
     return [];
   }
   const out: string[] = [];
