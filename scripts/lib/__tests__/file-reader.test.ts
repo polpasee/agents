@@ -199,3 +199,96 @@ describe("extractTaskFromJSONL", () => {
     expect(result.task).toBe("Build a dashboard");
   });
 });
+
+// ── EACCES / non-ENOENT error branches ───────────────────────────────────────
+
+describe("readNewLines — EACCES error handling (branch 1 / branch 3)", () => {
+  it("warns via console.warn when statSync throws EACCES (not silent)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockImplementation(() => {
+      throw Object.assign(new Error("EACCES: permission denied"), {
+        code: "EACCES",
+      });
+    });
+
+    const result = readNewLines("/eacces-stat.jsonl");
+    expect(result).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0]![0]).toContain("Failed to stat");
+    warnSpy.mockRestore();
+  });
+
+  it("does NOT warn when statSync throws ENOENT (silent path)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT: no such file"), {
+        code: "ENOENT",
+      });
+    });
+
+    const result = readNewLines("/enoent-stat.jsonl");
+    expect(result).toEqual([]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("warns via console.warn when openSync throws EACCES (branch 3)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockReturnValue({ size: 100 });
+    mockOpenSync.mockImplementation(() => {
+      throw Object.assign(new Error("EACCES: permission denied"), {
+        code: "EACCES",
+      });
+    });
+
+    const result = readNewLines("/eacces-open.jsonl");
+    expect(result).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0]![0]).toContain("Failed to open");
+    warnSpy.mockRestore();
+  });
+
+  it("does NOT warn when openSync throws ENOENT (silent path)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockReturnValue({ size: 100 });
+    mockOpenSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT: no such file"), {
+        code: "ENOENT",
+      });
+    });
+
+    const result = readNewLines("/enoent-open.jsonl");
+    expect(result).toEqual([]);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("extractTaskFromJSONL — EACCES error handling (branch 17)", () => {
+  it("warns via console.warn when statSync throws EACCES", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockImplementation(() => {
+      throw Object.assign(new Error("EACCES: permission denied"), {
+        code: "EACCES",
+      });
+    });
+
+    const result = extractTaskFromJSONL("/eacces-extract.jsonl");
+    expect(result.task).toBe("");
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0]![0]).toContain("Failed to extract task");
+    warnSpy.mockRestore();
+  });
+
+  it("does NOT warn when statSync throws ENOENT (silent path)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockStatSync.mockImplementation(() => {
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+
+    const result = extractTaskFromJSONL("/enoent-extract.jsonl");
+    expect(result.task).toBe("");
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});

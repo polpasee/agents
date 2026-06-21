@@ -422,7 +422,17 @@ describe("useTopologyEffect — tick interior", () => {
       n.x = 200;
       n.y = 200;
     }
-    expect(() => capturedTickFn!()).not.toThrow();
+
+    capturedTickFn!();
+
+    // clusterHullPath is called to draw the workflow cluster hull
+    expect(vi.mocked(clusterHullPath)).toHaveBeenCalled();
+
+    // A text.phase-label element for "Phase-A" was appended inside the workflow g
+    const svg = refs.svgRef.current!;
+    const phaseLabel = svg.querySelector("text.phase-label");
+    expect(phaseLabel).not.toBeNull();
+    expect(phaseLabel?.textContent).toBe("Phase-A");
   });
 
   it("tick: skips workflow cluster when only 1 agent is in the run", () => {
@@ -529,7 +539,17 @@ describe("useTopologyEffect — tick interior", () => {
       n.x = 80;
       n.y = 80;
     }
-    expect(() => capturedTickFn!()).not.toThrow();
+
+    capturedTickFn!();
+
+    // When selectedWorkflowId matches the run, stroke-width must be 2 (highlighted)
+    const svg = refs.svgRef.current!;
+    const wfShape = svg.querySelector("path.wf-cluster-shape");
+    expect(wfShape).not.toBeNull();
+    expect(wfShape?.getAttribute("stroke-width")).toBe("2");
+
+    // clusterLabelAnchor is called so the label is positioned
+    expect(vi.mocked(clusterLabelAnchor)).toHaveBeenCalled();
   });
 
   it("tick: team cluster still renders even when teamId not in teams (hull + no label)", () => {
