@@ -7,7 +7,8 @@ import type {
   ToolCallEntry,
   AgentTypeBudgets,
 } from "../types";
-import { TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "../config";
+import { TOOL_CALLS_MAX_PER_AGENT } from "../config";
+import { makeAgentState } from "../agentState";
 import { findCascadeRelations, recomputeTeamForAgent } from "./helpers";
 
 /**
@@ -69,8 +70,9 @@ export function createMutationContext(snapshot: {
 
 // ── Re-register (metadata refresh) field-merge strategies ────────────
 //
-// Adding a new AgentState field? Add it to the merge block in applyRegister
-// so the policy is explicit (per-strategy semantics documented inline there).
+// Adding a new AgentState field? Add it to makeAgentState (src/lib/agentState.ts)
+// for the create branch, and to the merge block in applyRegister below for the
+// refresh branch (policy semantics documented inline there).
 
 // ── Per-event handlers ────────────────────────────────────────────────
 
@@ -87,42 +89,38 @@ export function applyRegister(
     ? {
         ...existing,
         // incoming: truthy event value wins.
-        model:       event.model || existing.model || "",      // label must reflect live model switches
-        agentType:   event.agentType || existing.agentType,    // coarse type can be corrected on refresh
-        parentId:    event.parentId || existing.parentId,      // re-parent broadcast for nested sub-agents
+        model: event.model || existing.model || "", // label must reflect live model switches
+        agentType: event.agentType || existing.agentType, // coarse type can be corrected on refresh
+        parentId: event.parentId || existing.parentId, // re-parent broadcast for nested sub-agents
         // keepFirst: once set, never replaced.
-        task:        existing.task && existing.task !== "Session" ? existing.task : event.task, // first real task wins; "Session" is the registration placeholder, replaceable by a late-meta heal
-        slug:        existing.slug || event.slug,              // stable identifier once assigned
+        task:
+          existing.task && existing.task !== "Session"
+            ? existing.task
+            : event.task, // first real task wins; "Session" is the registration placeholder, replaceable by a late-meta heal
+        slug: existing.slug || event.slug, // stable identifier once assigned
         displayType: existing.displayType || event.displayType, // display label set on first register
-        metadata:    existing.metadata || event.metadata,      // arbitrary bag; keep original contents
+        metadata: existing.metadata || event.metadata, // arbitrary bag; keep original contents
         // incomingNullish: even false/0 from the event replaces the value.
-        effort:      event.effort ?? existing.effort,           // settings.json may omit effort on refresh
+        effort: event.effort ?? existing.effort, // settings.json may omit effort on refresh
         is1MContext: event.is1MContext ?? existing.is1MContext, // same: false is meaningful, not "absent"
         workflowName: existing.workflowName || event.workflowName, // keepFirst; heals from undefined if a later register carries it
       }
-    : {
+    : makeAgentState({
         id: event.agentId,
         parentId: event.parentId,
         agentType: event.agentType,
         displayType: event.displayType,
-        status: "running",
         task: event.task,
         sessionId: event.sessionId,
         slug: event.slug,
         model: event.model,
         teamId: event.teamId,
-        toolCalls: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheReadTokens: 0,
-        cacheCreateTokens: 0,
-        contextWindow: DEFAULT_CONTEXT_WINDOW,
         startTime: timestamp,
         metadata: event.metadata,
         effort: event.effort,
         is1MContext: event.is1MContext,
         workflowName: event.workflowName,
-      };
+      });
   ctx.cloneAgents().set(event.agentId, agent);
 
   // New agent = topology change. A metadata-refresh re-register on an
@@ -130,7 +128,10 @@ export function applyRegister(
   // parentId or teamId moved (extremely rare in practice).
   if (!existing) {
     ctx.topologyDirty = true;
-  } else if (existing.parentId !== agent.parentId || existing.teamId !== agent.teamId) {
+  } else if (
+    existing.parentId !== agent.parentId ||
+    existing.teamId !== agent.teamId
+  ) {
     ctx.topologyDirty = true;
   }
 
@@ -138,7 +139,9 @@ export function applyRegister(
   // edgeType targeting it) to hang off the new parent.
   if (existing && agent.parentId && existing.parentId !== agent.parentId) {
     ctx.newEdges = [
-      ...ctx.newEdges.filter(e => !(e.target === event.agentId && !e.edgeType)),
+      ...ctx.newEdges.filter(
+        (e) => !(e.target === event.agentId && !e.edgeType),
+      ),
       { source: agent.parentId, target: event.agentId },
     ];
   }
@@ -147,7 +150,10 @@ export function applyRegister(
   // edges when register is replayed as a metadata refresh.
   if (!existing) {
     if (event.parentId) {
-      ctx.newEdges = [...ctx.newEdges, { source: event.parentId, target: event.agentId }];
+      ctx.newEdges = [
+        ...ctx.newEdges,
+        { source: event.parentId, target: event.agentId },
+      ];
     }
     if (event.teamId) {
       const newTeams = new Map(ctx.teams);
@@ -184,15 +190,28 @@ export function applyStatus(
     // F1: dependency tracking
     if (event.waitingOn) {
       updates.waitingOn = event.waitingOn;
-      const blockingEdge: EdgeState = { source: event.waitingOn, target: event.agentId, edgeType: "blocking" };
-      if (!ctx.newEdges.some(e => e.source === event.waitingOn && e.target === event.agentId && e.edgeType === "blocking")) {
+      const blockingEdge: EdgeState = {
+        source: event.waitingOn,
+        target: event.agentId,
+        edgeType: "blocking",
+      };
+      if (
+        !ctx.newEdges.some(
+          (e) =>
+            e.source === event.waitingOn &&
+            e.target === event.agentId &&
+            e.edgeType === "blocking",
+        )
+      ) {
         ctx.newEdges = [...ctx.newEdges, blockingEdge];
         ctx.topologyDirty = true;
       }
     } else if (agent.waitingOn && event.status !== "waiting") {
       // Clear blocking edge when no longer waiting
       updates.waitingOn = undefined;
-      ctx.newEdges = ctx.newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
+      ctx.newEdges = ctx.newEdges.filter(
+        (e) => !(e.target === event.agentId && e.edgeType === "blocking"),
+      );
       ctx.topologyDirty = true;
     }
     // F2: error detail extraction
@@ -205,10 +224,18 @@ export function applyStatus(
     //   (b) walk every already-errored ancestor A and append X to A's
     //       cascadeIds iff X is a descendant of A. (See findCascadeRelations.)
     if (event.status === "error") {
-      const lastTool = agent.toolCalls.length > 0 ? agent.toolCalls[agent.toolCalls.length - 1] : undefined;
+      const lastTool =
+        agent.toolCalls.length > 0
+          ? agent.toolCalls[agent.toolCalls.length - 1]
+          : undefined;
 
-      const cascadeUpdate = findCascadeRelations(event.agentId, ctx.agents, ctx.errorDetails);
-      ctx.newErrorDetails = cascadeUpdate ?? ctx.newErrorDetails ?? new Map(ctx.errorDetails);
+      const cascadeUpdate = findCascadeRelations(
+        event.agentId,
+        ctx.agents,
+        ctx.errorDetails,
+      );
+      ctx.newErrorDetails =
+        cascadeUpdate ?? ctx.newErrorDetails ?? new Map(ctx.errorDetails);
       ctx.newErrorDetails.set(event.agentId, {
         agentId: event.agentId,
         message: event.message || "Agent encountered an error",
@@ -219,7 +246,11 @@ export function applyStatus(
     }
     ctx.cloneAgents().set(event.agentId, { ...agent, ...updates });
   }
-  const teamsUpdate = recomputeTeamForAgent(event.agentId, ctx.effectiveAgents(), ctx.teams);
+  const teamsUpdate = recomputeTeamForAgent(
+    event.agentId,
+    ctx.effectiveAgents(),
+    ctx.teams,
+  );
   if (teamsUpdate) ctx.newTeams = teamsUpdate;
 }
 
@@ -236,7 +267,9 @@ export function applyToolCall(
     result: event.result,
     timestamp,
   };
-  const toolCalls = [...agent.toolCalls, entry].slice(-TOOL_CALLS_MAX_PER_AGENT);
+  const toolCalls = [...agent.toolCalls, entry].slice(
+    -TOOL_CALLS_MAX_PER_AGENT,
+  );
   ctx.cloneAgents().set(event.agentId, { ...agent, toolCalls });
 }
 
@@ -279,10 +312,16 @@ export function applyComplete(
     });
     // Clear any blocking edges
     const beforeLen = ctx.newEdges.length;
-    ctx.newEdges = ctx.newEdges.filter(e => !(e.target === event.agentId && e.edgeType === "blocking"));
+    ctx.newEdges = ctx.newEdges.filter(
+      (e) => !(e.target === event.agentId && e.edgeType === "blocking"),
+    );
     if (ctx.newEdges.length !== beforeLen) ctx.topologyDirty = true;
   }
-  const teamsUpdate = recomputeTeamForAgent(event.agentId, ctx.effectiveAgents(), ctx.teams);
+  const teamsUpdate = recomputeTeamForAgent(
+    event.agentId,
+    ctx.effectiveAgents(),
+    ctx.teams,
+  );
   if (teamsUpdate) ctx.newTeams = teamsUpdate;
 }
 
@@ -291,8 +330,19 @@ export function applyMessage(
   event: Extract<AgentEvent, { type: "agent:message" }>,
 ): void {
   // Only mutates `edges`, never `agents` — Map identity stays stable.
-  const messageEdge = { source: event.fromId, target: event.toId, edgeType: "message" as const };
-  if (!ctx.newEdges.some(e => e.source === event.fromId && e.target === event.toId && e.edgeType === "message")) {
+  const messageEdge = {
+    source: event.fromId,
+    target: event.toId,
+    edgeType: "message" as const,
+  };
+  if (
+    !ctx.newEdges.some(
+      (e) =>
+        e.source === event.fromId &&
+        e.target === event.toId &&
+        e.edgeType === "message",
+    )
+  ) {
     ctx.newEdges = [...ctx.newEdges, messageEdge];
     ctx.topologyDirty = true;
   }

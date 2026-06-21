@@ -2,7 +2,7 @@
 
 **Real-time monitoring dashboard for Claude Code sub-agents and Agent SDK applications.**
 
-Built with Next.js 16, React 19, TypeScript, D3.js, Zustand, and WebSocket. Features a cyber/neon aesthetic with force-directed graph visualization.
+Built with Next.js 16, React 19, TypeScript, D3.js, Zustand, and Server-Sent Events (SSE). Features a cyber/neon aesthetic with force-directed graph visualization.
 
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js) ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react) ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?style=flat-square&logo=typescript) ![D3.js](https://img.shields.io/badge/D3.js-7-F9A03C?style=flat-square&logo=d3.js) ![Zustand](https://img.shields.io/badge/Zustand-5-433E38?style=flat-square) ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss) ![Vitest](https://img.shields.io/badge/Vitest-4-6E9F18?style=flat-square&logo=vitest)
 
@@ -14,46 +14,48 @@ Built with Next.js 16, React 19, TypeScript, D3.js, Zustand, and WebSocket. Feat
 # 1. Install dependencies
 npm install
 
-# 2. Start the WebSocket server
-npm run ws-server
-
-# 3. Start the dev server
+# 2. Start the dev server (serves the dashboard on port 4000)
 npm run dev
 
-# 4. Open the dashboard
+# 3. Open the dashboard
 open http://localhost:4000
 
-# 5. (Optional) Run mock agents for development
+# 4. (Optional) Seed mock agents for development
 npm run mock-agents
 ```
 
+The Next.js server is the only process: it serves the UI, runs the background
+JSONL poller (via the instrumentation hook), and exposes the SSE stream. There
+is no separate server to start.
+
 ## Security & Trust Model
 
-> **Warning:** This dashboard is localhost-only and transmits raw Claude Code transcripts including conversation history, tool inputs/outputs, and file contents **without redaction**. Do not expose ports 4000/4001 to untrusted networks. Transcripts may contain credentials, API keys, or sensitive file contents. See [SECURITY.md](SECURITY.md) for details.
+> **Warning:** This dashboard is localhost-only and transmits raw Claude Code transcripts including conversation history, tool inputs/outputs, and file contents **without redaction**. Do not expose port 4000 to untrusted networks. Transcripts may contain credentials, API keys, or sensitive file contents. See [SECURITY.md](SECURITY.md) for details.
 
 ## Architecture
 
 ```
-  Claude Code                ~/.claude/projects/**/*.jsonl
-      |  writes                           |
-      v                                   v
-  [ JSONL files ] <------ tails --  [ WS Server :4001 ]  -----> [ WebSocket ]
-                                          |                             |
-                                          v                             v
-                                  [ discovery.ts ]          [ React Dashboard ]
-                                  [ file-reader.ts ]        [ D3 topology +   ]
-                                  [ agent-state.ts ]        [ side panels     ]
-                                  [ broadcast()   ]
+  Claude Code            ~/.claude/projects/**/*.jsonl  +  ~/.claude/teams/**
+      |  writes                          |
+      v                                  v
+  [ JSONL files ] <-- polls --  [ Next.js server :4000 ]  --SSE-->  [ EventSource ]
+                                         |                                |
+                                         v                                v
+                          [ instrumentation.ts        ]      [ React Dashboard ]
+                          [ background-tasks.ts (poll)]      [ D3 topology +   ]
+                          [ discovery.ts / teams-disc.]      [ side panels     ]
+                          [ file-reader / agent-state ]
+                          [ sse-broadcast::broadcast()]
 ```
 
-**How It Works**: Claude Code writes structured transcripts to `~/.claude/projects/<project>/<session>.jsonl` for the main agent and parallel subagent files in the same directory. The WS server (`scripts/ws-server.ts`) discovers and tails these files via `scripts/lib/discovery.ts` and `scripts/lib/file-reader.ts`, polling every 1.5 seconds for new content. New JSONL entries are parsed into typed `AgentEvent`s by `scripts/lib/agent-state.ts::processEntry`, which also tracks derived state (edge type, stale detection, team membership). Processed events are broadcast over the WebSocket to all connected dashboard clients. The dashboard deserializes events through `useWebSocket.ts` into the Zustand store, driving a real-time D3 force-directed topology and supporting side panels.
+**How It Works**: Claude Code writes structured transcripts to `~/.claude/projects/<project>/<session>.jsonl` for the main agent and parallel subagent files in the same directory; team metadata lives under `~/.claude/teams/`. When the Next.js server boots, `src/instrumentation.ts` starts a background poller (`scripts/lib/background-tasks.ts`) that discovers and reads these files via `scripts/lib/discovery.ts`, `scripts/lib/teams-discovery.ts`, and `scripts/lib/file-reader.ts`, polling every 1.5 seconds for new content. New JSONL entries are parsed into typed `AgentEvent`s by `scripts/lib/agent-state.ts`, which also tracks derived state (edge type, stale detection, team membership). Processed events are broadcast to all connected dashboard clients over SSE via `scripts/lib/sse-broadcast.ts::broadcast`, fanning out through the `GET /api/stream` route (`src/app/api/stream/route.ts`). The dashboard subscribes through `src/hooks/useEventStream.ts` (a native `EventSource`) and feeds events into the Zustand store, driving a real-time D3 force-directed topology and supporting side panels.
 
 ## Integration Modes
 
-| Mode | How agents connect | When to use |
-|------|--------------------|-------------|
-| File-watch (default) | WS server tails `~/.claude/projects/**/*.jsonl` automatically | Standard Claude Code usage — no agent-side changes required |
-| Direct push (SDK) | Agent sends events to `ws://localhost:4001` directly. See `scripts/mock-agents.ts` for the message shape | Custom agents built with the Anthropic SDK that don't write to `~/.claude/projects/` |
+| Mode | How agents are picked up | When to use |
+|------|--------------------------|-------------|
+| File-watch (default) | The background poller scans `~/.claude/projects/**/*.jsonl` (and `~/.claude/teams/**`) automatically | Standard Claude Code usage — no agent-side changes required |
+| Mock seeding (dev) | `scripts/mock-agents.ts` writes synthetic JSONL files into `~/.claude/projects/-mock-agents-demo/` so the same poller discovers them | Local development and demos without a live Claude Code session |
 
 ## Features
 
@@ -63,7 +65,7 @@ npm run mock-agents
 - **Agent List Sidebar** — Left panel with a scrollable, filterable agent list and color-coded status dots. Click to select.
 - **Agent Detail Panel** — Right panel displaying status, model, slug, team, task, token usage (with cache read/write), duration, estimated cost, recent tool calls, and summary.
 - **Activity Stream** — Bottom panel with a timestamped event log and auto-scrolling.
-- **Top Bar** — Global stats (total/active/completed/error agents, total cost), WebSocket connection status indicator, and session recording controls.
+- **Top Bar** — Global stats (total/active/completed/error agents, total cost), SSE connection status indicator, and session recording controls.
 - **Timeline View** — Alternative view mode; toggle between graph and timeline.
 - **Mini Map** — Overview navigation widget for the graph canvas.
 - **Graph Controls** — Fit-to-view button, agent type filters to toggle visibility per type.
@@ -75,7 +77,7 @@ npm run mock-agents
 ### Advanced (Foundation)
 
 - **Session Replay** — Load recorded JSON session files and replay with transport controls (play/pause/seek), speed control (0.5x / 1x / 2x / 4x), and a progress slider. Use the LOAD button in the top bar.
-- **Agent Log Viewer** — Modal viewer for full conversation logs (user/assistant/system messages) with collapsible tool calls showing args and results, plus search functionality. Triggered via the LOG button in the agent detail panel. Uses client-to-server WebSocket messaging.
+- **Agent Log Viewer** — Modal viewer for full conversation logs (user/assistant/system messages) with collapsible tool calls showing args and results, plus search functionality. Triggered via the LOG button in the agent detail panel. Fetches log entries over HTTP via `GET /api/logs/[agentId]`.
 - **Cost Projections & Alerts** — Real-time burn rate ($/min), projected total cost, and a configurable budget threshold persisted in localStorage. Visual warnings pulse amber at 80% and red at 95% of budget.
 - **Performance Heatmap** — Graph overlay mode coloring nodes by performance metric (green = healthy, red = bottleneck). Metrics include idle ratio, token efficiency, time to first tool, and average tool latency. Toggle via the HEAT button.
 
@@ -89,7 +91,7 @@ npm run mock-agents
 ### Collaboration (F5–F7)
 
 - **F5: Multi-Session Support** — Session selector in top bar for filtering agents by session. Supports all-session or per-session views.
-- **F6: Annotation Overlay** — Per-agent text annotations synced via WebSocket. Add/remove annotations in the agent detail panel with real-time broadcast to all connected viewers.
+- **F6: Annotation Overlay** — Per-agent text annotations. Add/remove via HTTP (`POST /api/annotations`, `DELETE /api/annotations/[id]`); changes are broadcast over SSE in real time to all connected viewers.
 - **F7: Team Workflow Visualization** — Animated inter-agent message edges with directional particles showing team communication flow in the graph.
 
 ### Developer Experience (F8–F10)
@@ -116,48 +118,61 @@ npm run mock-agents
 | `npm run dev` | Next.js dev server on port 4000 |
 | `npm run build` | Production build |
 | `npm run start` | Production server |
-| `npm run ws-server` | Start WebSocket server (port 4001) |
-| `npm run mock-agents` | Run mock agent simulator |
+| `npm run mock-agents` | Seed mock agent JSONL files for development |
 | `npm run test` | Run tests with Vitest |
 | `npm run test:watch` | Watch mode for tests |
 | `npm run type-check` | TypeScript type check |
+| `npm run coverage` | Run tests with coverage report |
 
-## WebSocket Protocol
+## Event Protocol
 
-### Agent to Server Events
+Live state flows **server → client over SSE** (`GET /api/stream`). Client → server
+actions (annotations, log fetches) are plain **HTTP REST** routes. The wire
+contract lives in `src/lib/types.ts` (`ServerEvent`, `AgentEvent`).
 
-| Event | Description |
-|-------|-------------|
-| `agent:register` | Agent connects with id, parentId, agentType, task, sessionId, slug, model, teamId, metadata |
+### Server → Client (SSE events)
+
+Each SSE frame is a JSON-encoded `ServerEvent`:
+
+| Event | Description | Key fields |
+|-------|-------------|------------|
+| `state:sync` | Full state snapshot on connect (and after EventSource reconnect) | `agents`, `edges`, `teams`, `workflows?`, `protocolVersion?` |
+| `state:update` | Incremental agent event forwarded to all viewers | `event` (AgentEvent), `timestamp` |
+| `state:remove` | Agent removed from active state | `agentId` |
+| `annotation:sync` | Full annotation list sent after `state:sync` on connect | `annotations` |
+| `annotation:update` | Single annotation added or removed | `annotation`, `action` (`"add"` or `"remove"`) |
+| `workflow:update` | A workflow run was added or updated | `workflow` (WorkflowRunState) |
+| `workflow:remove` | A workflow run was removed | `runId` |
+
+The `event` payload inside `state:update` is an `AgentEvent`, one of:
+
+| Variant | Description |
+|---------|-------------|
+| `agent:register` | Agent appears with agentId, parentId, agentType, task, sessionId, slug, model, teamId, metadata |
 | `agent:status` | Status change (running / waiting / idle / completed / error) |
 | `agent:tool_call` | Tool call with tool name, args, result |
 | `agent:tokens` | Token usage update (input, output, cacheRead, cacheCreate, contextWindow) |
 | `agent:message` | Inter-agent message (fromId, toId, content) |
 | `agent:complete` | Agent finished (summary, duration) |
 
-### Server to Dashboard Events
+> **Heartbeat**: keepalive is handled at the SSE transport layer with `: keepalive\n\n` comments every 15s. There are no protocol-level ping/pong messages.
 
-| Event | Description | Key fields |
-|-------|-------------|------------|
-| `state:sync` | Full state on connect; sent first after every reconnect | `agents`, `edges`, `teams`, `protocolVersion` |
-| `state:update` | Incremental agent event forwarded to all viewers | `event` (AgentEvent), `timestamp` |
-| `state:remove` | Agent removed from active state | `agentId` |
-| `log:response` | Conversation log entries for an agent | `agentId`, `entries` |
-| `log:error` | Log fetch error | `agentId`, `error` |
-| `annotation:sync` | Full annotation list sent after `state:sync` on connect | `annotations` |
-| `annotation:update` | Single annotation added or removed | `annotation`, `action` (`"add"` or `"remove"`) |
-| `pong` | Heartbeat reply to a client `ping` | _(no fields)_ |
+> **Protocol version**: `state:sync` carries `protocolVersion: 1` (defined as `PROTOCOL_VERSION` in `src/lib/types.ts`). Clients warn once — but do not disconnect — if this field is absent or does not match the expected value. Incrementing `PROTOCOL_VERSION` signals a backwards-incompatible change; adding new optional fields or new event variants does not require a bump.
 
-> **Protocol version**: `state:sync` carries `protocolVersion: 1` (defined as `PROTOCOL_VERSION` in `src/lib/types.ts`). Clients should warn — but not disconnect — if this field is absent or does not match the expected value. Incrementing `PROTOCOL_VERSION` signals a backwards-incompatible change; adding new optional fields or new event variants does not require a bump.
+### Client → Server (HTTP REST)
 
-### Dashboard to Server Events
+| Action | Request | Notes |
+|--------|---------|-------|
+| Add annotation | `POST /api/annotations` with an `Annotation` body | Broadcasts `annotation:update` (`add`) over SSE |
+| Remove annotation | `DELETE /api/annotations/[id]` | Broadcasts `annotation:update` (`remove`) over SSE |
+| Fetch agent log | `GET /api/logs/[agentId]` | Returns `{ entries }` (parsed conversation log) |
 
-| Event | Description | Key fields |
-|-------|-------------|------------|
-| `log:request` | Request conversation log for an agent | `agentId` |
-| `annotation:add` | Broadcast a new annotation to all viewers | `annotation` (Annotation) |
-| `annotation:remove` | Remove an annotation by id | `annotationId` |
-| `ping` | Heartbeat; server replies with `pong` | _(no fields)_ |
+All route handlers enforce an origin allowlist via `scripts/lib/origin-check.ts` (localhost and
+private/RFC1918 LAN hosts only). Read routes use `isAllowedRequestOrigin`, which **allows a missing
+`Origin`** so CLI/server-side clients (e.g. `curl`) can reach them. The mutating annotation routes
+(`POST /api/annotations`, `DELETE /api/annotations/[id]`) use `isAllowedMutatingOrigin`, which
+**requires a present, allowlisted `Origin`** — CSRF hardening, since browsers always send `Origin`
+on state-changing requests.
 
 ## Agent Types & Colors
 
@@ -194,28 +209,42 @@ Per-million-token pricing by model:
 
 ## Configuration
 
-Key constants defined in `src/lib/config.ts`:
+Configuration is compiled in, not environment-driven. Client constants live in
+`src/lib/config.ts`; server constants live in `scripts/lib/config.ts`.
+
+Client (`src/lib/config.ts`):
 
 | Setting | Value | Notes |
 |---------|-------|-------|
-| WebSocket URL | `ws://localhost:4001` | Override with `NEXT_PUBLIC_WS_URL` env var |
-| Reconnect (initial) | 2s | Exponential backoff |
-| Reconnect (max) | 30s | |
+| SSE batch flush interval | 16ms | Coalesce `state:update` render churn (~1 frame) |
+| SSE batch max size | 50 events | Force-flush the buffer at this many events |
 | Activity log max | 100 entries | |
 | Tool calls displayed | 20 per agent | |
 | Default context window | 1M tokens | |
 | Cost projection window | 60s | Sliding window |
 | Budget warning | 80% | Amber pulse |
 | Budget critical | 95% | Red pulse |
+| Recording cap | 50,000 events | In-memory replay buffer |
+
+Server (`scripts/lib/config.ts`):
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| Projects dir | `~/.claude/projects` | JSONL discovery root |
+| Teams dir | `~/.claude/teams` | Team metadata root |
+| Poll interval | 1500ms | Background poller tick |
+| Full rescan cadence | every 4th poll | Discover new sessions roughly every 6s |
+
+SSE reconnection is handled natively by the browser `EventSource`; there is no
+custom reconnect/backoff setting.
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WS_PORT` | `4001` | WebSocket server port. Changing this requires updating `WS_ALLOWED_ORIGINS` in `scripts/lib/config.ts`. |
-| `NEXT_PUBLIC_WS_URL` | `ws://localhost:4001` | Client WebSocket connection URL. Must match `WS_PORT`. |
-
-See `.env.example` for a template. Origin allowlist is hardcoded in `scripts/lib/config.ts`.
+**None are required.** The app reads no user-facing environment variables — the
+projects/teams paths and all tunables are compiled in (see Configuration above).
+The dev server binds `0.0.0.0:4000` (see the `dev` script in `package.json`),
+and route handlers restrict origins via `scripts/lib/origin-check.ts`
+(localhost and private/RFC1918 LAN hosts only). See `.env.example` for details.
 
 ## Session Recording & Replay
 
@@ -225,6 +254,49 @@ See `.env.example` for a template. Origin allowlist is hardcoded in `scripts/lib
 4. Use transport controls: play/pause, speed (0.5x-4x), and the seek slider.
 
 > **Note**: Recorded sessions are held in browser memory, capped at **50,000 events** (`RECORDING_MAX_EVENTS` in `src/lib/config.ts`). Once the cap is reached, the oldest events are dropped. At ~20 events/sec sustained, that's ~40 minutes of recording. Stop and download recordings periodically during long sessions.
+
+## Webhooks
+
+Outbound webhooks push agent events to external endpoints (Slack, Discord, or any HTTP receiver). The feature is **opt-in**: configs are read once at startup from `~/.claude/monitor-webhooks.json`. A missing file is fine (webhooks stay off); invalid JSON logs a warning and disables them.
+
+The file holds either a single config object **or** an array of them. Each config:
+
+| Field | Type | Allowed values |
+|-------|------|----------------|
+| `url` | string | The POST target URL |
+| `events` | string[] | Any of `error`, `budget_exceeded`, `agent_complete` |
+| `format` | string | `slack`, `discord`, or `generic` |
+
+A webhook fires only for events whose type is listed in its `events` array:
+
+| Event | Meaning |
+|-------|---------|
+| `error` | An agent reported an error |
+| `budget_exceeded` | An agent crossed its token/cost budget |
+| `agent_complete` | An agent finished its run |
+
+`slack` sends Slack blocks JSON, `discord` sends an embed, and `generic` posts the raw payload (`{ eventType, agentId, agentType, message, timestamp, time }`). Each event is delivered as a `POST` with a 5s timeout.
+
+```json
+[
+  {
+    "url": "https://hooks.slack.com/services/T000/B000/XXXX",
+    "events": ["error", "budget_exceeded", "agent_complete"],
+    "format": "slack"
+  },
+  {
+    "url": "https://discord.com/api/webhooks/000/XXXX",
+    "events": ["error"],
+    "format": "discord"
+  }
+]
+```
+
+A single object is also accepted:
+
+```json
+{ "url": "https://example.com/hook", "events": ["agent_complete"], "format": "generic" }
+```
 
 ## Keyboard Shortcuts
 
@@ -247,7 +319,14 @@ agents/
 │   ├── app/
 │   │   ├── globals.css
 │   │   ├── layout.tsx              # Root layout with neon theme
-│   │   └── page.tsx                # Dashboard page
+│   │   ├── page.tsx                # Dashboard page
+│   │   └── api/
+│   │       ├── stream/route.ts     # GET /api/stream — SSE live-state endpoint
+│   │       ├── annotations/        # POST + [id]/DELETE annotation routes
+│   │       ├── logs/[agentId]/     # GET conversation log for an agent
+│   │       ├── costs/route.ts      # Cost-history endpoint
+│   │       └── usage/route.ts      # ccstatusline usage endpoint
+│   ├── instrumentation.ts          # Next.js boot hook → starts the background poller
 │   ├── components/
 │   │   ├── AgentGraph/             # D3.js force-directed graph canvas (orchestrator + extracted hooks)
 │   │   │   ├── index.tsx           # Component entry point; composes the hooks below
@@ -275,14 +354,14 @@ agents/
 │   │   ├── SessionComparison.tsx   # Side-by-side session comparison
 │   │   └── ...                     # see src/components/ for full list
 │   ├── hooks/
-│   │   ├── useWebSocket.ts         # WebSocket client with reconnection
+│   │   ├── useEventStream.ts       # SSE EventSource client → Zustand store
 │   │   ├── useReplay.ts            # Replay engine tick loop
 │   │   ├── useKeyboardShortcuts.ts # Global keyboard shortcuts
 │   │   ├── useFilteredAgents.ts    # Agent filtering logic
 │   │   ├── useSoundNotifications.ts # Audio alert hook
 │   │   └── useMetricSampler.ts     # Live metrics sampling hook
 │   ├── lib/
-│   │   ├── types.ts                # WS protocol contract (ServerEvent, ClientEvent, AgentEvent)
+│   │   ├── types.ts                # SSE protocol contract (ServerEvent, AgentEvent)
 │   │   ├── store.ts                # Re-export barrel for src/lib/store/
 │   │   ├── store/                  # Zustand store slices
 │   │   │   ├── index.ts            # Composed store
@@ -311,14 +390,22 @@ agents/
 │       ├── neon.css                # Custom neon glow CSS utilities
 │       └── responsive.css          # Responsive breakpoint styles
 ├── scripts/
-│   ├── ws-server.ts                # Standalone WebSocket server (tails JSONL files)
-│   ├── mock-agents.ts              # Mock agent simulator (direct-push integration mode)
+│   ├── mock-agents.ts              # Seeds synthetic JSONL into ~/.claude/projects/ for dev
 │   └── lib/
-│       ├── agent-state.ts          # Server-side agent state management + event broadcasting
-│       ├── config.ts               # Server configuration (POLL_INTERVAL_MS, etc.)
+│       ├── background-tasks.ts     # Poll loop started by instrumentation.ts
+│       ├── agent-state.ts          # Server-side agent state singleton + SSE viewers set
+│       ├── sse-broadcast.ts        # broadcast() — fan ServerEvents out to SSE viewers
+│       ├── origin-check.ts         # route-handler origin allowlist (read vs. mutating checks)
+│       ├── annotation-store.ts     # In-memory annotation store + sanitization
+│       ├── config.ts               # Server configuration (PROJECTS_DIR, POLL_INTERVAL_MS, etc.)
 │       ├── discovery.ts            # Agent JSONL file discovery under ~/.claude/projects/
+│       ├── teams-discovery.ts      # Team discovery under ~/.claude/teams/
+│       ├── workflow-scan.ts        # Workflow-run discovery and state
 │       ├── file-reader.ts          # JSONL file tail reader
-│       └── log-reader.ts           # Conversation log parser
+│       ├── log-reader.ts           # Conversation log parser
+│       ├── cost-history.ts         # Rolling 24h/7d/30d cost scanner (backs /api/costs)
+│       ├── ccstatusline.ts         # ccstatusline spawn helper for usage data (backs /api/usage)
+│       └── webhooks.ts             # Optional outbound webhooks (Slack/Discord/generic)
 └── docs/
     └── superpowers/                # Historical planning artifacts (pre-implementation specs)
         ├── specs/
@@ -326,6 +413,12 @@ agents/
         └── plans/
             └── 2026-03-26-dashboard-features.md
 ```
+
+## Troubleshooting
+
+- **Dashboard is empty / no agents show up** — Run `npm run mock-agents` to seed synthetic demo data. Real agents appear only once Claude Code has written recent transcripts under `~/.claude/projects/**/*.jsonl`; if you have never run Claude Code (or only have old sessions), there is nothing for the poller to discover.
+- **Port 4000 is already in use** — The `dev` script hardcodes `--port 4000` (see `package.json`). Override it for a one-off run with `npx next dev --hostname 0.0.0.0 --port <other>`, or edit the `dev` script to use a different port. Remember the Security note above when changing the bind host.
+- **Nothing updates / data looks stale** — The background poller is started on server boot by `src/instrumentation.ts` (which imports `scripts/lib/background-tasks.ts`). If it never started or you changed server code, stop and restart `npm run dev`. The SSE stream reconnects automatically, but the poller only runs while the Next.js server is up.
 
 ## Development
 

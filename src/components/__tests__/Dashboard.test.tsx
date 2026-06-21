@@ -7,8 +7,12 @@ import type { AgentState } from "@/lib/types";
 // Mock hooks that have side effects (WebSocket, sound, etc.)
 vi.mock("@/hooks/useEventStream", () => ({ useEventStream: vi.fn() }));
 vi.mock("@/hooks/useReplay", () => ({ useReplay: () => {} }));
-vi.mock("@/hooks/useSoundNotifications", () => ({ useSoundNotifications: () => {} }));
-vi.mock("@/hooks/useKeyboardShortcuts", () => ({ useKeyboardShortcuts: () => {} }));
+vi.mock("@/hooks/useSoundNotifications", () => ({
+  useSoundNotifications: () => {},
+}));
+vi.mock("@/hooks/useKeyboardShortcuts", () => ({
+  useKeyboardShortcuts: () => {},
+}));
 vi.mock("@/hooks/useMetricSampler", () => ({ useMetricSampler: () => {} }));
 
 // Mock D3 components that use canvas/SVG
@@ -154,7 +158,11 @@ describe("Dashboard", () => {
     // parent; the parent-restoration fallback in useFilteredAgents re-adds it
     // because the child still references it. Parent selection must survive.
     const parent = mockAgent({ id: "parent", agentType: "main" });
-    const child = mockAgent({ id: "child", parentId: "parent", agentType: "build" });
+    const child = mockAgent({
+      id: "child",
+      parentId: "parent",
+      agentType: "build",
+    });
     const agents = new Map<string, AgentState>([
       ["parent", parent],
       ["child", child],

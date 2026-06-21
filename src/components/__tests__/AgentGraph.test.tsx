@@ -44,8 +44,19 @@ describe("AgentGraph", () => {
 
   it("renders without crashing when agents are in the store", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", agentType: "build", status: "running" }));
-    agents.set("a2", mockAgent({ id: "a2", agentType: "test", status: "completed", parentId: "a1" }));
+    agents.set(
+      "a1",
+      mockAgent({ id: "a1", agentType: "build", status: "running" }),
+    );
+    agents.set(
+      "a2",
+      mockAgent({
+        id: "a2",
+        agentType: "test",
+        status: "completed",
+        parentId: "a1",
+      }),
+    );
 
     useAgentStore.setState({ agents });
     const { container } = render(<AgentGraph />);

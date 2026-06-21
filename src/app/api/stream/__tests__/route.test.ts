@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { agents, edges, teams, viewers } from "../../../../../scripts/lib/agent-state";
+import {
+  agents,
+  edges,
+  teams,
+  viewers,
+} from "../../../../../scripts/lib/agent-state";
 import { annotations } from "../../../../../scripts/lib/annotation-store";
 import { broadcast } from "../../../../../scripts/lib/sse-broadcast";
 import { GET } from "../route";
 
-async function readFrames(body: ReadableStream<Uint8Array>, count: number): Promise<string[]> {
+async function readFrames(
+  body: ReadableStream<Uint8Array>,
+  count: number,
+): Promise<string[]> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   const frames: string[] = [];
@@ -39,9 +47,17 @@ describe("/api/stream GET (SSE)", () => {
 
   it("returns text/event-stream and sends state:sync as the first frame", async () => {
     agents.set("main-x", {
-      id: "main-x", agentType: "main", status: "running", task: "t",
-      toolCalls: [], inputTokens: 0, outputTokens: 0,
-      cacheReadTokens: 0, cacheCreateTokens: 0, contextWindow: 0, startTime: 0,
+      id: "main-x",
+      agentType: "main",
+      status: "running",
+      task: "t",
+      toolCalls: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheCreateTokens: 0,
+      contextWindow: 0,
+      startTime: 0,
     });
 
     const res = GET(new Request("http://localhost/api/stream"));
@@ -49,7 +65,8 @@ describe("/api/stream GET (SSE)", () => {
     expect(res.headers.get("cache-control")).toMatch(/no-store|no-cache/);
 
     const [first] = await readFrames(res.body!, 1);
-    const event = JSON.parse(first);
+    // safe: readFrames returns exactly 1 frame when count=1
+    const event = JSON.parse(first!);
     expect(event.type).toBe("state:sync");
     expect(event.agents).toHaveLength(1);
     expect(event.agents[0].id).toBe("main-x");
@@ -85,13 +102,18 @@ describe("/api/stream GET (SSE)", () => {
 
   it("sends annotation:sync after state:sync when annotations exist", async () => {
     annotations.set("ann-pre", {
-      id: "ann-pre", targetId: "x", targetType: "agent", text: "y", timestamp: 1,
+      id: "ann-pre",
+      targetId: "x",
+      targetType: "agent",
+      text: "y",
+      timestamp: 1,
     });
 
     const res = GET(new Request("http://localhost/api/stream"));
     const [first, second] = await readFrames(res.body!, 2);
-    expect(JSON.parse(first).type).toBe("state:sync");
-    expect(JSON.parse(second).type).toBe("annotation:sync");
+    // safe: readFrames returns exactly 2 frames when count=2
+    expect(JSON.parse(first!).type).toBe("state:sync");
+    expect(JSON.parse(second!).type).toBe("annotation:sync");
   });
 
   it("does not leak a viewer when enqueue throws during start()", async () => {
@@ -106,7 +128,9 @@ describe("/api/stream GET (SSE)", () => {
     const fakeRequest = {
       headers: new Headers(),
       signal: {
-        addEventListener: (_evt: string, fn: () => void) => { abortHandler = fn; },
+        addEventListener: (_evt: string, fn: () => void) => {
+          abortHandler = fn;
+        },
       } as unknown as AbortSignal,
     } as unknown as Request;
 

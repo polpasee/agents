@@ -20,25 +20,45 @@ describe("resolveSessionId", () => {
 
   it("child agent — returns parent's sessionId", () => {
     const parent = mockAgent({ id: "parent", sessionId: "sess-parent" });
-    const child = mockAgent({ id: "child", parentId: "parent", sessionId: "sess-child" });
+    const child = mockAgent({
+      id: "child",
+      parentId: "parent",
+      sessionId: "sess-child",
+    });
     expect(resolveSessionId(child, makeMap(parent, child))).toBe("sess-parent");
   });
 
   it("grandchild agent — returns root sessionId (not intermediate)", () => {
     const root = mockAgent({ id: "root", sessionId: "sess-root" });
-    const mid = mockAgent({ id: "mid", parentId: "root", sessionId: "sess-mid" });
-    const leaf = mockAgent({ id: "leaf", parentId: "mid", sessionId: "sess-leaf" });
+    const mid = mockAgent({
+      id: "mid",
+      parentId: "root",
+      sessionId: "sess-mid",
+    });
+    const leaf = mockAgent({
+      id: "leaf",
+      parentId: "mid",
+      sessionId: "sess-leaf",
+    });
     expect(resolveSessionId(leaf, makeMap(root, mid, leaf))).toBe("sess-root");
   });
 
   it("missing parent — stops at last known ancestor", () => {
     // child's parent is not in the map; child itself has no sessionId
-    const child = mockAgent({ id: "child", parentId: "ghost", sessionId: undefined });
+    const child = mockAgent({
+      id: "child",
+      parentId: "ghost",
+      sessionId: undefined,
+    });
     expect(resolveSessionId(child, makeMap(child))).toBe("child");
   });
 
   it("missing parent — stops at last known ancestor that has a sessionId", () => {
-    const mid = mockAgent({ id: "mid", parentId: "ghost", sessionId: "sess-mid" });
+    const mid = mockAgent({
+      id: "mid",
+      parentId: "ghost",
+      sessionId: "sess-mid",
+    });
     const leaf = mockAgent({ id: "leaf", parentId: "mid" });
     expect(resolveSessionId(leaf, makeMap(mid, leaf))).toBe("sess-mid");
   });
@@ -54,7 +74,11 @@ describe("resolveSessionId", () => {
   });
 
   it("root agent with sessionId undefined and no parent — falls back to id", () => {
-    const a = mockAgent({ id: "solo", sessionId: undefined, parentId: undefined });
+    const a = mockAgent({
+      id: "solo",
+      sessionId: undefined,
+      parentId: undefined,
+    });
     expect(resolveSessionId(a, makeMap(a))).toBe("solo");
   });
 });

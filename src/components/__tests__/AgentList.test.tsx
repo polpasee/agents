@@ -26,7 +26,10 @@ describe("AgentList", () => {
   it("renders agent rows when agents exist", () => {
     const agents = new Map<string, AgentState>();
     agents.set("a1", mockAgent({ id: "a1", task: "Write tests" }));
-    agents.set("a2", mockAgent({ id: "a2", agentType: "build", task: "Build project" }));
+    agents.set(
+      "a2",
+      mockAgent({ id: "a2", agentType: "build", task: "Build project" }),
+    );
 
     useAgentStore.setState({ agents });
     render(<AgentList />);
@@ -56,7 +59,10 @@ describe("AgentList", () => {
   it("uses the uppercased-type fallback for a plain agent even when the workflows map is populated", () => {
     const agents = new Map<string, AgentState>();
     agents.set("wf1", mockAgent({ id: "wf1", task: "scan code" }));
-    agents.set("p1", mockAgent({ id: "p1", agentType: "build", task: "build it" }));
+    agents.set(
+      "p1",
+      mockAgent({ id: "p1", agentType: "build", task: "build it" }),
+    );
 
     const run = mockWorkflowRun({
       runId: "r1",
@@ -72,7 +78,10 @@ describe("AgentList", () => {
 
   it("still renders the uppercased type for a non-workflow agent", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("b1", mockAgent({ id: "b1", agentType: "build", task: "build it" }));
+    agents.set(
+      "b1",
+      mockAgent({ id: "b1", agentType: "build", task: "build it" }),
+    );
 
     useAgentStore.setState({ agents });
     render(<AgentList />);
@@ -82,7 +91,14 @@ describe("AgentList", () => {
 
   it("renders workflowName uppercased when agent has workflowName and no store label", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("live1", mockAgent({ id: "live1", workflowName: "code-review-max", task: "reviewing" }));
+    agents.set(
+      "live1",
+      mockAgent({
+        id: "live1",
+        workflowName: "code-review-max",
+        task: "reviewing",
+      }),
+    );
 
     useAgentStore.setState({ agents, workflows: new Map() });
     render(<AgentList />);
@@ -92,7 +108,14 @@ describe("AgentList", () => {
 
   it("real store label wins over workflowName in AgentList", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("wf2", mockAgent({ id: "wf2", workflowName: "code-review-max", task: "reviewing" }));
+    agents.set(
+      "wf2",
+      mockAgent({
+        id: "wf2",
+        workflowName: "code-review-max",
+        task: "reviewing",
+      }),
+    );
 
     const run = mockWorkflowRun({
       runId: "r2",

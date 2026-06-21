@@ -67,7 +67,12 @@ export interface AgentStore {
   upsertWorkflow: (run: WorkflowRunState) => void;
   removeWorkflow: (runId: string) => void;
   getTeamStats: (teamId: string) => TeamStats;
-  syncState: (agents: AgentState[], edges: EdgeState[], teams: TeamState[], workflows?: WorkflowRunState[]) => void;
+  syncState: (
+    agents: AgentState[],
+    edges: EdgeState[],
+    teams: TeamState[],
+    workflows?: WorkflowRunState[],
+  ) => void;
   handleEvent: (event: AgentEvent, timestamp: number) => void;
   removeAgent: (agentId: string) => void;
   recording: boolean;

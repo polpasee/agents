@@ -6,11 +6,21 @@
 // still exposes routes to LAN devices. Mirror the same dev allowlist here
 // so route handlers reject unknown origins.
 //
-// Rules:
-//  - Missing Origin header → allow (curl, server-side internal calls).
-//  - Origin host is localhost / 127.0.0.1 → allow on any port.
+// Rules (isAllowedRequestOrigin — read routes: stream/logs/costs/usage):
+//  - Missing Origin header → allow (curl, server-side internal calls, and
+//    same-origin EventSource/GET, which browsers send without an Origin).
+//  - Origin host is localhost / 127.0.0.1 / [::1] → allow on any port.
 //  - Origin host is a private/RFC1918 LAN address → allow on any port.
 //  - Anything else → reject.
+//
+// State-changing routes (annotation POST/DELETE) use isAllowedMutatingOrigin,
+// which additionally REQUIRES a present Origin (browsers always send one on
+// POST/DELETE) — a cheap CSRF guard that does not affect the dashboard.
+//
+// Out of scope (see SECURITY.md): remote/internet exposure, DNS rebinding, and
+// other cross-origin attacks — this tool is intended for localhost / trusted-LAN
+// use only, so the Host header is intentionally not allowlisted (that would
+// break legitimate Origin-less access via Bonjour `.local` / VPN hostnames).
 
 /** True when `host` matches the dev-mode LAN allowlist (mirror of
  *  `next.config.ts::allowedDevOrigins`). */
@@ -28,6 +38,13 @@ function isPrivateLanHost(host: string): boolean {
   return false;
 }
 
+/** True when a hostname is on the loopback/LAN allowlist. */
+function isAllowedHostname(host: string): boolean {
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]")
+    return true;
+  return isPrivateLanHost(host);
+}
+
 export function isAllowedRequestOrigin(request: Request): boolean {
   const origin = request.headers.get("origin");
   if (!origin) return true;
@@ -42,7 +59,14 @@ export function isAllowedRequestOrigin(request: Request): boolean {
   if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 
   const host = url.hostname; // IPv6 literals retain brackets: "[::1]"
-  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true;
-  if (isPrivateLanHost(host)) return true;
-  return false;
+  return isAllowedHostname(host);
+}
+
+/** Stricter check for state-changing requests (POST/DELETE). Browsers always
+ *  send an Origin header on these, so a present + allowlisted Origin is
+ *  required: this closes a simple-request CSRF vector that the GET-friendly
+ *  "missing Origin allowed" rule would otherwise leave open. */
+export function isAllowedMutatingOrigin(request: Request): boolean {
+  if (!request.headers.get("origin")) return false;
+  return isAllowedRequestOrigin(request);
 }

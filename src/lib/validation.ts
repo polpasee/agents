@@ -1,18 +1,62 @@
-import { AGENT_STATUSES, AGENT_TYPES } from "./types";
-import type { AgentEvent, ServerEvent, AgentStatus, AgentType, WorkflowRunState } from "./types";
+import { AGENT_STATUSES, AGENT_TYPES, THINKING_EFFORTS } from "./types";
+import type {
+  AgentEvent,
+  ServerEvent,
+  AgentStatus,
+  AgentType,
+  WorkflowRunState,
+  Annotation,
+  WorkflowPhase,
+  WorkflowAgentRef,
+} from "./types";
 
-function isAnnotationShape(v: unknown): boolean {
+function isAnnotationShape(v: unknown): v is Annotation {
   if (!v || typeof v !== "object") return false;
   const ann = v as Record<string, unknown>;
-  return typeof ann.id === "string" && typeof ann.targetId === "string";
+  return (
+    typeof ann.id === "string" &&
+    typeof ann.targetId === "string" &&
+    (ann.targetType === "agent" || ann.targetType === "edge") &&
+    typeof ann.text === "string" &&
+    typeof ann.timestamp === "number" &&
+    (ann.author === undefined || typeof ann.author === "string") &&
+    (ann.x === undefined || typeof ann.x === "number") &&
+    (ann.y === undefined || typeof ann.y === "number")
+  );
+}
+
+function isWorkflowPhaseShape(v: unknown): v is WorkflowPhase {
+  if (!v || typeof v !== "object") return false;
+  const p = v as Record<string, unknown>;
+  return typeof p.index === "number" && typeof p.title === "string";
+}
+
+function isWorkflowAgentRefShape(v: unknown): v is WorkflowAgentRef {
+  if (!v || typeof v !== "object") return false;
+  const r = v as Record<string, unknown>;
+  return (
+    typeof r.agentId === "string" &&
+    typeof r.label === "string" &&
+    // state must be a member of the closed WorkflowAgentState union, not just
+    // any string — otherwise the predicate lies about the narrowed type.
+    (r.state === "pending" ||
+      r.state === "running" ||
+      r.state === "done" ||
+      r.state === "failed" ||
+      r.state === "unknown")
+  );
 }
 
 function isAgentStatus(v: unknown): v is AgentStatus {
-  return typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (AGENT_STATUSES as readonly string[]).includes(v)
+  );
 }
 
 function isAgentType(v: unknown): v is AgentType {
-  return typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v);
+  return (
+    typeof v === "string" && (AGENT_TYPES as readonly string[]).includes(v)
+  );
 }
 
 function isWorkflowRunState(v: unknown): v is WorkflowRunState {
@@ -22,11 +66,15 @@ function isWorkflowRunState(v: unknown): v is WorkflowRunState {
     typeof r.runId === "string" &&
     typeof r.sessionId === "string" &&
     typeof r.name === "string" &&
-    (r.status === "running" || r.status === "completed" || r.status === "failed") &&
+    (r.status === "running" ||
+      r.status === "completed" ||
+      r.status === "failed") &&
     typeof r.startTime === "number" &&
     typeof r.agentCount === "number" &&
     Array.isArray(r.phases) &&
-    Array.isArray(r.agents)
+    r.phases.every(isWorkflowPhaseShape) &&
+    Array.isArray(r.agents) &&
+    r.agents.every(isWorkflowAgentRefShape)
   );
 }
 
@@ -43,14 +91,18 @@ export function isValidServerEvent(data: unknown): data is ServerEvent {
         Array.isArray(obj.agents) &&
         Array.isArray(obj.edges) &&
         Array.isArray(obj.teams) &&
-        (obj.protocolVersion === undefined || typeof obj.protocolVersion === "number")
+        (obj.protocolVersion === undefined ||
+          typeof obj.protocolVersion === "number")
       );
     case "state:update":
       return typeof obj.timestamp === "number" && isValidAgentEvent(obj.event);
     case "state:remove":
       return typeof obj.agentId === "string";
     case "annotation:sync":
-      return Array.isArray(obj.annotations) && obj.annotations.every(isAnnotationShape);
+      return (
+        Array.isArray(obj.annotations) &&
+        obj.annotations.every(isAnnotationShape)
+      );
     case "annotation:update":
       if (obj.action !== "add" && obj.action !== "remove") return false;
       return isAnnotationShape(obj.annotation);
@@ -70,17 +122,40 @@ export function isValidAgentEvent(data: unknown): data is AgentEvent {
 
   switch (obj.type) {
     case "agent:register":
-      return typeof obj.agentId === "string" && isAgentType(obj.agentType) && typeof obj.task === "string";
+      return (
+        typeof obj.agentId === "string" &&
+        isAgentType(obj.agentType) &&
+        typeof obj.task === "string" &&
+        // Optional fields: absent/undefined is valid; reject only wrong types.
+        (obj.effort === undefined ||
+          (THINKING_EFFORTS as readonly string[]).includes(
+            obj.effort as string,
+          )) &&
+        (obj.is1MContext === undefined ||
+          typeof obj.is1MContext === "boolean") &&
+        (obj.parentId === undefined || typeof obj.parentId === "string") &&
+        (obj.model === undefined || typeof obj.model === "string") &&
+        (obj.displayType === undefined || typeof obj.displayType === "string")
+      );
     case "agent:status":
       return typeof obj.agentId === "string" && isAgentStatus(obj.status);
     case "agent:tool_call":
       return typeof obj.agentId === "string" && typeof obj.tool === "string";
     case "agent:tokens":
-      return typeof obj.agentId === "string" && typeof obj.inputTokens === "number";
+      return (
+        typeof obj.agentId === "string" &&
+        Number.isFinite(obj.inputTokens) &&
+        Number.isFinite(obj.outputTokens) &&
+        Number.isFinite(obj.cacheReadTokens) &&
+        Number.isFinite(obj.cacheCreateTokens) &&
+        Number.isFinite(obj.contextWindow)
+      );
     case "agent:message":
       return typeof obj.fromId === "string" && typeof obj.toId === "string";
     case "agent:complete":
-      return typeof obj.agentId === "string" && typeof obj.duration === "number";
+      return (
+        typeof obj.agentId === "string" && typeof obj.duration === "number"
+      );
     default:
       return false;
   }

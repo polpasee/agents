@@ -10,7 +10,10 @@ const MAX_DEPTH = 10;
  * parent's depth. Cycle-guarded (visited set) and capped at MAX_DEPTH; a
  * parentId pointing at an unknown agent still counts as one level.
  */
-export function agentDepth(agentId: string, agents: Map<string, AgentState>): number {
+export function agentDepth(
+  agentId: string,
+  agents: Map<string, AgentState>,
+): number {
   let depth = 0;
   const visited = new Set<string>([agentId]);
   let current = agents.get(agentId);
@@ -30,5 +33,8 @@ export function agentDepth(agentId: string, agents: Map<string, AgentState>): nu
  * level, floored at GRAPH.depthScaleMin.
  */
 export function depthFactor(depth = 1): number {
-  return Math.max(GRAPH.depthScaleMin, GRAPH.depthScale ** Math.max(0, depth - 1));
+  return Math.max(
+    GRAPH.depthScaleMin,
+    GRAPH.depthScale ** Math.max(0, depth - 1),
+  );
 }

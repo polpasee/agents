@@ -48,7 +48,11 @@ function downloadFile(filename: string, content: string, mimeType: string) {
 function exportJSON(agents: Map<string, AgentState>) {
   const report = buildReportData(agents);
   const content = JSON.stringify(report, null, 2);
-  downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.json`, content, "application/json");
+  downloadFile(
+    `agent-report-${new Date().toISOString().slice(0, 19)}.json`,
+    content,
+    "application/json",
+  );
 }
 
 export function csvEscape(v: string | number): string {
@@ -61,7 +65,15 @@ export function csvEscape(v: string | number): string {
 
 function exportCSV(agents: Map<string, AgentState>) {
   const agentList = Array.from(agents.values());
-  const headers = ["id", "type", "status", "tokens", "cost", "duration", "task"];
+  const headers = [
+    "id",
+    "type",
+    "status",
+    "tokens",
+    "cost",
+    "duration",
+    "task",
+  ];
   const rows = agentList.map((agent) => {
     const cost = calculateCost(agent);
     const tokens = totalTokens(agent);
@@ -76,7 +88,11 @@ function exportCSV(agents: Map<string, AgentState>) {
     ].join(",");
   });
   const content = [headers.join(","), ...rows].join("\n");
-  downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.csv`, content, "text/csv");
+  downloadFile(
+    `agent-report-${new Date().toISOString().slice(0, 19)}.csv`,
+    content,
+    "text/csv",
+  );
 }
 
 function exportMarkdown(agents: Map<string, AgentState>) {
@@ -104,13 +120,21 @@ function exportMarkdown(agents: Map<string, AgentState>) {
     md += `| ${agent.id.slice(0, 12)} | ${agent.agentType} | ${agent.status} | ${tokens.toLocaleString()} | ${formatCost(cost.total)} | ${dur} | ${task} |\n`;
   }
 
-  downloadFile(`agent-report-${new Date().toISOString().slice(0, 19)}.md`, md, "text/markdown");
+  downloadFile(
+    `agent-report-${new Date().toISOString().slice(0, 19)}.md`,
+    md,
+    "text/markdown",
+  );
 }
 
 const exportOptions = [
   { label: "JSON", description: "Full report data", action: exportJSON },
   { label: "CSV", description: "Agent data table", action: exportCSV },
-  { label: "Markdown", description: "Formatted report", action: exportMarkdown },
+  {
+    label: "Markdown",
+    description: "Formatted report",
+    action: exportMarkdown,
+  },
 ] as const;
 
 export function ExportModal() {

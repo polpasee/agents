@@ -112,7 +112,9 @@ describe("parseAgentType", () => {
 
   // Plugin agent names from CLAUDE.md cheatsheet
   it('returns "build" for "voltagent-core-dev:websocket-engineer"', () => {
-    expect(parseAgentType("voltagent-core-dev:websocket-engineer")).toBe("build");
+    expect(parseAgentType("voltagent-core-dev:websocket-engineer")).toBe(
+      "build",
+    );
   });
 
   it('returns "build" for "voltagent-lang:react-specialist"', () => {
@@ -132,7 +134,9 @@ describe("parseAgentType", () => {
   });
 
   it('returns "build" for "voltagent-data-ai:database-optimizer"', () => {
-    expect(parseAgentType("voltagent-data-ai:database-optimizer")).toBe("build");
+    expect(parseAgentType("voltagent-data-ai:database-optimizer")).toBe(
+      "build",
+    );
   });
 
   it('returns "build" for "voltagent-lang:sql-pro"', () => {
@@ -140,7 +144,9 @@ describe("parseAgentType", () => {
   });
 
   it('returns "build" for "voltagent-core-dev:fullstack-developer"', () => {
-    expect(parseAgentType("voltagent-core-dev:fullstack-developer")).toBe("build");
+    expect(parseAgentType("voltagent-core-dev:fullstack-developer")).toBe(
+      "build",
+    );
   });
 
   it('returns "build" for "voltagent-core-dev:ui-designer"', () => {
@@ -170,12 +176,16 @@ describe("parseAgentType", () => {
   });
 
   it('returns "review" for "pr-review-toolkit:silent-failure-hunter"', () => {
-    expect(parseAgentType("pr-review-toolkit:silent-failure-hunter")).toBe("review");
+    expect(parseAgentType("pr-review-toolkit:silent-failure-hunter")).toBe(
+      "review",
+    );
   });
 
   it('returns "review" for "pr-review-toolkit:type-design-analyzer"', () => {
     // "review" wins over "design" and "analy" because review check comes first
-    expect(parseAgentType("pr-review-toolkit:type-design-analyzer")).toBe("review");
+    expect(parseAgentType("pr-review-toolkit:type-design-analyzer")).toBe(
+      "review",
+    );
   });
 
   it('returns "review" for "pr-review-toolkit:pr-test-analyzer"', () => {
@@ -185,7 +195,9 @@ describe("parseAgentType", () => {
 
   it('returns "build" for "voltagent-qa-sec:performance-engineer"', () => {
     // No review/test signal; falls through to engineer → build
-    expect(parseAgentType("voltagent-qa-sec:performance-engineer")).toBe("build");
+    expect(parseAgentType("voltagent-qa-sec:performance-engineer")).toBe(
+      "build",
+    );
   });
 
   it('returns "build" for "feature-dev:code-architect" (regression)', () => {
@@ -199,12 +211,16 @@ describe("parseAgentType", () => {
 
   it('returns "build" for "voltagent-dev-exp:documentation-engineer"', () => {
     // engineer → build wins; no "doc" category exists
-    expect(parseAgentType("voltagent-dev-exp:documentation-engineer")).toBe("build");
+    expect(parseAgentType("voltagent-dev-exp:documentation-engineer")).toBe(
+      "build",
+    );
   });
 
   it('returns "generic" for "voltagent-dev-exp:git-workflow-manager"', () => {
     // No recognisable signal in the slug
-    expect(parseAgentType("voltagent-dev-exp:git-workflow-manager")).toBe("generic");
+    expect(parseAgentType("voltagent-dev-exp:git-workflow-manager")).toBe(
+      "generic",
+    );
   });
 
   it('returns "review" for "failure-hunter"', () => {
@@ -365,7 +381,10 @@ describe("processEntry: defensive serialization", () => {
     // gracefully instead of throwing through to the caller.
     expect(() =>
       processEntry(
-        { timestamp: "not-a-real-date", message: null as unknown as Record<string, unknown> },
+        {
+          timestamp: "not-a-real-date",
+          message: null as unknown as Record<string, unknown>,
+        },
         "a1",
       ),
     ).not.toThrow();
@@ -404,7 +423,9 @@ describe("registerAgent: project label", () => {
       model: "",
       startTime: Date.now(),
     });
-    expect(agents.get("m2")?.metadata?.projectName).toBe("Users/erdos/private/notes");
+    expect(agents.get("m2")?.metadata?.projectName).toBe(
+      "Users/erdos/private/notes",
+    );
   });
 });
 
@@ -465,7 +486,14 @@ describe("spawn index", () => {
         timestamp: new Date().toISOString(),
         message: {
           role: "assistant",
-          content: [{ type: "tool_use", id: "toolu_x", name: "Agent", input: { prompt: "go" } }],
+          content: [
+            {
+              type: "tool_use",
+              id: "toolu_x",
+              name: "Agent",
+              input: { prompt: "go" },
+            },
+          ],
         },
       },
       "a1",
@@ -524,12 +552,17 @@ describe("reparentAgent", () => {
 
     expect(agents.get("child")?.parentId).toBe("parent");
     expect(edges).toContainEqual({ source: "parent", target: "child" });
-    expect(edges.some((e) => e.source === "sess" && e.target === "child")).toBe(false);
+    expect(edges.some((e) => e.source === "sess" && e.target === "child")).toBe(
+      false,
+    );
     // The parent's own anchor edge is untouched.
     expect(edges).toContainEqual({ source: "sess", target: "parent" });
 
     const rebroadcast = sent.find(
-      (m) => m.type === "state:update" && m.event?.type === "agent:register" && m.event?.agentId === "child",
+      (m) =>
+        m.type === "state:update" &&
+        m.event?.type === "agent:register" &&
+        m.event?.agentId === "child",
     );
     expect(rebroadcast?.event?.parentId).toBe("parent");
   });
@@ -567,10 +600,18 @@ describe("reparentAgent", () => {
     reparentAgent("child", "NEW");
 
     // The typed edge survives, and it must NOT suppress the untyped anchor.
-    expect(edges).toContainEqual({ source: "NEW", target: "child", edgeType: "blocking" });
+    expect(edges).toContainEqual({
+      source: "NEW",
+      target: "child",
+      edgeType: "blocking",
+    });
     expect(edges).toContainEqual({ source: "NEW", target: "child" });
     // The old untyped parent anchor is gone.
-    expect(edges.some((e) => !e.edgeType && e.source === "OLD" && e.target === "child")).toBe(false);
+    expect(
+      edges.some(
+        (e) => !e.edgeType && e.source === "OLD" && e.target === "child",
+      ),
+    ).toBe(false);
   });
 });
 
@@ -612,4 +653,3 @@ describe("registerAgent: resurrection restores child edges", () => {
     expect(edges).toContainEqual({ source: "S", target: "C" });
   });
 });
-

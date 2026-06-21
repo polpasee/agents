@@ -30,8 +30,9 @@ export function calculateBurnRate(
   const tokenEvents = activity.filter((a) => a.event.type === "agent:tokens");
   const recentTokenEvents = tokenEvents.filter((a) => a.timestamp >= cutoff);
   if (recentTokenEvents.length >= 2 && tokenEvents.length > 0) {
-    const first = recentTokenEvents[0].timestamp;
-    const last = recentTokenEvents[recentTokenEvents.length - 1].timestamp;
+    // safe: length >= 2 guarantees indices 0 and length-1 exist
+    const first = recentTokenEvents[0]!.timestamp;
+    const last = recentTokenEvents[recentTokenEvents.length - 1]!.timestamp;
     const actualWindowMs = last - first;
     if (actualWindowMs >= 1000) {
       const share = recentTokenEvents.length / tokenEvents.length;
@@ -59,7 +60,8 @@ export function calculateProjection(
 ): CostProjectionData {
   // Project: if burn rate continues for same duration again
   const elapsedMinutes = elapsedMs / 60_000;
-  const projectedTotal = burnRate > 0 ? currentTotal + burnRate * elapsedMinutes : currentTotal;
+  const projectedTotal =
+    burnRate > 0 ? currentTotal + burnRate * elapsedMinutes : currentTotal;
 
   let timeToThreshold = Infinity;
   let percentOfBudget = 0;

@@ -70,4 +70,9 @@ export const USAGE_REFRESH_THRESHOLD_MS = 180 * 1000;
 /** ccstatusline writes fresh usage data here every ~3 minutes. Lives in config
  *  (not the spawn helper) so pure cache readers like src/app/api/usage/route.ts
  *  can import the path without pulling in node:child_process. */
-export const CCSTATUSLINE_CACHE = path.join(os.homedir(), ".cache", "ccstatusline", "usage.json");
+export const CCSTATUSLINE_CACHE = path.join(
+  os.homedir(),
+  ".cache",
+  "ccstatusline",
+  "usage.json",
+);

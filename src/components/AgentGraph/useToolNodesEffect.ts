@@ -39,8 +39,12 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
     const visibleAgentIds = new Set(refs.nodesRef.current.map((n) => n.id));
 
     // Build O(1) lookup maps once instead of Array.find inside the loop.
-    const toolNodeById = new Map<string, SimNode>(refs.toolNodesRef.current.map((n) => [n.id, n]));
-    const agentNodeById = new Map<string, SimNode>(refs.nodesRef.current.map((n) => [n.id, n]));
+    const toolNodeById = new Map<string, SimNode>(
+      refs.toolNodesRef.current.map((n) => [n.id, n]),
+    );
+    const agentNodeById = new Map<string, SimNode>(
+      refs.nodesRef.current.map((n) => [n.id, n]),
+    );
 
     for (const [agentId, agent] of agents) {
       if (!visibleAgentIds.has(agentId)) continue;
@@ -56,21 +60,31 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
         const toolNode: SimNode = existing ?? {
           id: toolNodeId,
           agent,
-          toolCall: { tool: tc.tool, timestamp: tc.timestamp, parentAgentId: agentId },
+          toolCall: {
+            tool: tc.tool,
+            timestamp: tc.timestamp,
+            parentAgentId: agentId,
+          },
           // Spawn near parent so the link spring pulls them into place
           x: (parentNode?.x ?? 0) + (Math.random() - 0.5) * 20,
           y: (parentNode?.y ?? 0) + (Math.random() - 0.5) * 20,
         };
         if (existing) existing.agent = agent;
         newToolNodes.push(toolNode);
-        newToolLinks.push({ source: agentId, target: toolNodeId, edgeType: "tool" });
+        newToolLinks.push({
+          source: agentId,
+          target: toolNodeId,
+          edgeType: "tool",
+        });
       }
     }
 
     // Only disturb the simulation when the node set actually changes
     const prevIds = new Set(refs.toolNodesRef.current.map((n) => n.id));
     const newIds = new Set(newToolNodes.map((n) => n.id));
-    const changed = prevIds.size !== newIds.size || [...newIds].some((id) => !prevIds.has(id));
+    const changed =
+      prevIds.size !== newIds.size ||
+      [...newIds].some((id) => !prevIds.has(id));
 
     refs.toolNodesRef.current = newToolNodes;
     refs.toolLinksRef.current = newToolLinks;
@@ -107,7 +121,8 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
           const line = select(this);
           line.selectAll("animate").remove();
           const sourceId = endpointId(d.source);
-          const targetNode = typeof d.target === "string" ? null : (d.target as SimNode);
+          const targetNode =
+            typeof d.target === "string" ? null : (d.target as SimNode);
           const agent = agents.get(sourceId);
           if (!targetNode?.toolCall || agent?.status !== "running") return;
           // Animate only the most-recent tool call link.
@@ -115,9 +130,11 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
           // MAX_TOOL_CALLS_PER_AGENT today, but the spread form is one
           // refactor away from a stack overflow if the cap ever moves.
           let latestTs = -Infinity;
-          for (const tc of agent.toolCalls) if (tc.timestamp > latestTs) latestTs = tc.timestamp;
+          for (const tc of agent.toolCalls)
+            if (tc.timestamp > latestTs) latestTs = tc.timestamp;
           if (targetNode.toolCall.timestamp !== latestTs) return;
-          line.append("animate")
+          line
+            .append("animate")
             .attr("attributeName", "stroke-dashoffset")
             .attr("values", "10;0")
             .attr("dur", "0.6s")
@@ -133,22 +150,28 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
         .data(newToolNodes, (d) => d.id)
         .join(
           (enter) => {
-            const g = enter.append("g").attr("class", "tool-node").attr("cursor", "pointer");
+            const g = enter
+              .append("g")
+              .attr("class", "tool-node")
+              .attr("cursor", "pointer");
 
             g.each(function (d) {
               const color = agentColor(d.agent);
               // Tool nodes only emit for running|idle parents; dim the idle
               // ones so live tool calls pop against stale / between-turn ones.
               const dim = d.agent.status !== "running";
-              const displayName = d.toolCall!.tool.length > 6
-                ? d.toolCall!.tool.slice(0, 5) + "…"
-                : d.toolCall!.tool;
-              select(this).append("circle")
+              const displayName =
+                d.toolCall!.tool.length > 6
+                  ? d.toolCall!.tool.slice(0, 5) + "…"
+                  : d.toolCall!.tool;
+              select(this)
+                .append("circle")
                 .attr("r", GRAPH.toolNodeRadius)
                 .attr("fill", dim ? `${color}08` : `${color}14`)
                 .attr("stroke", dim ? `${color}33` : `${color}66`)
                 .attr("stroke-width", 1);
-              select(this).append("text")
+              select(this)
+                .append("text")
                 .attr("text-anchor", "middle")
                 .attr("dominant-baseline", "central")
                 .attr("fill", dim ? `${color}55` : `${color}aa`)
@@ -163,7 +186,7 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
             return g;
           },
           (update) => update,
-          (exit) => exit.remove()
+          (exit) => exit.remove(),
         );
     }
   }, [refs, agents]);

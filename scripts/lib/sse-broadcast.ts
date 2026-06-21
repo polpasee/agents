@@ -13,7 +13,8 @@ declare global {
   var __agentMonitorViewers: Set<SSEClient> | undefined;
 }
 
-export const viewers: Set<SSEClient> = (globalThis.__agentMonitorViewers ??= new Set());
+export const viewers: Set<SSEClient> = (globalThis.__agentMonitorViewers ??=
+  new Set());
 
 /** Fan out a server event as a stringified payload to every connected viewer. */
 export function broadcast(event: ServerEvent): void {

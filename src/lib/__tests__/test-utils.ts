@@ -1,4 +1,11 @@
-import type { AgentState, TeamState, AgentType, AgentStatus, TeamStatus, WorkflowRunState } from "../types";
+import type {
+  AgentState,
+  TeamState,
+  AgentType,
+  AgentStatus,
+  TeamStatus,
+  WorkflowRunState,
+} from "../types";
 import { useAgentStore } from "../store";
 
 let agentCounter = 0;
@@ -35,7 +42,9 @@ export function mockTeam(overrides: Partial<TeamState> = {}): TeamState {
   };
 }
 
-export function mockWorkflowRun(overrides: Partial<WorkflowRunState> = {}): WorkflowRunState {
+export function mockWorkflowRun(
+  overrides: Partial<WorkflowRunState> = {},
+): WorkflowRunState {
   return {
     runId: `wf_test-${Date.now()}`,
     sessionId: "sess-main",

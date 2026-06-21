@@ -21,8 +21,14 @@ describe("Timeline", () => {
 
   it("renders agent rows when agents are in the store", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", agentType: "build", status: "running" }));
-    agents.set("a2", mockAgent({ id: "a2", agentType: "test", status: "completed" }));
+    agents.set(
+      "a1",
+      mockAgent({ id: "a1", agentType: "build", status: "running" }),
+    );
+    agents.set(
+      "a2",
+      mockAgent({ id: "a2", agentType: "test", status: "completed" }),
+    );
 
     useAgentStore.setState({ agents });
     render(<Timeline />);
@@ -33,8 +39,14 @@ describe("Timeline", () => {
 
   it("displays agent status text", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", agentType: "build", status: "running" }));
-    agents.set("a2", mockAgent({ id: "a2", agentType: "review", status: "error" }));
+    agents.set(
+      "a1",
+      mockAgent({ id: "a1", agentType: "build", status: "running" }),
+    );
+    agents.set(
+      "a2",
+      mockAgent({ id: "a2", agentType: "review", status: "error" }),
+    );
 
     useAgentStore.setState({ agents });
     render(<Timeline />);
@@ -45,7 +57,10 @@ describe("Timeline", () => {
 
   it("selects an agent when its row is clicked", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", agentType: "build", status: "running" }));
+    agents.set(
+      "a1",
+      mockAgent({ id: "a1", agentType: "build", status: "running" }),
+    );
 
     useAgentStore.setState({ agents });
     render(<Timeline />);
@@ -56,15 +71,32 @@ describe("Timeline", () => {
 
   it("sorts active agents before completed ones", () => {
     const agents = new Map<string, AgentState>();
-    agents.set("a1", mockAgent({ id: "a1", agentType: "review", status: "completed", startTime: 1000 }));
-    agents.set("a2", mockAgent({ id: "a2", agentType: "build", status: "running", startTime: 2000 }));
+    agents.set(
+      "a1",
+      mockAgent({
+        id: "a1",
+        agentType: "review",
+        status: "completed",
+        startTime: 1000,
+      }),
+    );
+    agents.set(
+      "a2",
+      mockAgent({
+        id: "a2",
+        agentType: "build",
+        status: "running",
+        startTime: 2000,
+      }),
+    );
 
     useAgentStore.setState({ agents });
     const { container } = render(<Timeline />);
 
     const labels = container.querySelectorAll(".text-xs.font-mono.font-bold");
-    expect(labels[0].textContent).toBe("BUILD");
-    expect(labels[1].textContent).toBe("REVIEW");
+    // safe: labels has at least 2 elements per test setup with 2 agents
+    expect(labels[0]!.textContent).toBe("BUILD");
+    expect(labels[1]!.textContent).toBe("REVIEW");
   });
 
   it("does not throw RangeError when computing the earliest startTime over 200000 agents (Math.min spread regression)", () => {

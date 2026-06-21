@@ -12,7 +12,8 @@ const state = {
 vi.mock("../discovery", () => ({
   discoverActiveSessions: vi.fn(async () => {
     state.discoveryCalls += 1;
-    if (state.discoveryShouldReject) throw new Error("discovery import path failure");
+    if (state.discoveryShouldReject)
+      throw new Error("discovery import path failure");
   }),
   refreshTrackedAgents: vi.fn(async () => {}),
   selectStaleAgentIds: vi.fn(() => []),
@@ -26,7 +27,9 @@ vi.mock("../ccstatusline", () => ({
 }));
 
 vi.mock("../webhooks", () => ({
-  loadWebhookConfig: vi.fn(() => { state.webhookLoaded += 1; }),
+  loadWebhookConfig: vi.fn(() => {
+    state.webhookLoaded += 1;
+  }),
 }));
 
 import { startBackgroundTasks } from "../background-tasks";
@@ -68,7 +71,9 @@ describe("startBackgroundTasks", () => {
     // setup completes, so a throw here must leave it false.
     const webhooks = await import("../webhooks");
     const loadSpy = vi.mocked(webhooks.loadWebhookConfig);
-    loadSpy.mockImplementationOnce(() => { throw new Error("boom"); });
+    loadSpy.mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
 
     await expect(startBackgroundTasks()).rejects.toThrow("boom");
     expect(flagHolder.__backgroundTasksStarted).toBe(false);

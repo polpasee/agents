@@ -39,7 +39,8 @@ export function useFilteredAgents() {
       if (a.parentId) queue.push(a.parentId);
     }
     for (let i = 0; i < queue.length; i++) {
-      const id = queue[i];
+      // safe: i < queue.length guarantees queue[i] exists
+      const id = queue[i]!;
       if (visited.has(id)) continue;
       visited.add(id);
       const ancestor = agents.get(id);

@@ -36,7 +36,8 @@ export function TopBar() {
     selectedSessionIds.size === 1 ? [...selectedSessionIds][0] : "";
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"
+    <div
+      className="flex items-center justify-between px-4 py-3 border-b topbar-responsive"
       style={{
         background: "var(--color-panel)",
         borderColor: `${UI.primary}33`,
@@ -61,16 +62,16 @@ export function TopBar() {
             AGENT MONITOR
           </span>
           {replayActive ? (
-            <span className="text-xs ml-2 animate-pulse-glow" style={{ color: "#eab308" }}>
+            <span
+              className="text-xs ml-2 animate-pulse-glow"
+              style={{ color: "#eab308" }}
+            >
               REPLAY
             </span>
           ) : !connected ? (
-            <span className="text-xs text-red-400 ml-2">
-              DISCONNECTED
-            </span>
+            <span className="text-xs text-red-400 ml-2">DISCONNECTED</span>
           ) : null}
         </div>
-
       </div>
 
       {/* Right: Session filter */}
@@ -78,7 +79,9 @@ export function TopBar() {
         aria-label="Filter sessions"
         value={currentValue}
         onChange={(e) =>
-          e.target.value ? selectOnlySession(e.target.value) : selectAllSessions()
+          e.target.value
+            ? selectOnlySession(e.target.value)
+            : selectAllSessions()
         }
         disabled={sessions.length === 0}
         className="text-xs font-mono rounded px-2 py-1 outline-none max-w-[60vw]"
@@ -89,7 +92,9 @@ export function TopBar() {
         }}
       >
         <option value="">
-          {sessions.length === 0 ? "No agents" : `All sessions (${sessions.length})`}
+          {sessions.length === 0
+            ? "No agents"
+            : `All sessions (${sessions.length})`}
         </option>
         {sessions.map((session) => (
           <option key={session.sessionId} value={session.sessionId}>

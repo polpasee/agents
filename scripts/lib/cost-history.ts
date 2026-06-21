@@ -15,6 +15,7 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { createInterface } from "node:readline";
 import { costFromUsage } from "../../src/lib/costs";
+import { warnUnlessMissing } from "./fs-warn";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -86,7 +87,8 @@ function costFromLine(line: string): ParsedEntry | null {
   } catch {
     return null;
   }
-  const ts = typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
+  const ts =
+    typeof entry.timestamp === "string" ? Date.parse(entry.timestamp) : NaN;
   if (!Number.isFinite(ts)) return null;
   const message = entry.message as Record<string, unknown> | undefined;
   if (!message || typeof message !== "object") return null;
@@ -109,7 +111,8 @@ async function collectJsonlFiles(dir: string): Promise<string[]> {
   let entries;
   try {
     entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    warnUnlessMissing(err, `Failed to read dir ${dir}:`);
     return [];
   }
   const out: string[] = [];
@@ -155,12 +158,15 @@ async function runWithConcurrency<T>(
   let cursor = 0;
   const runners: Promise<void>[] = [];
   for (let k = 0; k < Math.min(limit, items.length); k++) {
-    runners.push((async () => {
-      while (cursor < items.length) {
-        const idx = cursor++;
-        await worker(items[idx]);
-      }
-    })());
+    runners.push(
+      (async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          // safe: idx < items.length because cursor was incremented after the while-check
+          await worker(items[idx]!);
+        }
+      })(),
+    );
   }
   await Promise.all(runners);
 }
@@ -194,7 +200,11 @@ export async function scanCostHistory(
       let stat;
       try {
         stat = await fs.stat(file);
-      } catch {
+      } catch (err) {
+        // ENOENT means the file was deleted between collectJsonlFiles and the
+        // stat — normal during /clear or project cleanup; skip silently.
+        // Any other code (EACCES, …) is unexpected and deserves a breadcrumb.
+        warnUnlessMissing(err, `Failed to stat cost file ${file}:`);
         return;
       }
       if (stat.mtimeMs < horizon) {
@@ -221,7 +231,10 @@ export async function scanCostHistory(
       if (!seen.has(key)) fileCache.delete(key);
     }
 
-    resultCache.set(projectsDir, { expires: now + CACHE_TTL_MS, result: buckets });
+    resultCache.set(projectsDir, {
+      expires: now + CACHE_TTL_MS,
+      result: buckets,
+    });
     return buckets;
   })();
 

@@ -13,15 +13,16 @@ let webhookConfigs: WebhookConfig[] = [];
 
 export function loadWebhookConfig(): void {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-      const parsed = JSON.parse(raw);
-      webhookConfigs = Array.isArray(parsed) ? parsed : [parsed];
-      console.log(`Loaded ${webhookConfigs.length} webhook config(s)`);
-    }
+    const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
+    const parsed = JSON.parse(raw);
+    webhookConfigs = Array.isArray(parsed) ? parsed : [parsed];
+    console.log(`Loaded ${webhookConfigs.length} webhook config(s)`);
   } catch (err) {
-    console.warn("Failed to load webhook config:", err);
     webhookConfigs = [];
+    // No webhook config is the normal case — stay silent on a missing file.
+    // A corrupt/invalid JSON config is a real misconfiguration worth a warning.
+    if ((err as NodeJS.ErrnoException)?.code === "ENOENT") return;
+    console.warn("Failed to load webhook config:", err);
   }
 }
 
@@ -38,7 +39,9 @@ interface WebhookPayload {
 }
 
 export async function dispatchWebhooks(payload: WebhookPayload): Promise<void> {
-  const configs = webhookConfigs.filter(c => c.events.includes(payload.eventType));
+  const configs = webhookConfigs.filter((c) =>
+    c.events.includes(payload.eventType),
+  );
   for (const config of configs) {
     try {
       const body = formatPayload(config.format, payload);
@@ -55,7 +58,10 @@ export async function dispatchWebhooks(payload: WebhookPayload): Promise<void> {
   }
 }
 
-function formatPayload(format: WebhookConfig["format"], payload: WebhookPayload): unknown {
+function formatPayload(
+  format: WebhookConfig["format"],
+  payload: WebhookPayload,
+): unknown {
   const time = new Date(payload.timestamp).toISOString();
   switch (format) {
     case "slack":
@@ -67,8 +73,16 @@ function formatPayload(format: WebhookConfig["format"], payload: WebhookPayload)
   }
 }
 
-export function formatSlackMessage(payload: WebhookPayload, time: string): unknown {
-  const emoji = payload.eventType === "error" ? ":x:" : payload.eventType === "budget_exceeded" ? ":warning:" : ":white_check_mark:";
+export function formatSlackMessage(
+  payload: WebhookPayload,
+  time: string,
+): unknown {
+  const emoji =
+    payload.eventType === "error"
+      ? ":x:"
+      : payload.eventType === "budget_exceeded"
+        ? ":warning:"
+        : ":white_check_mark:";
   return {
     text: `${emoji} *Agent Monitor*: ${payload.message}`,
     blocks: [
@@ -83,17 +97,31 @@ export function formatSlackMessage(payload: WebhookPayload, time: string): unkno
   };
 }
 
-export function formatDiscordMessage(payload: WebhookPayload, time: string): unknown {
-  const color = payload.eventType === "error" ? 0xff4444 : payload.eventType === "budget_exceeded" ? 0xeab308 : 0x00ff88;
+export function formatDiscordMessage(
+  payload: WebhookPayload,
+  time: string,
+): unknown {
+  const color =
+    payload.eventType === "error"
+      ? 0xff4444
+      : payload.eventType === "budget_exceeded"
+        ? 0xeab308
+        : 0x00ff88;
   return {
-    embeds: [{
-      title: `Agent Monitor: ${payload.eventType.replace("_", " ")}`,
-      description: payload.message,
-      color,
-      fields: [
-        { name: "Agent", value: `${payload.agentId} (${payload.agentType})`, inline: true },
-        { name: "Time", value: time, inline: true },
-      ],
-    }],
+    embeds: [
+      {
+        title: `Agent Monitor: ${payload.eventType.replace("_", " ")}`,
+        description: payload.message,
+        color,
+        fields: [
+          {
+            name: "Agent",
+            value: `${payload.agentId} (${payload.agentType})`,
+            inline: true,
+          },
+          { name: "Time", value: time, inline: true },
+        ],
+      },
+    ],
   };
 }

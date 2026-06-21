@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useAgentStore } from "../store";
 import type { AgentEvent, AgentState, EdgeState } from "../types";
-import { ACTIVITY_MAX_ENTRIES, TOOL_CALLS_MAX_PER_AGENT, DEFAULT_CONTEXT_WINDOW } from "../config";
+import {
+  ACTIVITY_MAX_ENTRIES,
+  TOOL_CALLS_MAX_PER_AGENT,
+  DEFAULT_CONTEXT_WINDOW,
+} from "../config";
 
 beforeEach(() => {
   useAgentStore.setState({
@@ -29,7 +33,7 @@ function registerAgent(
     slug?: string;
     model?: string;
     metadata?: Record<string, unknown>;
-  } = {}
+  } = {},
 ) {
   const event: AgentEvent = {
     type: "agent:register",
@@ -182,14 +186,22 @@ describe("handleEvent: agent:register", () => {
     const before = useAgentStore.getState().agents.get("a1")!;
 
     // Simulate accumulated runtime state
-    useAgentStore.getState().handleEvent(
-      { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
-      Date.now(),
+    useAgentStore
+      .getState()
+      .handleEvent(
+        { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
+        Date.now(),
+      );
+    expect(useAgentStore.getState().agents.get("a1")!.toolCalls).toHaveLength(
+      1,
     );
-    expect(useAgentStore.getState().agents.get("a1")!.toolCalls).toHaveLength(1);
 
     // Re-register with the model now known — must not wipe toolCalls
-    registerAgent("a1", { agentType: "main", task: "original", model: "claude-opus-4" });
+    registerAgent("a1", {
+      agentType: "main",
+      task: "original",
+      model: "claude-opus-4",
+    });
 
     const after = useAgentStore.getState().agents.get("a1")!;
     expect(after.model).toBe("claude-opus-4");
@@ -199,10 +211,12 @@ describe("handleEvent: agent:register", () => {
 
   it("replaces an already-set model when the user switches mid-session", () => {
     registerAgent("a1", { agentType: "main", model: "claude-sonnet-4-6" });
-    useAgentStore.getState().handleEvent(
-      { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
-      Date.now(),
-    );
+    useAgentStore
+      .getState()
+      .handleEvent(
+        { type: "agent:tool_call", agentId: "a1", tool: "Bash" },
+        Date.now(),
+      );
     registerAgent("a1", { agentType: "main", model: "claude-opus-4-7" });
 
     const after = useAgentStore.getState().agents.get("a1")!;
@@ -215,9 +229,9 @@ describe("handleEvent: agent:register", () => {
     registerAgent("child-1", { parentId: "parent-1" });
     registerAgent("child-1", { parentId: "parent-1", model: "claude-opus-4" });
 
-    const edges = useAgentStore.getState().edges.filter(
-      (e) => e.source === "parent-1" && e.target === "child-1",
-    );
+    const edges = useAgentStore
+      .getState()
+      .edges.filter((e) => e.source === "parent-1" && e.target === "child-1");
     expect(edges).toHaveLength(1);
   });
 
@@ -231,8 +245,9 @@ describe("handleEvent: agent:register", () => {
       agentType: "main",
       metadata: { projectName: "Users/erdos/Github/ipportal2" },
     });
-    expect(useAgentStore.getState().agents.get("a1")!.metadata?.projectName)
-      .toBe("Users/erdos/Github/ipportal2");
+    expect(
+      useAgentStore.getState().agents.get("a1")!.metadata?.projectName,
+    ).toBe("Users/erdos/Github/ipportal2");
   });
 });
 
@@ -278,10 +293,11 @@ describe("handleEvent: agent:tool_call", () => {
 
     const agent = useAgentStore.getState().agents.get("a1")!;
     expect(agent.toolCalls).toHaveLength(1);
-    expect(agent.toolCalls[0].tool).toBe("readFile");
-    expect(agent.toolCalls[0].args).toBe('{"path":"foo.ts"}');
-    expect(agent.toolCalls[0].result).toBe("file contents");
-    expect(agent.toolCalls[0].timestamp).toBe(ts);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(agent.toolCalls[0]!.tool).toBe("readFile");
+    expect(agent.toolCalls[0]!.args).toBe('{"path":"foo.ts"}');
+    expect(agent.toolCalls[0]!.result).toBe("file contents");
+    expect(agent.toolCalls[0]!.timestamp).toBe(ts);
   });
 
   it("caps tool calls at TOOL_CALLS_MAX_PER_AGENT", () => {
@@ -299,8 +315,9 @@ describe("handleEvent: agent:tool_call", () => {
     const agent = useAgentStore.getState().agents.get("a1")!;
     expect(agent.toolCalls).toHaveLength(TOOL_CALLS_MAX_PER_AGENT);
     // The oldest entries should have been dropped; the last tool should be the most recent
-    expect(agent.toolCalls[TOOL_CALLS_MAX_PER_AGENT - 1].tool).toBe(
-      `tool-${TOOL_CALLS_MAX_PER_AGENT + 9}`
+    // safe: TOOL_CALLS_MAX_PER_AGENT - 1 < toolCalls.length (verified by toHaveLength above)
+    expect(agent.toolCalls[TOOL_CALLS_MAX_PER_AGENT - 1]!.tool).toBe(
+      `tool-${TOOL_CALLS_MAX_PER_AGENT + 9}`,
     );
   });
 });
@@ -384,7 +401,8 @@ describe("handleEvent: agent:message", () => {
     expect(state.agents.get("a2")).toEqual(agentsBefore.get("a2"));
     // Activity should have the message event
     expect(state.activity.length).toBeGreaterThan(0);
-    const lastActivity = state.activity[state.activity.length - 1];
+    // safe: activity.length > 0 asserted above
+    const lastActivity = state.activity[state.activity.length - 1]!;
     expect(lastActivity.event.type).toBe("agent:message");
   });
 });
@@ -548,7 +566,8 @@ describe("activity", () => {
     registerAgent("a1");
     const activity = useAgentStore.getState().activity;
     expect(activity).toHaveLength(1);
-    expect(activity[0].event.type).toBe("agent:register");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(activity[0]!.event.type).toBe("agent:register");
   });
 
   it("is capped at ACTIVITY_MAX_ENTRIES", () => {
@@ -565,7 +584,8 @@ describe("activity", () => {
     const activity = useAgentStore.getState().activity;
     expect(activity).toHaveLength(ACTIVITY_MAX_ENTRIES);
     // The most recent event should be the last one
-    const lastEvent = activity[activity.length - 1].event;
+    // safe: toHaveLength(ACTIVITY_MAX_ENTRIES) asserts length > 0
+    const lastEvent = activity[activity.length - 1]!.event;
     expect(lastEvent.type).toBe("agent:register");
     if (lastEvent.type === "agent:register") {
       expect(lastEvent.agentId).toBe(`agent-${ACTIVITY_MAX_ENTRIES + 19}`);
@@ -585,23 +605,39 @@ describe("setConnected", () => {
 
 describe("autoSelectInitialSession", () => {
   beforeEach(() => {
-    useAgentStore.setState({ sessionFilterInitialized: false, selectedSessionIds: new Set() });
+    useAgentStore.setState({
+      sessionFilterInitialized: false,
+      selectedSessionIds: new Set(),
+    });
   });
 
   it("defaults to All Sessions when multiple live mains exist", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "old-main", agentType: "main", task: "t", sessionId: "old-main" },
+      {
+        type: "agent:register",
+        agentId: "old-main",
+        agentType: "main",
+        task: "t",
+        sessionId: "old-main",
+      },
       now - 60_000,
     );
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "new-main", agentType: "main", task: "t", sessionId: "new-main" },
+      {
+        type: "agent:register",
+        agentId: "new-main",
+        agentType: "main",
+        task: "t",
+        sessionId: "new-main",
+      },
       now,
     );
 
     useAgentStore.getState().autoSelectInitialSession();
 
-    const { selectedSessionIds, sessionFilterInitialized } = useAgentStore.getState();
+    const { selectedSessionIds, sessionFilterInitialized } =
+      useAgentStore.getState();
     expect(selectedSessionIds.size).toBe(0); // empty = all sessions
     expect(sessionFilterInitialized).toBe(true);
   });
@@ -609,13 +645,25 @@ describe("autoSelectInitialSession", () => {
   it("initializes to All Sessions when a main agent exists alongside sub-agents", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "main1", agentType: "main", task: "t", sessionId: "main1" },
+      {
+        type: "agent:register",
+        agentId: "main1",
+        agentType: "main",
+        task: "t",
+        sessionId: "main1",
+      },
       now - 60_000,
     );
     // A later sub-agent must not break the boot-time init — only parentless mains count
     // toward the "do we have a live session yet?" gate.
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "sub1", agentType: "build", task: "t", parentId: "main1" },
+      {
+        type: "agent:register",
+        agentId: "sub1",
+        agentType: "build",
+        task: "t",
+        parentId: "main1",
+      },
       now,
     );
 
@@ -628,11 +676,23 @@ describe("autoSelectInitialSession", () => {
   it("is a no-op once initialized — does not clobber a user choice", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "m1", agentType: "main", task: "t", sessionId: "m1" },
+      {
+        type: "agent:register",
+        agentId: "m1",
+        agentType: "main",
+        task: "t",
+        sessionId: "m1",
+      },
       now - 60_000,
     );
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "m2", agentType: "main", task: "t", sessionId: "m2" },
+      {
+        type: "agent:register",
+        agentId: "m2",
+        agentType: "main",
+        task: "t",
+        sessionId: "m2",
+      },
       now,
     );
     // User explicitly chose the older one, then a new session arrives — auto-pick must NOT switch them away.
@@ -646,7 +706,13 @@ describe("autoSelectInitialSession", () => {
   it("respects an explicit 'All' choice (empty set after user toggle)", () => {
     const now = Date.now();
     useAgentStore.getState().handleEvent(
-      { type: "agent:register", agentId: "m1", agentType: "main", task: "t", sessionId: "m1" },
+      {
+        type: "agent:register",
+        agentId: "m1",
+        agentType: "main",
+        task: "t",
+        sessionId: "m1",
+      },
       now,
     );
     // User picked a session, then clicked All → empty set, but initialized=true.
@@ -662,7 +728,8 @@ describe("autoSelectInitialSession", () => {
 
   it("does nothing when there are no agents yet (will retry on next arrival)", () => {
     useAgentStore.getState().autoSelectInitialSession();
-    const { selectedSessionIds, sessionFilterInitialized } = useAgentStore.getState();
+    const { selectedSessionIds, sessionFilterInitialized } =
+      useAgentStore.getState();
     expect(selectedSessionIds.size).toBe(0);
     expect(sessionFilterInitialized).toBe(false); // not initialized — leaves room for the next call to fire
   });

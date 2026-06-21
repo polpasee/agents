@@ -42,14 +42,16 @@ export function computeMetricValue(
   switch (metric) {
     case "idleRatio": {
       // Approximate idle ratio from tool call gaps
-      const elapsed = (agent.duration ?? Date.now() - agent.startTime);
+      const elapsed = agent.duration ?? Date.now() - agent.startTime;
       if (elapsed <= 0 || agent.toolCalls.length === 0) return 0.5;
       let busyTime = 0;
       for (let i = 1; i < agent.toolCalls.length; i++) {
-        const gap = agent.toolCalls[i].timestamp - agent.toolCalls[i - 1].timestamp;
+        // safe: loop starts at 1 and stays < length, so i and i-1 are valid indices
+        const gap =
+          agent.toolCalls[i]!.timestamp - agent.toolCalls[i - 1]!.timestamp;
         if (gap < 5000) busyTime += gap; // gaps < 5s count as busy
       }
-      const idleRatio = 1 - (busyTime / elapsed);
+      const idleRatio = 1 - busyTime / elapsed;
       return Math.max(0, Math.min(1, idleRatio));
     }
     case "tokenEfficiency": {
@@ -70,7 +72,9 @@ export function computeMetricValue(
       if (agent.toolCalls.length < 2) return 0.5;
       let totalGap = 0;
       for (let i = 1; i < agent.toolCalls.length; i++) {
-        totalGap += agent.toolCalls[i].timestamp - agent.toolCalls[i - 1].timestamp;
+        // safe: loop starts at 1 and stays < length, so i and i-1 are valid indices
+        totalGap +=
+          agent.toolCalls[i]!.timestamp - agent.toolCalls[i - 1]!.timestamp;
       }
       const avgGap = totalGap / (agent.toolCalls.length - 1);
       return Math.max(0, Math.min(1, avgGap / 30000));
@@ -82,6 +86,7 @@ export function computeMetricValue(
 
 /** Render a single node in heatmap mode */
 export function renderHeatmapNode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- d3 Selection datum/parent generics are intentionally unconstrained here (mirrors renderNodeVisuals)
   g: Selection<SVGGElement, any, any, any>,
   agent: AgentState,
   metricValue: number,
@@ -99,7 +104,10 @@ export function renderHeatmapNode(
   // Glow ring for selected
   if (isSelected) {
     g.append("circle")
-      .attr("r", r + Math.round((GRAPH.glowRingRadius - GRAPH.nodeRadius) * hScale))
+      .attr(
+        "r",
+        r + Math.round((GRAPH.glowRingRadius - GRAPH.nodeRadius) * hScale),
+      )
       .attr("fill", "none")
       .attr("stroke", color)
       .attr("stroke-width", 2)
@@ -156,7 +164,8 @@ export function renderHeatmapLegend(
   const legendId = "heatmap-legend";
   svg.select(`#${legendId}`).remove();
 
-  const g = svg.append("g")
+  const g = svg
+    .append("g")
     .attr("id", legendId)
     .attr("transform", `translate(${x}, ${y})`);
 
@@ -164,12 +173,23 @@ export function renderHeatmapLegend(
   const h = HEATMAP.legendHeight;
 
   // Gradient definition
-  const defs = svg.select("defs").empty() ? svg.append("defs") : svg.select("defs");
+  const defs = svg.select("defs").empty()
+    ? svg.append("defs")
+    : svg.select("defs");
   defs.select("#heatmap-grad").remove();
   const gradient = defs.append("linearGradient").attr("id", "heatmap-grad");
-  gradient.append("stop").attr("offset", "0%").attr("stop-color", HEATMAP.colors[0]);
-  gradient.append("stop").attr("offset", "50%").attr("stop-color", HEATMAP.colors[1]);
-  gradient.append("stop").attr("offset", "100%").attr("stop-color", HEATMAP.colors[2]);
+  gradient
+    .append("stop")
+    .attr("offset", "0%")
+    .attr("stop-color", HEATMAP.colors[0]);
+  gradient
+    .append("stop")
+    .attr("offset", "50%")
+    .attr("stop-color", HEATMAP.colors[1]);
+  gradient
+    .append("stop")
+    .attr("offset", "100%")
+    .attr("stop-color", HEATMAP.colors[2]);
 
   // Background
   g.append("rect")

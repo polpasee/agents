@@ -14,9 +14,10 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
   useEffect(() => {
     const el = backdropRef.current;
     if (!el) return;
+    const node = el;
 
     // Focus the backdrop to capture keyboard events
-    el.focus();
+    node.focus();
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
@@ -26,12 +27,13 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
 
       // Focus trap: cycle Tab within the modal
       if (e.key === "Tab") {
-        const focusable = el!.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        const focusable = node.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         );
         if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
+        // safe: focusable.length > 0 checked above; indices 0 and length-1 exist
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
         if (e.shiftKey && document.activeElement === first) {
           e.preventDefault();
           last.focus();
@@ -42,8 +44,8 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
       }
     }
 
-    el.addEventListener("keydown", handleKeyDown);
-    return () => el.removeEventListener("keydown", handleKeyDown);
+    node.addEventListener("keydown", handleKeyDown);
+    return () => node.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   return (
@@ -54,7 +56,9 @@ export function ModalBackdrop({ onClose, children }: ModalBackdropProps) {
       aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center outline-none"
       style={{ background: "rgba(0, 0, 0, 0.7)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       {children}
     </div>

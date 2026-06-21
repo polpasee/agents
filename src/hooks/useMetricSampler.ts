@@ -17,7 +17,7 @@ export function useMetricSampler() {
       const agentList = Array.from(agents.values());
 
       const activeCount = agentList.filter(
-        (a) => a.status === "running" || a.status === "waiting"
+        (a) => a.status === "running" || a.status === "waiting",
       ).length;
 
       const totalTok = agentList.reduce((sum, a) => sum + totalTokens(a), 0);
@@ -26,10 +26,20 @@ export function useMetricSampler() {
 
       // Calculate rates from previous sample
       const { metricHistory } = useAgentStore.getState();
-      const prev = metricHistory.length > 0 ? metricHistory[metricHistory.length - 1] : null;
+      const prev =
+        metricHistory.length > 0
+          ? metricHistory[metricHistory.length - 1]
+          : null;
       const intervalSec = METRIC_SAMPLE_INTERVAL_MS / 1000;
-      const tokensPerSec = prev ? Math.max(0, (totalTok - prev.totalTokens) / intervalSec) : 0;
-      const costPerMin = prev ? Math.max(0, (totalCost - prev.totalCost) / (METRIC_SAMPLE_INTERVAL_MS / 60000)) : 0;
+      const tokensPerSec = prev
+        ? Math.max(0, (totalTok - prev.totalTokens) / intervalSec)
+        : 0;
+      const costPerMin = prev
+        ? Math.max(
+            0,
+            (totalCost - prev.totalCost) / (METRIC_SAMPLE_INTERVAL_MS / 60000),
+          )
+        : 0;
 
       pushMetricSample({
         timestamp: Date.now(),

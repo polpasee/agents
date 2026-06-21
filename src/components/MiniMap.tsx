@@ -4,28 +4,36 @@ import { useEffect, useRef } from "react";
 import { UI } from "@/lib/colors";
 import type { AgentGraphHandle } from "./AgentGraph";
 
-export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHandle | null> }) {
+export function MiniMap({
+  graphRef,
+}: {
+  graphRef: React.RefObject<AgentGraphHandle | null>;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const node = canvas;
 
     let frameId: ReturnType<typeof requestAnimationFrame>;
     let stopped = false;
 
     function draw() {
       if (stopped) return;
-      const ctx = canvas!.getContext("2d");
+      const ctx = node.getContext("2d");
       if (!ctx) return;
 
-      const w = canvas!.width;
-      const h = canvas!.height;
+      const w = node.width;
+      const h = node.height;
       ctx.clearRect(0, 0, w, h);
 
       const data = graphRef.current?.getNodesAndViewport();
       if (data && data.nodes.length > 0) {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity;
         for (const n of data.nodes) {
           minX = Math.min(minX, n.x);
           minY = Math.min(minY, n.y);
@@ -33,7 +41,10 @@ export function MiniMap({ graphRef }: { graphRef: React.RefObject<AgentGraphHand
           maxY = Math.max(maxY, n.y);
         }
         const pad = 60;
-        minX -= pad; minY -= pad; maxX += pad; maxY += pad;
+        minX -= pad;
+        minY -= pad;
+        maxX += pad;
+        maxY += pad;
         const rangeX = maxX - minX || 1;
         const rangeY = maxY - minY || 1;
         const scale = Math.min(w / rangeX, h / rangeY);

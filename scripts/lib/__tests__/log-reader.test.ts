@@ -2,11 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockReadFile = vi.fn<(..._args: unknown[]) => Promise<string>>();
 const mockStat = vi.fn<(..._args: unknown[]) => Promise<{ size: number }>>(() =>
-  Promise.resolve({ size: 1024 })
+  Promise.resolve({ size: 1024 }),
 );
 const mockOpen = vi.fn();
-const mockRead = vi.fn();
-const mockClose = vi.fn();
 
 vi.mock("node:fs/promises", () => ({
   readFile: (..._args: unknown[]) => mockReadFile(..._args),
@@ -48,8 +46,9 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].role).toBe("user");
-    expect(result[0].content).toBe("Hello world");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.role).toBe("user");
+    expect(result[0]!.content).toBe("Hello world");
   });
 
   it("parses assistant messages from JSONL", async () => {
@@ -67,8 +66,9 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].role).toBe("assistant");
-    expect(result[0].content).toBe("I can help");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.role).toBe("assistant");
+    expect(result[0]!.content).toBe("I can help");
   });
 
   it("parses tool_use blocks from assistant messages", async () => {
@@ -79,7 +79,12 @@ describe("readAgentLog", () => {
         message: {
           role: "assistant",
           content: [
-            { type: "tool_use", id: "tool-1", name: "Read", input: { file: "test.ts" } },
+            {
+              type: "tool_use",
+              id: "tool-1",
+              name: "Read",
+              input: { file: "test.ts" },
+            },
           ],
         },
       }),
@@ -88,8 +93,10 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].toolCalls).toHaveLength(1);
-    expect(result[0].toolCalls![0].name).toBe("Read");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.toolCalls).toHaveLength(1);
+    // safe: toHaveLength(1) asserts toolCalls[0] exists
+    expect(result[0]!.toolCalls![0]!.name).toBe("Read");
   });
 
   it("matches tool_result to pending tool call", async () => {
@@ -110,7 +117,11 @@ describe("readAgentLog", () => {
         message: {
           role: "user",
           content: [
-            { type: "tool_result", tool_use_id: "tool-1", content: "file contents here" },
+            {
+              type: "tool_result",
+              tool_use_id: "tool-1",
+              content: "file contents here",
+            },
           ],
         },
       }),
@@ -119,7 +130,8 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     const assistantEntry = result.find((e) => e.role === "assistant");
-    expect(assistantEntry?.toolCalls?.[0].result).toBe("file contents here");
+    // safe: toolCalls[0] is the only entry, asserted to exist via toHaveLength in prior test
+    expect(assistantEntry?.toolCalls?.[0]!.result).toBe("file contents here");
   });
 
   it("skips malformed JSON lines", async () => {
@@ -135,7 +147,8 @@ describe("readAgentLog", () => {
 
     const result = await readAgentLog("/test.jsonl");
     expect(result).toHaveLength(1);
-    expect(result[0].content).toBe("valid");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.content).toBe("valid");
   });
 
   it("skips entries without type or message", async () => {
@@ -154,14 +167,48 @@ describe("readAgentLog", () => {
   });
 
   it("rejects (throws) when fs.stat throws ENOENT — IO errors must propagate", async () => {
-    const err = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" });
+    const err = Object.assign(new Error("ENOENT: no such file or directory"), {
+      code: "ENOENT",
+    });
     mockStat.mockRejectedValue(err);
     await expect(readAgentLog("/nonexistent.jsonl")).rejects.toThrow("ENOENT");
   });
 
   it("rejects (throws) when fs.readFile throws EACCES — IO errors must propagate", async () => {
-    const err = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    const err = Object.assign(new Error("EACCES: permission denied"), {
+      code: "EACCES",
+    });
     mockReadFile.mockRejectedValue(err);
     await expect(readAgentLog("/forbidden.jsonl")).rejects.toThrow("EACCES");
+  });
+
+  it("decodes only bytesRead from the tail buffer on a short read (large file path)", async () => {
+    // Force the >LOG_READ_MAX_BYTES tail-read branch.
+    mockStat.mockResolvedValue({ size: 20 * 1024 * 1024 });
+    const tail = [
+      JSON.stringify({
+        type: "message",
+        timestamp: "2025-01-01T00:00:00Z",
+        message: { role: "user", content: "tail line" },
+      }),
+      "",
+    ].join("\n");
+    const tailBuf = Buffer.from(tail);
+
+    mockOpen.mockResolvedValue({
+      // Simulate a short read: fill only the prefix of the 10MB buffer and
+      // report the real bytesRead. Decoding the whole buffer would have leaked
+      // megabytes of zero bytes.
+      read: vi.fn(async (buf: Buffer) => {
+        tailBuf.copy(buf);
+        return { bytesRead: tailBuf.length };
+      }),
+      close: vi.fn(async () => {}),
+    });
+
+    const result = await readAgentLog("/huge.jsonl");
+    expect(result).toHaveLength(1);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.content).toBe("tail line");
   });
 });

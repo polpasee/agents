@@ -12,7 +12,15 @@ interface CostBuckets {
   month: number;
 }
 
-function BarRow({ label, percent, resetMs }: { label: string; percent: number; resetMs: number }) {
+function BarRow({
+  label,
+  percent,
+  resetMs,
+}: {
+  label: string;
+  percent: number;
+  resetMs: number;
+}) {
   const color = getBarColor(percent);
   return (
     <>
@@ -72,8 +80,12 @@ export function TopologyUsageStatus() {
   const fetchCosts = useCallback(() => {
     fetch("/api/costs")
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: CostBuckets | null) => { if (data) setCost(data); })
-      .catch(() => { /* leave previous values in place on transient failures */ });
+      .then((data: CostBuckets | null) => {
+        if (data) setCost(data);
+      })
+      .catch(() => {
+        /* leave previous values in place on transient failures */
+      });
   }, []);
 
   useEffect(() => {
@@ -129,7 +141,11 @@ export function TopologyUsageStatus() {
         }}
       >
         <BarRow label="Session" percent={blockPercent} resetMs={blockResetMs} />
-        <BarRow label="Weekly" percent={weeklyPercent} resetMs={weeklyResetMs} />
+        <BarRow
+          label="Weekly"
+          percent={weeklyPercent}
+          resetMs={weeklyResetMs}
+        />
       </div>
     </div>
   );

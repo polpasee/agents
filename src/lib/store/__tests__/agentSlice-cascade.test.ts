@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { useAgentStore } from "../../store";
 import type { AgentEvent, AgentState } from "../../types";
-import { DEFAULT_CONTEXT_WINDOW } from "../../config";
 
 beforeEach(() => {
   useAgentStore.setState({
@@ -64,7 +63,8 @@ describe("error cascade: child errors first, then parent errors", () => {
 
     setError("child");
     // Snapshot child's cascade BEFORE parent errors.
-    const childCascadeBefore = useAgentStore.getState().errorDetails.get("child")?.cascadeIds ?? [];
+    const childCascadeBefore =
+      useAgentStore.getState().errorDetails.get("child")?.cascadeIds ?? [];
 
     setError("parent");
 

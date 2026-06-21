@@ -126,7 +126,8 @@ export function assignAgentColor(id: string): string {
   const existing = colorByAgentId.get(id);
   if (existing) return existing;
   const slot = Math.abs(djb2(id)) % AGENT_PALETTE.length;
-  const color = AGENT_PALETTE[slot];
+  // safe: slot is in [0, AGENT_PALETTE.length) by construction
+  const color = AGENT_PALETTE[slot]!;
   colorByAgentId.set(id, color);
   return color;
 }
@@ -146,7 +147,7 @@ export function resetAgentColorRegistry(): void {
  *  The registry key is resolved as the first non-empty value of: id → slug →
  *  displayType. When all three are empty, returns UI.text.secondary. */
 export function agentColor(
-  agent: Pick<AgentState, "id" | "agentType" | "slug" | "displayType">
+  agent: Pick<AgentState, "id" | "agentType" | "slug" | "displayType">,
 ): string {
   if (agent.agentType === "main") return MAIN_AGENT_COLOR;
   const key = agent.id || agent.slug || agent.displayType;

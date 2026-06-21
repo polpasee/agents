@@ -9,7 +9,10 @@ import type { AgentGraphRefs } from "./refs";
  * Reads:  containerRef, svgRef
  * Writes: SVG width/height + zoom transform via fitToView
  */
-export function useResizeEffect(refs: AgentGraphRefs, fitToView: (duration?: number) => void) {
+export function useResizeEffect(
+  refs: AgentGraphRefs,
+  fitToView: (duration?: number) => void,
+) {
   useEffect(() => {
     const container = refs.containerRef.current;
     const svg = refs.svgRef.current;

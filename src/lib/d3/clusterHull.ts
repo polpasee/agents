@@ -8,10 +8,13 @@ import { GRAPH } from "@/lib/config";
  */
 export function clusterHullPath(points: [number, number][]): string {
   if (points.length === 2) {
-    const cx = (points[0][0] + points[1][0]) / 2;
-    const cy = (points[0][1] + points[1][1]) / 2;
-    const rx = Math.abs(points[0][0] - points[1][0]) / 2 + GRAPH.collideRadius;
-    const ry = Math.abs(points[0][1] - points[1][1]) / 2 + GRAPH.collideRadius;
+    // safe: length === 2 guarantees indices 0 and 1 exist
+    const p0 = points[0]!;
+    const p1 = points[1]!;
+    const cx = (p0[0] + p1[0]) / 2;
+    const cy = (p0[1] + p1[1]) / 2;
+    const rx = Math.abs(p0[0] - p1[0]) / 2 + GRAPH.collideRadius;
+    const ry = Math.abs(p0[1] - p1[1]) / 2 + GRAPH.collideRadius;
     // Ellipse as SVG path
     return `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${rx * 2},0a${rx},${ry} 0 1,0 -${rx * 2},0`;
   }
@@ -32,7 +35,10 @@ export function clusterHullPath(points: [number, number][]): string {
  * Anchor for a cluster label: horizontally centered over the member points,
  * just above the topmost one.
  */
-export function clusterLabelAnchor(points: [number, number][]): { x: number; y: number } {
+export function clusterLabelAnchor(points: [number, number][]): {
+  x: number;
+  y: number;
+} {
   // Avoid Math.min(...spread) — fold to stay stack-safe with
   // arbitrarily many cluster points.
   let minY = Infinity;

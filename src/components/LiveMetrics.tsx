@@ -127,7 +127,13 @@ export function LiveMetrics() {
   const currentValues = useMemo(() => {
     const latest = metricHistory[metricHistory.length - 1];
     if (!latest)
-      return { activeCount: 0, tokensPerSec: 0, totalCost: 0, costPerMin: 0, totalTokens: 0 };
+      return {
+        activeCount: 0,
+        tokensPerSec: 0,
+        totalCost: 0,
+        costPerMin: 0,
+        totalTokens: 0,
+      };
     return latest;
   }, [metricHistory]);
 

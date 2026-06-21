@@ -57,7 +57,9 @@ function buildChainTopology() {
     ["peer", peer],
     ["tm", tm],
   ]);
-  const edges: EdgeState[] = [{ source: "main", target: "peer", edgeType: "message" }];
+  const edges: EdgeState[] = [
+    { source: "main", target: "peer", edgeType: "message" },
+  ];
   const refs = makeRefs();
 
   renderHook(() =>
@@ -79,7 +81,8 @@ function buildChainTopology() {
 }
 
 function getLinkForce(refs: AgentGraphRefs): ForceLink<SimNode, SimLink> {
-  const force = refs.simulationRef.current!.force<ForceLink<SimNode, SimLink>>("link");
+  const force =
+    refs.simulationRef.current!.force<ForceLink<SimNode, SimLink>>("link");
   expect(force).toBeDefined();
   return force!;
 }
@@ -88,7 +91,9 @@ describe("useTopologyEffect — depth plumbing", () => {
   it("assigns nesting depth 0/1/2 to the SimNodes of a main → mid → leaf chain", () => {
     const { refs } = buildChainTopology();
 
-    const depthById = new Map(refs.nodesRef.current.map((n) => [n.id, n.depth]));
+    const depthById = new Map(
+      refs.nodesRef.current.map((n) => [n.id, n.depth]),
+    );
     expect(depthById.get("main")).toBe(0);
     expect(depthById.get("mid")).toBe(1);
     expect(depthById.get("leaf")).toBe(2);
@@ -108,15 +113,21 @@ describe("useTopologyEffect — depth plumbing", () => {
     const distance = linkForce.distance();
     const links = linkForce.links(); // source/target resolved to SimNodes by d3
 
-    const toLeaf = links.find((l) => l.edgeType === "parent" && (l.target as SimNode).id === "leaf")!;
-    const toMid = links.find((l) => l.edgeType === "parent" && (l.target as SimNode).id === "mid")!;
+    const toLeaf = links.find(
+      (l) => l.edgeType === "parent" && (l.target as SimNode).id === "leaf",
+    )!;
+    const toMid = links.find(
+      (l) => l.edgeType === "parent" && (l.target as SimNode).id === "mid",
+    )!;
     const message = links.find((l) => l.edgeType === "message")!;
     expect(toLeaf).toBeDefined();
     expect(toMid).toBeDefined();
     expect(message).toBeDefined();
 
     // Depth-2 target: shrunk by the per-level factor — NOT the flat constant.
-    expect(distance(toLeaf, 0, links)).toBe(GRAPH.subAgentLinkDistance * depthFactor(2));
+    expect(distance(toLeaf, 0, links)).toBe(
+      GRAPH.subAgentLinkDistance * depthFactor(2),
+    );
     expect(distance(toLeaf, 0, links)).not.toBe(GRAPH.subAgentLinkDistance);
 
     // Depth-1 target: depthFactor(1) === 1, so exactly the flat constant.
@@ -133,7 +144,9 @@ describe("useTopologyEffect — depth plumbing", () => {
     const distance = linkForce.distance();
     const links = linkForce.links();
 
-    const toTm = links.find((l) => l.edgeType === "parent" && (l.target as SimNode).id === "tm")!;
+    const toTm = links.find(
+      (l) => l.edgeType === "parent" && (l.target as SimNode).id === "tm",
+    )!;
     expect(toTm).toBeDefined();
     // Team members render full-size, so their links must not depth-scale.
     expect(distance(toTm, 0, links)).toBe(GRAPH.subAgentLinkDistance);
@@ -145,9 +158,12 @@ describe("useTopologyEffect — depth plumbing", () => {
     const leaf = nodes.find((n) => n.id === "leaf")!;
     const tm = nodes.find((n) => n.id === "tm")!;
 
-    const charge = refs.simulationRef.current!.force<ForceManyBody<SimNode>>("charge")!;
+    const charge =
+      refs.simulationRef.current!.force<ForceManyBody<SimNode>>("charge")!;
     const strength = charge.strength();
-    expect(strength(leaf, 0, nodes)).toBe(GRAPH.chargeStrengthSubAgent * depthFactor(2));
+    expect(strength(leaf, 0, nodes)).toBe(
+      GRAPH.chargeStrengthSubAgent * depthFactor(2),
+    );
     expect(strength(tm, 0, nodes)).toBe(GRAPH.chargeStrengthSubAgent);
   });
 
@@ -157,9 +173,12 @@ describe("useTopologyEffect — depth plumbing", () => {
     const leaf = nodes.find((n) => n.id === "leaf")!;
     const tm = nodes.find((n) => n.id === "tm")!;
 
-    const collide = refs.simulationRef.current!.force<ForceCollide<SimNode>>("collide")!;
+    const collide =
+      refs.simulationRef.current!.force<ForceCollide<SimNode>>("collide")!;
     const radius = collide.radius();
-    expect(radius(leaf, 0, nodes)).toBe(GRAPH.subAgentNodeRadius * depthFactor(2) + 4);
+    expect(radius(leaf, 0, nodes)).toBe(
+      GRAPH.subAgentNodeRadius * depthFactor(2) + 4,
+    );
     // Team members render at the full main-agent radius, depth ignored.
     expect(radius(tm, 0, nodes)).toBe(GRAPH.nodeRadius + 4);
   });

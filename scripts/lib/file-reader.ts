@@ -20,7 +20,9 @@ export function readNewLines(filePath: string): string[] {
   try {
     stat = fs.statSync(normalized);
   } catch (err) {
-    console.warn(`Failed to stat ${normalized}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to stat ${normalized}:`, err);
+    }
     return [];
   }
   if (stat.size <= offset) return [];
@@ -32,22 +34,30 @@ export function readNewLines(filePath: string): string[] {
   } catch (err) {
     // File vanished between stat and open — degrade to "no new lines"
     // instead of throwing out of the caller's discovery loop.
-    console.warn(`Failed to open ${normalized}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to open ${normalized}:`, err);
+    }
     return [];
   }
   let buf: Buffer;
+  let bytesRead: number;
   try {
     buf = Buffer.alloc(bytesToRead);
-    fs.readSync(fd, buf, 0, buf.length, offset);
+    // A short read can return fewer bytes than requested, leaving stale/zero
+    // bytes in the buffer tail; clamp all downstream math to bytesRead.
+    bytesRead = fs.readSync(fd, buf, 0, buf.length, offset);
   } finally {
     fs.closeSync(fd);
   }
 
+  const readBytes = Math.min(bytesToRead, bytesRead);
+
   // Find the last complete line boundary to avoid splitting a partial JSON line
-  let usableBytes = bytesToRead;
-  if (bytesToRead < stat.size - offset) {
+  let usableBytes = readBytes;
+  if (readBytes < stat.size - offset) {
     // We didn't read the whole remaining file — find last newline
-    const lastNewline = buf.lastIndexOf(10); // 10 = '\n'
+    // within the actually-read region (ignore any stale buffer tail).
+    const lastNewline = buf.subarray(0, readBytes).lastIndexOf(10); // 10 = '\n'
     if (lastNewline >= 0) {
       usableBytes = lastNewline + 1;
     }
@@ -64,16 +74,32 @@ export function readNewLines(filePath: string): string[] {
 
 export function extractTaskFromJSONL(
   filePath: string,
-  maxBytes = JSONL_MAX_BYTES
-): { task: string; slug: string; model: string; startTime?: number } {
-  const result = { task: "", slug: "", model: "", startTime: undefined as number | undefined };
+  maxBytes = JSONL_MAX_BYTES,
+): {
+  task: string;
+  slug: string;
+  model: string;
+  startTime?: number | undefined;
+} {
+  const result = {
+    task: "",
+    slug: "",
+    model: "",
+    startTime: undefined as number | undefined,
+  };
   try {
     const stat = fs.statSync(filePath);
     const chunk = Buffer.alloc(Math.min(stat.size, maxBytes));
     const fd = fs.openSync(filePath, "r");
-    fs.readSync(fd, chunk, 0, chunk.length, 0);
+    const bytesRead = fs.readSync(fd, chunk, 0, chunk.length, 0);
     fs.closeSync(fd);
-    const lines = chunk.toString("utf-8").split("\n").filter((l: string) => l.trim());
+    // A short read leaves stale/zero bytes in the chunk tail — decode only
+    // the bytes actually read.
+    const lines = chunk
+      .subarray(0, bytesRead)
+      .toString("utf-8")
+      .split("\n")
+      .filter((l: string) => l.trim());
     for (const line of lines) {
       try {
         const parsed = JSON.parse(line);
@@ -87,17 +113,26 @@ export function extractTaskFromJSONL(
           if (typeof content === "string") {
             result.task = cleanTaskText(content).slice(0, MAX_TASK_LENGTH);
           } else if (Array.isArray(content)) {
-            const textBlock = content.find((b: Record<string, unknown>) => b.type === "text");
+            const textBlock = content.find(
+              (b: Record<string, unknown>) => b.type === "text",
+            );
             if (textBlock && typeof textBlock.text === "string") {
-              result.task = cleanTaskText(textBlock.text).slice(0, MAX_TASK_LENGTH);
+              result.task = cleanTaskText(textBlock.text).slice(
+                0,
+                MAX_TASK_LENGTH,
+              );
             }
           }
         }
         if (result.task && result.model) break;
-      } catch { /* skip malformed lines */ }
+      } catch {
+        /* skip malformed lines */
+      }
     }
   } catch (err) {
-    console.warn(`Failed to extract task from ${filePath}:`, err);
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      console.warn(`Failed to extract task from ${filePath}:`, err);
+    }
   }
   return result;
 }

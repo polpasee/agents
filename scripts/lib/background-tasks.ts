@@ -19,10 +19,19 @@ export async function startBackgroundTasks(): Promise<void> {
   // Flip the started flag only AFTER all dynamic imports resolve. If any
   // import rejects, the flag stays false so a later caller can retry —
   // previously a failed import would permanently wedge polling off.
-  const { discoverActiveSessions, refreshTrackedAgents } = await import("./discovery");
-  const { PROJECTS_DIR, TEAMS_DIR, POLL_INTERVAL_MS, USAGE_REFRESH_INTERVAL_MS, USAGE_REFRESH_THRESHOLD_MS, FULL_SCAN_EVERY_N_POLLS } = await import("./config");
+  const { discoverActiveSessions, refreshTrackedAgents } =
+    await import("./discovery");
+  const {
+    PROJECTS_DIR,
+    TEAMS_DIR,
+    POLL_INTERVAL_MS,
+    USAGE_REFRESH_INTERVAL_MS,
+    USAGE_REFRESH_THRESHOLD_MS,
+    FULL_SCAN_EVERY_N_POLLS,
+  } = await import("./config");
   const { discoverTeams } = await import("./teams-discovery");
-  const { readCacheMtime, triggerCcstatuslineRefresh } = await import("./ccstatusline");
+  const { readCacheMtime, triggerCcstatuslineRefresh } =
+    await import("./ccstatusline");
   const { loadWebhookConfig } = await import("./webhooks");
 
   loadWebhookConfig();
@@ -33,6 +42,11 @@ export async function startBackgroundTasks(): Promise<void> {
 
   let firstRun = true;
   let pollTick = 0;
+  // Escalate from warn to error once discovery has failed this many times in a
+  // row, so a persistent ingestion outage is distinguishable from a one-off
+  // hiccup buried in a stream of warns.
+  const FAILURE_ESCALATION_THRESHOLD = 3;
+  let pollFailures = 0;
   async function pollLoop(): Promise<void> {
     try {
       // Every Nth tick does a full filesystem rediscovery (picks up new
@@ -45,26 +59,45 @@ export async function startBackgroundTasks(): Promise<void> {
         await refreshTrackedAgents();
       }
       await discoverTeams(TEAMS_DIR);
+      pollFailures = 0;
       if (firstRun) {
         firstRun = false;
         console.log(`[bg] Found ${agents.size} active agent(s)`);
       }
     } catch (err) {
-      console.warn("[bg poll] discovery failed:", err);
+      pollFailures++;
+      if (pollFailures >= FAILURE_ESCALATION_THRESHOLD) {
+        console.error(
+          `[bg poll] discovery failing repeatedly (${pollFailures}x):`,
+          err,
+        );
+      } else {
+        console.warn("[bg poll] discovery failed:", err);
+      }
     } finally {
       pollTick++;
       setTimeout(pollLoop, POLL_INTERVAL_MS);
     }
   }
 
+  let usageFailures = 0;
   async function usagePollLoop(): Promise<void> {
     try {
       const mtime = readCacheMtime();
       if (mtime === null || Date.now() - mtime > USAGE_REFRESH_THRESHOLD_MS) {
         triggerCcstatuslineRefresh();
       }
+      usageFailures = 0;
     } catch (err) {
-      console.warn("[bg usage] refresh failed:", err);
+      usageFailures++;
+      if (usageFailures >= FAILURE_ESCALATION_THRESHOLD) {
+        console.error(
+          `[bg usage] refresh failing repeatedly (${usageFailures}x):`,
+          err,
+        );
+      } else {
+        console.warn("[bg usage] refresh failed:", err);
+      }
     } finally {
       setTimeout(usagePollLoop, USAGE_REFRESH_INTERVAL_MS);
     }

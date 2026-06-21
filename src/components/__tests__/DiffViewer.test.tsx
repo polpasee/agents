@@ -25,7 +25,11 @@ describe("DiffViewer", () => {
 
     const diffs: FileModification[] = [
       { filePath: "src/index.ts", operation: "edit", timestamp: Date.now() },
-      { filePath: "src/new-file.ts", operation: "create", timestamp: Date.now() },
+      {
+        filePath: "src/new-file.ts",
+        operation: "create",
+        timestamp: Date.now(),
+      },
     ];
 
     const agentDiffs = new Map<string, FileModification[]>();

@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { isAllowedRequestOrigin } from "../origin-check";
+import {
+  isAllowedRequestOrigin,
+  isAllowedMutatingOrigin,
+} from "../origin-check";
 
 function req(origin?: string): Request {
   const headers: Record<string, string> = {};
@@ -26,7 +29,9 @@ describe("isAllowedRequestOrigin", () => {
     expect(isAllowedRequestOrigin(req("http://192.168.1.42:3000"))).toBe(true);
     expect(isAllowedRequestOrigin(req("http://172.16.0.1:3000"))).toBe(true);
     expect(isAllowedRequestOrigin(req("http://172.20.5.5:3000"))).toBe(true);
-    expect(isAllowedRequestOrigin(req("http://172.31.255.254:3000"))).toBe(true);
+    expect(isAllowedRequestOrigin(req("http://172.31.255.254:3000"))).toBe(
+      true,
+    );
   });
 
   it("rejects 172.x.x.x outside the 16-31 range", () => {
@@ -57,6 +62,22 @@ describe("isAllowedRequestOrigin", () => {
   });
 
   it("still rejects a public IPv6 host", () => {
-    expect(isAllowedRequestOrigin(req("http://[2001:db8::1]:3000"))).toBe(false);
+    expect(isAllowedRequestOrigin(req("http://[2001:db8::1]:3000"))).toBe(
+      false,
+    );
+  });
+});
+
+describe("isAllowedMutatingOrigin", () => {
+  it("rejects a missing Origin (CSRF guard on POST/DELETE)", () => {
+    expect(isAllowedMutatingOrigin(req(undefined))).toBe(false);
+  });
+
+  it("allows a present, allowlisted Origin", () => {
+    expect(isAllowedMutatingOrigin(req("http://localhost:4000"))).toBe(true);
+  });
+
+  it("rejects a present but non-allowlisted Origin", () => {
+    expect(isAllowedMutatingOrigin(req("http://evil.com"))).toBe(false);
   });
 });

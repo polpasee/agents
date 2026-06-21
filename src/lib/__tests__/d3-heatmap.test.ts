@@ -84,7 +84,11 @@ describe("computeMetricValue", () => {
       inputTokens: 0,
       outputTokens: 0,
     };
-    const value = computeMetricValue(emptyAgent, "tokenEfficiency", precomputeHeatmapNorms([emptyAgent]));
+    const value = computeMetricValue(
+      emptyAgent,
+      "tokenEfficiency",
+      precomputeHeatmapNorms([emptyAgent]),
+    );
     expect(value).toBe(0.5);
   });
 
@@ -93,12 +97,20 @@ describe("computeMetricValue", () => {
       ...mockAgent,
       toolCalls: [],
     };
-    const value = computeMetricValue(noToolAgent, "timeToFirstTool", precomputeHeatmapNorms([noToolAgent]));
+    const value = computeMetricValue(
+      noToolAgent,
+      "timeToFirstTool",
+      precomputeHeatmapNorms([noToolAgent]),
+    );
     expect(value).toBe(1);
   });
 
   it("returns 0.5 for unknown metric", () => {
-    const value = computeMetricValue(mockAgent, "unknownMetric" as HeatmapMetric, norms);
+    const value = computeMetricValue(
+      mockAgent,
+      "unknownMetric" as HeatmapMetric,
+      norms,
+    );
     expect(value).toBe(0.5);
   });
 });
@@ -170,7 +182,9 @@ describe("renderHeatmapNode", () => {
   // With isSelected=false the first circle appended is the main node circle,
   // so its `r` pins down the effective radius exactly.
   function renderRadius(agent: AgentState, depth?: number): number {
-    const svg = select(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+    const svg = select(
+      document.createElementNS("http://www.w3.org/2000/svg", "svg"),
+    );
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const g = svg.append("g") as Selection<SVGGElement, any, any, any>;
     renderHeatmapNode(g, agent, 0.5, createHeatmapScale(), false, depth);
@@ -179,7 +193,9 @@ describe("renderHeatmapNode", () => {
 
   it("shrinks depth-2 sub-agents by one depthScale step", () => {
     const agent = createMockAgent({ parentId: "p1" });
-    expect(renderRadius(agent, 2)).toBe(GRAPH.subAgentNodeRadius * GRAPH.depthScale);
+    expect(renderRadius(agent, 2)).toBe(
+      GRAPH.subAgentNodeRadius * GRAPH.depthScale,
+    );
   });
 
   it("renders depth-1 and depth-omitted sub-agents at the flat radius", () => {

@@ -32,7 +32,9 @@ function playClick(freq: number) {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.025);
     osc.start();
     osc.stop(ctx.currentTime + 0.025);
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playSpawnShimmer() {
@@ -52,7 +54,9 @@ function playSpawnShimmer() {
       osc.start(start);
       osc.stop(start + 0.2);
     });
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playCompleteArpeggio() {
@@ -73,7 +77,9 @@ function playCompleteArpeggio() {
       osc.start(start);
       osc.stop(start + 0.5);
     });
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 function playErrorTone() {
@@ -90,7 +96,9 @@ function playErrorTone() {
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
     osc.start();
     osc.stop(ctx.currentTime + 0.25);
-  } catch { /* AudioContext not available */ }
+  } catch {
+    /* AudioContext not available */
+  }
 }
 
 export function useSoundNotifications() {
@@ -108,7 +116,8 @@ export function useSoundNotifications() {
     }
 
     const lastId = lastIdRef.current;
-    const latestId = activity[activity.length - 1].id;
+    // safe: activity.length > 0 checked above; index length-1 exists
+    const latestId = activity[activity.length - 1]!.id;
 
     // On first run, just remember where we are — don't play sounds for existing entries.
     if (lastId === null) {

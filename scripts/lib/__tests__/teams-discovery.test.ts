@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fsp from "node:fs/promises";
@@ -59,9 +59,17 @@ async function writeTeamFixture(
 ): Promise<string> {
   const sessionPath = path.join(teamsDir, sessionDir);
   await fsp.mkdir(path.join(sessionPath, "inboxes"), { recursive: true });
-  await fsp.writeFile(path.join(sessionPath, "config.json"), JSON.stringify(config), "utf-8");
+  await fsp.writeFile(
+    path.join(sessionPath, "config.json"),
+    JSON.stringify(config),
+    "utf-8",
+  );
   for (const name of inboxNames) {
-    await fsp.writeFile(path.join(sessionPath, "inboxes", `${name}.json`), "[]", "utf-8");
+    await fsp.writeFile(
+      path.join(sessionPath, "inboxes", `${name}.json`),
+      "[]",
+      "utf-8",
+    );
   }
   return sessionPath;
 }
@@ -107,7 +115,9 @@ afterEach(async () => {
 describe("discoverTeams", () => {
   it("registers a member as child of leadSessionId (parentId + edge present)", async () => {
     seedLeadAgent();
-    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig(), ["capforecast"]);
+    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig(), [
+      "capforecast",
+    ]);
 
     await discoverTeams(teamsDir);
 
@@ -161,7 +171,9 @@ describe("discoverTeams", () => {
 
     const member = agents.get(MEMBER_AGENT_ID);
     expect(member).toBeDefined();
-    expect(member?.agentType).toBe(parseAgentType("voltagent-lang:nextjs-developer"));
+    expect(member?.agentType).toBe(
+      parseAgentType("voltagent-lang:nextjs-developer"),
+    );
     expect(member?.displayType).toBe("voltagent-lang:nextjs-developer");
     expect(member?.model).toBe("sonnet");
     expect(member?.slug).toBe("capforecast");
@@ -170,7 +182,9 @@ describe("discoverTeams", () => {
 
   it("is idempotent: second call does not duplicate edges or members", async () => {
     seedLeadAgent();
-    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig(), ["capforecast"]);
+    await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig(), [
+      "capforecast",
+    ]);
 
     await discoverTeams(teamsDir);
     const agentCountAfterFirst = agents.size;
@@ -202,12 +216,34 @@ describe("discoverTeams", () => {
     seedLeadAgent();
 
     // Dir with no config.json
-    await fsp.mkdir(path.join(teamsDir, "session-missing"), { recursive: true });
+    await fsp.mkdir(path.join(teamsDir, "session-missing"), {
+      recursive: true,
+    });
 
     await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
 
     await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
     expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
+  });
+
+  it("warns on a corrupt config.json but stays silent on a missing one", async () => {
+    seedLeadAgent();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Missing config (ENOENT) — must not warn
+    await fsp.mkdir(path.join(teamsDir, "session-missing"), {
+      recursive: true,
+    });
+    // Corrupt config (invalid JSON) — must warn
+    const badDir = path.join(teamsDir, "session-bad");
+    await fsp.mkdir(badDir, { recursive: true });
+    await fsp.writeFile(path.join(badDir, "config.json"), "NOT JSON", "utf-8");
+
+    await discoverTeams(teamsDir);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain("Malformed team config");
+    warn.mockRestore();
   });
 
   // Replacement for the tautological "absent from later snapshot" test.
@@ -217,7 +253,11 @@ describe("discoverTeams", () => {
     seedLeadAgent();
     const cfg = makeConfig();
     (cfg.members[1] as Record<string, unknown>).joinedAt = 1000; // ancient
-    const sessionPath = await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, cfg);
+    const sessionPath = await writeTeamFixture(
+      teamsDir,
+      `session-${TEAM_NAME}`,
+      cfg,
+    );
     const old = new Date(2000);
     await fsp.utimes(path.join(sessionPath, "config.json"), old, old); // force old config mtime
 
@@ -250,7 +290,11 @@ describe("discoverTeams", () => {
 
   it("refreshes status via updateAgentStatus on a repeat tick", async () => {
     seedLeadAgent();
-    const sessionPath = await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
+    const sessionPath = await writeTeamFixture(
+      teamsDir,
+      `session-${TEAM_NAME}`,
+      makeConfig(),
+    );
     await discoverTeams(teamsDir);
     const first = agentLastModified.get(MEMBER_AGENT_ID)!;
     const future = new Date(Date.now() + 5 * 60_000);
@@ -263,8 +307,11 @@ describe("discoverTeams", () => {
     seedLeadAgent();
     const badDir = path.join(teamsDir, "session-0bad");
     await fsp.mkdir(badDir, { recursive: true });
-    await fsp.writeFile(path.join(badDir, "config.json"),
-      JSON.stringify({ name: "x", leadAgentId: "l", leadSessionId: "s" }), "utf-8");
+    await fsp.writeFile(
+      path.join(badDir, "config.json"),
+      JSON.stringify({ name: "x", leadAgentId: "l", leadSessionId: "s" }),
+      "utf-8",
+    );
     await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, makeConfig());
     await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
     expect(agents.has(MEMBER_AGENT_ID)).toBe(true);
@@ -284,7 +331,12 @@ describe("discoverTeams", () => {
   it("skips members with a non-string agentId or name", async () => {
     seedLeadAgent();
     const cfg = makeConfig();
-    cfg.members.push({ agentId: "okname@s", name: null, agentType: "build", joinedAt: 1 } as never);
+    cfg.members.push({
+      agentId: "okname@s",
+      name: null,
+      agentType: "build",
+      joinedAt: 1,
+    } as never);
     await writeTeamFixture(teamsDir, `session-${TEAM_NAME}`, cfg);
     await expect(discoverTeams(teamsDir)).resolves.toBeUndefined();
     expect(agents.has("okname@s")).toBe(false); // skipped: name not a string

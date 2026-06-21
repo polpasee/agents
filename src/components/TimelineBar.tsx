@@ -26,7 +26,7 @@ export function TimelineBar() {
 
   const totalCost = calculateTotalCost(agents);
   const activeCount = Array.from(agents.values()).filter(
-    (a) => a.status === "running" || a.status === "idle"
+    (a) => a.status === "running" || a.status === "idle",
   ).length;
 
   const now = Date.now();
@@ -36,7 +36,8 @@ export function TimelineBar() {
   const dots = activity
     .filter((e) => e.event.type !== "agent:tokens")
     .map((entry) => {
-      const pct = elapsed > 0 ? ((entry.timestamp - earliest) / elapsed) * 100 : 50;
+      const pct =
+        elapsed > 0 ? ((entry.timestamp - earliest) / elapsed) * 100 : 50;
       let color: string = UI.text.muted;
 
       switch (entry.event.type) {
@@ -44,9 +45,11 @@ export function TimelineBar() {
           color = UI.primary;
           break;
         case "agent:tool_call":
-          { const aid = entry.event.agentId;
-          const a = agents.get(aid);
-          color = a ? AGENT_COLORS[a.agentType] : UI.text.muted; }
+          {
+            const aid = entry.event.agentId;
+            const a = agents.get(aid);
+            color = a ? AGENT_COLORS[a.agentType] : UI.text.muted;
+          }
           break;
         case "agent:complete":
           color = UI.success;
@@ -98,7 +101,9 @@ export function TimelineBar() {
               style={{
                 background: connected ? UI.success : UI.error,
                 boxShadow: `0 0 6px ${connected ? UI.success : UI.error}`,
-                animation: connected ? "pulse-glow 1.5s ease-in-out infinite" : "none",
+                animation: connected
+                  ? "pulse-glow 1.5s ease-in-out infinite"
+                  : "none",
               }}
             />
             <span
@@ -111,7 +116,10 @@ export function TimelineBar() {
         ) : (
           <div className="flex items-center gap-1">
             <button
-              onClick={() => { setReviewMode(false); setScrubPosition(100); }}
+              onClick={() => {
+                setReviewMode(false);
+                setScrubPosition(100);
+              }}
               className="text-[11px] font-mono px-1.5 py-0.5 rounded"
               style={{ color: UI.primary, border: `1px solid ${UI.primary}44` }}
               aria-label="Resume live mode"
@@ -120,7 +128,10 @@ export function TimelineBar() {
             </button>
           </div>
         )}
-        <span className="text-[11px] font-mono" style={{ color: UI.text.dimmed }}>
+        <span
+          className="text-[11px] font-mono"
+          style={{ color: UI.text.dimmed }}
+        >
           {formatDuration(elapsed)}
         </span>
       </div>
@@ -184,10 +195,14 @@ export function TimelineBar() {
           {speeds.map((s) => (
             <button
               key={s}
-              onClick={() => { setPlaybackSpeed(s); replaySetSpeed(s); }}
+              onClick={() => {
+                setPlaybackSpeed(s);
+                replaySetSpeed(s);
+              }}
               className="px-1.5 py-0.5 rounded text-[11px] font-mono"
               style={{
-                background: playbackSpeed === s ? `${UI.primary}22` : "transparent",
+                background:
+                  playbackSpeed === s ? `${UI.primary}22` : "transparent",
                 border: `1px solid ${playbackSpeed === s ? UI.primary : "var(--color-border)"}`,
                 color: playbackSpeed === s ? UI.primary : UI.text.muted,
               }}
@@ -204,15 +219,24 @@ export function TimelineBar() {
           <button
             onClick={() => setReviewMode(true)}
             className="text-[11px] font-mono px-1.5 py-0.5 rounded"
-            style={{ color: UI.text.muted, border: "1px solid var(--color-border)" }}
+            style={{
+              color: UI.text.muted,
+              border: "1px solid var(--color-border)",
+            }}
           >
             Review
           </button>
         )}
-        <span className="text-[11px] font-mono" style={{ color: UI.text.dimmed }}>
+        <span
+          className="text-[11px] font-mono"
+          style={{ color: UI.text.dimmed }}
+        >
           {activeCount} active
         </span>
-        <span className="text-[11px] font-mono font-bold" style={{ color: UI.primary }}>
+        <span
+          className="text-[11px] font-mono font-bold"
+          style={{ color: UI.primary }}
+        >
           {formatCost(totalCost.total)}
         </span>
       </div>

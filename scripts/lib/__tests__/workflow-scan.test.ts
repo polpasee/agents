@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
-import { parseWorkflowFile, scanWorkflows, scanWorkflowScripts } from "../workflow-scan";
+import {
+  parseWorkflowFile,
+  scanWorkflows,
+  scanWorkflowScripts,
+} from "../workflow-scan";
 import { utimes } from "node:fs/promises";
 
 let tmpDir: string;
@@ -26,9 +30,9 @@ const FULL_FIXTURE = {
   totalToolCalls: 214,
   summary: "code-review max: finder angles + verify + sweep",
   phases: [
-    { title: "Find",   detail: "finder angles ..." },
+    { title: "Find", detail: "finder angles ..." },
     { title: "Verify", detail: "adversarial verifier ..." },
-    { title: "Sweep",  detail: "fresh reviewer hunts gaps" },
+    { title: "Sweep", detail: "fresh reviewer hunts gaps" },
   ],
   workflowProgress: [
     { type: "workflow_phase", index: "1", title: "Find" },
@@ -79,7 +83,9 @@ describe("parseWorkflowFile", () => {
     expect(result!.agentCount).toBe(18);
     expect(result!.totalTokens).toBe(1234567);
     expect(result!.totalToolCalls).toBe(214);
-    expect(result!.summary).toBe("code-review max: finder angles + verify + sweep");
+    expect(result!.summary).toBe(
+      "code-review max: finder angles + verify + sweep",
+    );
   });
 
   it("maps phases with index, title, and detail", async () => {
@@ -88,9 +94,21 @@ describe("parseWorkflowFile", () => {
     const result = parseWorkflowFile(filePath, "sess-abc");
 
     expect(result!.phases).toHaveLength(3);
-    expect(result!.phases[0]).toEqual({ index: 1, title: "Find", detail: "finder angles ..." });
-    expect(result!.phases[1]).toEqual({ index: 2, title: "Verify", detail: "adversarial verifier ..." });
-    expect(result!.phases[2]).toEqual({ index: 3, title: "Sweep", detail: "fresh reviewer hunts gaps" });
+    expect(result!.phases[0]).toEqual({
+      index: 1,
+      title: "Find",
+      detail: "finder angles ...",
+    });
+    expect(result!.phases[1]).toEqual({
+      index: 2,
+      title: "Verify",
+      detail: "adversarial verifier ...",
+    });
+    expect(result!.phases[2]).toEqual({
+      index: 3,
+      title: "Sweep",
+      detail: "fresh reviewer hunts gaps",
+    });
   });
 
   it("maps workflow_agent entries to WorkflowAgentRef with coerced numeric fields", async () => {
@@ -99,7 +117,8 @@ describe("parseWorkflowFile", () => {
     const result = parseWorkflowFile(filePath, "sess-abc");
 
     expect(result!.agents).toHaveLength(2);
-    const agent = result!.agents[0];
+    // safe: toHaveLength(2) asserts index 0 exists
+    const agent = result!.agents[0]!;
     expect(agent.agentId).toBe("ac37e2d69fd1abf90");
     expect(agent.label).toBe("find:A-arialabel");
     expect(agent.phaseIndex).toBe(1);
@@ -144,8 +163,8 @@ describe("parseWorkflowFile", () => {
     await fs.writeFile(filePath, JSON.stringify(FULL_FIXTURE));
     const result = parseWorkflowFile(filePath, "sess-abc");
 
-    // All agents come through with their wf label intact
-    expect(result!.agents[0].label).toBe("find:A-arialabel");
+    // safe: agents has at least 1 element (same fixture as above test)
+    expect(result!.agents[0]!.label).toBe("find:A-arialabel");
   });
 
   it("returns null for garbage file content", async () => {
@@ -186,7 +205,8 @@ describe("parseWorkflowFile", () => {
     const result = parseWorkflowFile(filePath, "sess-abc");
 
     expect(result).not.toBeNull();
-    const agent = result!.agents[0];
+    // safe: fixture has exactly 1 agent entry
+    const agent = result!.agents[0]!;
     // Non-numeric strings must be omitted (undefined), not NaN
     expect(agent.tokens).toBeUndefined();
     expect(agent.durationMs).toBeUndefined();
@@ -199,8 +219,18 @@ describe("parseWorkflowFile", () => {
     const fixture = {
       ...FULL_FIXTURE,
       workflowProgress: [
-        { type: "workflow_agent", agentId: "", label: "empty-id-agent", state: "done" },
-        { type: "workflow_agent", agentId: "valid-agent", label: "ok", state: "done" },
+        {
+          type: "workflow_agent",
+          agentId: "",
+          label: "empty-id-agent",
+          state: "done",
+        },
+        {
+          type: "workflow_agent",
+          agentId: "valid-agent",
+          label: "ok",
+          state: "done",
+        },
       ],
     };
     const filePath = path.join(tmpDir, "wf_emptyid.json");
@@ -209,7 +239,8 @@ describe("parseWorkflowFile", () => {
 
     expect(result).not.toBeNull();
     expect(result!.agents).toHaveLength(1);
-    expect(result!.agents[0].agentId).toBe("valid-agent");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result!.agents[0]!.agentId).toBe("valid-agent");
   });
 
   it("falls back to agents.length when agentCount is absent", async () => {
@@ -247,8 +278,14 @@ describe("scanWorkflowScripts", () => {
     const sessionId = "sess-nojs";
     const scriptsDir = path.join(tmpDir, sessionId, "workflows", "scripts");
     await fs.mkdir(scriptsDir, { recursive: true });
-    await fs.writeFile(path.join(scriptsDir, "code-review-max-wf_abc123.ts"), "");
-    await fs.writeFile(path.join(scriptsDir, "code-review-max-wf_abc123.json"), "");
+    await fs.writeFile(
+      path.join(scriptsDir, "code-review-max-wf_abc123.ts"),
+      "",
+    );
+    await fs.writeFile(
+      path.join(scriptsDir, "code-review-max-wf_abc123.json"),
+      "",
+    );
 
     const result = await scanWorkflowScripts(tmpDir, sessionId);
     expect(result.size).toBe(0);
@@ -290,13 +327,23 @@ describe("scanWorkflows", () => {
     const sessionId = "sess-xyz";
     const wfDir = path.join(tmpDir, sessionId, "workflows");
     await fs.mkdir(wfDir, { recursive: true });
-    await fs.writeFile(path.join(wfDir, "wf_run1.json"), JSON.stringify(FULL_FIXTURE));
+    await fs.writeFile(
+      path.join(wfDir, "wf_run1.json"),
+      JSON.stringify(FULL_FIXTURE),
+    );
     await fs.writeFile(
       path.join(wfDir, "wf_run2.json"),
-      JSON.stringify({ ...FULL_FIXTURE, runId: "wf_run2", workflowName: "other-flow" }),
+      JSON.stringify({
+        ...FULL_FIXTURE,
+        runId: "wf_run2",
+        workflowName: "other-flow",
+      }),
     );
     // Non-matching file should be ignored
-    await fs.writeFile(path.join(wfDir, "notaworkflow.json"), JSON.stringify(FULL_FIXTURE));
+    await fs.writeFile(
+      path.join(wfDir, "notaworkflow.json"),
+      JSON.stringify(FULL_FIXTURE),
+    );
 
     const result = await scanWorkflows(tmpDir, sessionId);
     expect(result).toHaveLength(2);
@@ -309,19 +356,26 @@ describe("scanWorkflows", () => {
     const sessionId = "sess-garbage";
     const wfDir = path.join(tmpDir, sessionId, "workflows");
     await fs.mkdir(wfDir, { recursive: true });
-    await fs.writeFile(path.join(wfDir, "wf_ok.json"), JSON.stringify(FULL_FIXTURE));
+    await fs.writeFile(
+      path.join(wfDir, "wf_ok.json"),
+      JSON.stringify(FULL_FIXTURE),
+    );
     await fs.writeFile(path.join(wfDir, "wf_bad.json"), "garbage");
 
     const result = await scanWorkflows(tmpDir, sessionId);
     expect(result).toHaveLength(1);
-    expect(result[0].runId).toBe("wf_1abd6ed8-fdb");
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(result[0]!.runId).toBe("wf_1abd6ed8-fdb");
   });
 
   it("skips all files on second call when mtimeCache is provided and files unchanged", async () => {
     const sessionId = "sess-mtime";
     const wfDir = path.join(tmpDir, sessionId, "workflows");
     await fs.mkdir(wfDir, { recursive: true });
-    await fs.writeFile(path.join(wfDir, "wf_run1.json"), JSON.stringify(FULL_FIXTURE));
+    await fs.writeFile(
+      path.join(wfDir, "wf_run1.json"),
+      JSON.stringify(FULL_FIXTURE),
+    );
 
     const mtimeCache = new Map<string, number>();
     const first = await scanWorkflows(tmpDir, sessionId, mtimeCache);
@@ -372,6 +426,7 @@ describe("scanWorkflows", () => {
 
     const second = await scanWorkflows(tmpDir, sessionId, mtimeCache);
     expect(second).toHaveLength(1);
-    expect(second[0].runId).toBe(FULL_FIXTURE.runId);
+    // safe: toHaveLength(1) asserts index 0 exists
+    expect(second[0]!.runId).toBe(FULL_FIXTURE.runId);
   });
 });

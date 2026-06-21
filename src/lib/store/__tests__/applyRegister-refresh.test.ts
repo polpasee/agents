@@ -86,7 +86,9 @@ function reRegister(
 
 describe("model field (incoming-wins)", () => {
   it("incoming model overrides existing", () => {
-    const result = reRegister(makeExisting({ model: "claude-3-5-sonnet" }), { model: "claude-opus-4" });
+    const result = reRegister(makeExisting({ model: "claude-3-5-sonnet" }), {
+      model: "claude-opus-4",
+    });
     expect(result.model).toBe("claude-opus-4");
   });
 
@@ -96,12 +98,16 @@ describe("model field (incoming-wins)", () => {
   });
 
   it("keeps existing model when incoming is empty string", () => {
-    const result = reRegister(makeExisting({ model: "claude-3-5-sonnet" }), { model: "" });
+    const result = reRegister(makeExisting({ model: "claude-3-5-sonnet" }), {
+      model: "",
+    });
     expect(result.model).toBe("claude-3-5-sonnet");
   });
 
   it("falls back to empty string when both are absent/empty", () => {
-    const result = reRegister(makeExisting({ model: undefined }), { model: "" });
+    const result = reRegister(makeExisting({ model: undefined }), {
+      model: "",
+    });
     expect(result.model).toBe("");
   });
 });
@@ -110,7 +116,9 @@ describe("model field (incoming-wins)", () => {
 
 describe("agentType field (incoming-wins)", () => {
   it("incoming agentType overrides existing", () => {
-    const result = reRegister(makeExisting({ agentType: "build" }), { agentType: "main" });
+    const result = reRegister(makeExisting({ agentType: "build" }), {
+      agentType: "main",
+    });
     expect(result.agentType).toBe("main");
   });
 
@@ -121,7 +129,11 @@ describe("agentType field (incoming-wins)", () => {
     // simulate an incoming event where agentType would be falsy:
     // we can't pass empty string for the typed union, so test the OR logic
     // by verifying that a truthy incoming value wins.
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "main", task: "t" }, 2000);
+    applyRegister(
+      ctx,
+      { type: "agent:register", agentId: "a1", agentType: "main", task: "t" },
+      2000,
+    );
     expect(ctx.newAgents!.get("a1")!.agentType).toBe("main");
   });
 });
@@ -130,7 +142,9 @@ describe("agentType field (incoming-wins)", () => {
 
 describe("task field (keep-first)", () => {
   it("keeps existing task even when event carries a different task", () => {
-    const result = reRegister(makeExisting({ task: "original-task" }), { task: "new-task" });
+    const result = reRegister(makeExisting({ task: "original-task" }), {
+      task: "new-task",
+    });
     expect(result.task).toBe("original-task");
   });
 
@@ -142,7 +156,9 @@ describe("task field (keep-first)", () => {
   it('replaces the "Session" registration placeholder with the event task', () => {
     // Carve-out for the discovery late-meta heal: "Session" is registerAgent's
     // no-task fallback, not a real description, so a refresh may replace it.
-    const result = reRegister(makeExisting({ task: "Session" }), { task: "real task from meta" });
+    const result = reRegister(makeExisting({ task: "Session" }), {
+      task: "real task from meta",
+    });
     expect(result.task).toBe("real task from meta");
   });
 });
@@ -151,12 +167,16 @@ describe("task field (keep-first)", () => {
 
 describe("slug field (keep-first)", () => {
   it("keeps existing slug", () => {
-    const result = reRegister(makeExisting({ slug: "old-slug" }), { slug: "new-slug" });
+    const result = reRegister(makeExisting({ slug: "old-slug" }), {
+      slug: "new-slug",
+    });
     expect(result.slug).toBe("old-slug");
   });
 
   it("adopts event slug if existing slug is absent", () => {
-    const result = reRegister(makeExisting({ slug: undefined }), { slug: "new-slug" });
+    const result = reRegister(makeExisting({ slug: undefined }), {
+      slug: "new-slug",
+    });
     expect(result.slug).toBe("new-slug");
   });
 });
@@ -165,12 +185,17 @@ describe("slug field (keep-first)", () => {
 
 describe("displayType field (keep-first)", () => {
   it("keeps existing displayType", () => {
-    const result = reRegister(makeExisting({ displayType: "original-display" }), { displayType: "new-display" });
+    const result = reRegister(
+      makeExisting({ displayType: "original-display" }),
+      { displayType: "new-display" },
+    );
     expect(result.displayType).toBe("original-display");
   });
 
   it("adopts event displayType if existing displayType is absent", () => {
-    const result = reRegister(makeExisting({ displayType: undefined }), { displayType: "new-display" });
+    const result = reRegister(makeExisting({ displayType: undefined }), {
+      displayType: "new-display",
+    });
     expect(result.displayType).toBe("new-display");
   });
 });
@@ -180,13 +205,17 @@ describe("displayType field (keep-first)", () => {
 describe("metadata field (keep-first)", () => {
   it("keeps existing metadata", () => {
     const existing = { key: "existing" };
-    const result = reRegister(makeExisting({ metadata: existing }), { metadata: { key: "new" } });
+    const result = reRegister(makeExisting({ metadata: existing }), {
+      metadata: { key: "new" },
+    });
     expect(result.metadata).toBe(existing); // same reference
   });
 
   it("adopts event metadata if existing metadata is absent", () => {
     const eventMeta = { key: "from-event" };
-    const result = reRegister(makeExisting({ metadata: undefined }), { metadata: eventMeta });
+    const result = reRegister(makeExisting({ metadata: undefined }), {
+      metadata: eventMeta,
+    });
     expect(result.metadata).toBe(eventMeta);
   });
 });
@@ -195,7 +224,9 @@ describe("metadata field (keep-first)", () => {
 
 describe("effort field (incoming-wins, nullish)", () => {
   it("incoming effort overrides existing", () => {
-    const result = reRegister(makeExisting({ effort: "high" }), { effort: "low" });
+    const result = reRegister(makeExisting({ effort: "high" }), {
+      effort: "low",
+    });
     expect(result.effort).toBe("low");
   });
 
@@ -210,7 +241,9 @@ describe("effort field (incoming-wins, nullish)", () => {
     // The only way to test ?? vs || is to confirm that even "low" (which is
     // truthy) incoming still replaces "high" existing (already tested above).
     // The important distinction: if event.effort is undefined, existing is kept.
-    const result = reRegister(makeExisting({ effort: "high" }), { effort: undefined });
+    const result = reRegister(makeExisting({ effort: "high" }), {
+      effort: undefined,
+    });
     expect(result.effort).toBe("high");
   });
 });
@@ -219,12 +252,16 @@ describe("effort field (incoming-wins, nullish)", () => {
 
 describe("is1MContext field (incoming-wins, nullish)", () => {
   it("incoming is1MContext=true overrides existing false", () => {
-    const result = reRegister(makeExisting({ is1MContext: false }), { is1MContext: true });
+    const result = reRegister(makeExisting({ is1MContext: false }), {
+      is1MContext: true,
+    });
     expect(result.is1MContext).toBe(true);
   });
 
   it("incoming is1MContext=false overrides existing true (nullish, not ||)", () => {
-    const result = reRegister(makeExisting({ is1MContext: true }), { is1MContext: false });
+    const result = reRegister(makeExisting({ is1MContext: true }), {
+      is1MContext: false,
+    });
     expect(result.is1MContext).toBe(false);
   });
 
@@ -238,10 +275,16 @@ describe("is1MContext field (incoming-wins, nullish)", () => {
 
 describe("accumulated state fields are preserved on re-register", () => {
   it("toolCalls are preserved", () => {
-    const existing = makeExisting({ toolCalls: [{ tool: "Read", timestamp: 100 }, { tool: "Write", timestamp: 200 }] });
+    const existing = makeExisting({
+      toolCalls: [
+        { tool: "Read", timestamp: 100 },
+        { tool: "Write", timestamp: 200 },
+      ],
+    });
     const result = reRegister(existing, {});
     expect(result.toolCalls).toHaveLength(2);
-    expect(result.toolCalls[0].tool).toBe("Read");
+    // safe: toHaveLength(2) asserts index 0 exists
+    expect(result.toolCalls[0]!.tool).toBe("Read");
   });
 
   it("inputTokens are preserved", () => {
@@ -303,7 +346,13 @@ describe("workflowName field (keep-first)", () => {
     });
     applyRegister(
       ctx,
-      { type: "agent:register", agentId: "a1", agentType: "build", task: "t", workflowName: "code-review-max" },
+      {
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "build",
+        task: "t",
+        workflowName: "code-review-max",
+      },
       1000,
     );
     expect(ctx.newAgents!.get("a1")!.workflowName).toBe("code-review-max");
@@ -317,7 +366,11 @@ describe("workflowName field (keep-first)", () => {
       teams: new Map(),
       agentTypeBudgets: {},
     });
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 1000);
+    applyRegister(
+      ctx,
+      { type: "agent:register", agentId: "a1", agentType: "build", task: "t" },
+      1000,
+    );
     expect(ctx.newAgents!.get("a1")!.workflowName).toBeUndefined();
   });
 
@@ -330,10 +383,9 @@ describe("workflowName field (keep-first)", () => {
   });
 
   it("re-register: fills in workflowName from event when existing is undefined", () => {
-    const result = reRegister(
-      makeExisting({ workflowName: undefined }),
-      { workflowName: "code-review-max" },
-    );
+    const result = reRegister(makeExisting({ workflowName: undefined }), {
+      workflowName: "code-review-max",
+    });
     expect(result.workflowName).toBe("code-review-max");
   });
 
@@ -349,7 +401,11 @@ describe("topologyDirty on re-register", () => {
   it("not set when parentId and teamId are unchanged", () => {
     const existing = makeExisting({ parentId: undefined, teamId: undefined });
     const ctx = makeCtx(existing);
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 2000);
+    applyRegister(
+      ctx,
+      { type: "agent:register", agentId: "a1", agentType: "build", task: "t" },
+      2000,
+    );
     expect(ctx.topologyDirty).toBe(false);
   });
 });
@@ -369,8 +425,20 @@ describe("parentId field (incoming-wins) and parent-edge swap", () => {
 
   it("re-register with a new parentId updates the stored agent's parentId", () => {
     const existing = makeExisting({ parentId: "old-parent" });
-    const ctx = makeCtxWithEdges(existing, [{ source: "old-parent", target: "a1" }]);
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
+    const ctx = makeCtxWithEdges(existing, [
+      { source: "old-parent", target: "a1" },
+    ]);
+    applyRegister(
+      ctx,
+      {
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "build",
+        task: "t",
+        parentId: "new-parent",
+      },
+      2000,
+    );
     expect(ctx.newAgents!.get("a1")!.parentId).toBe("new-parent");
   });
 
@@ -382,17 +450,50 @@ describe("parentId field (incoming-wins) and parent-edge swap", () => {
       { source: "a1", target: "peer", edgeType: "message" },
     ];
     const ctx = makeCtxWithEdges(existing, edges);
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
-    expect(ctx.newEdges).not.toContainEqual({ source: "old-parent", target: "a1" });
+    applyRegister(
+      ctx,
+      {
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "build",
+        task: "t",
+        parentId: "new-parent",
+      },
+      2000,
+    );
+    expect(ctx.newEdges).not.toContainEqual({
+      source: "old-parent",
+      target: "a1",
+    });
     expect(ctx.newEdges).toContainEqual({ source: "new-parent", target: "a1" });
-    expect(ctx.newEdges).toContainEqual({ source: "blocker", target: "a1", edgeType: "blocking" });
-    expect(ctx.newEdges).toContainEqual({ source: "a1", target: "peer", edgeType: "message" });
+    expect(ctx.newEdges).toContainEqual({
+      source: "blocker",
+      target: "a1",
+      edgeType: "blocking",
+    });
+    expect(ctx.newEdges).toContainEqual({
+      source: "a1",
+      target: "peer",
+      edgeType: "message",
+    });
   });
 
   it("sets topologyDirty when parentId changes", () => {
     const existing = makeExisting({ parentId: "old-parent" });
-    const ctx = makeCtxWithEdges(existing, [{ source: "old-parent", target: "a1" }]);
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t", parentId: "new-parent" }, 2000);
+    const ctx = makeCtxWithEdges(existing, [
+      { source: "old-parent", target: "a1" },
+    ]);
+    applyRegister(
+      ctx,
+      {
+        type: "agent:register",
+        agentId: "a1",
+        agentType: "build",
+        task: "t",
+        parentId: "new-parent",
+      },
+      2000,
+    );
     expect(ctx.topologyDirty).toBe(true);
   });
 
@@ -400,7 +501,11 @@ describe("parentId field (incoming-wins) and parent-edge swap", () => {
     const existing = makeExisting({ parentId: "old-parent" });
     const edges: EdgeState[] = [{ source: "old-parent", target: "a1" }];
     const ctx = makeCtxWithEdges(existing, edges);
-    applyRegister(ctx, { type: "agent:register", agentId: "a1", agentType: "build", task: "t" }, 2000);
+    applyRegister(
+      ctx,
+      { type: "agent:register", agentId: "a1", agentType: "build", task: "t" },
+      2000,
+    );
     expect(ctx.newAgents!.get("a1")!.parentId).toBe("old-parent");
     expect(ctx.newEdges).toBe(edges); // same array — no edge mutation
     expect(ctx.topologyDirty).toBe(false);
