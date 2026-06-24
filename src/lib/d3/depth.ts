@@ -27,6 +27,31 @@ export function agentDepth(
 }
 
 /**
+ * Top main-agent ancestor of an agent — the head of its family. Walks the
+ * parentId chain to the root (same cycle guard / MAX_DEPTH cap as agentDepth).
+ * A root agent returns its own id; an unknown id returns itself; an agent whose
+ * parentId points at an unknown agent returns that parentId (its furthest
+ * known ancestor). Used to group "a main agent + the sub-agents it spawned".
+ */
+export function rootAgentId(
+  agentId: string,
+  agents: Map<string, AgentState>,
+): string {
+  let rootId = agentId;
+  const visited = new Set<string>([agentId]);
+  let current = agents.get(agentId);
+  let depth = 0;
+  while (current?.parentId && depth < MAX_DEPTH) {
+    if (visited.has(current.parentId)) break; // cycle guard
+    visited.add(current.parentId);
+    rootId = current.parentId;
+    current = agents.get(current.parentId);
+    depth++;
+  }
+  return rootId;
+}
+
+/**
  * Gentle per-level shrink applied to sub-agent link distance, charge
  * strength, and node radius. Depth ≤1 (or omitted) is exactly 1 so direct
  * sub-agents render unchanged; deeper levels decay by GRAPH.depthScale per

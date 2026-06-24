@@ -4,7 +4,6 @@ import { zoom } from "d3-zoom";
 import {
   forceSimulation,
   forceLink,
-  forceManyBody,
   forceX,
   forceY,
   forceCollide,
@@ -19,6 +18,8 @@ import {
   clusterLabelAnchor,
   agentDepth,
   depthFactor,
+  rootAgentId,
+  forceGroupedManyBody,
 } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type {
@@ -378,6 +379,23 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       nodesByPhasePerRun.set(runId, nodesByPhase);
     }
 
+    // Charge is scoped per family: a main agent and the sub-agents it spawned
+    // (same root ancestor) repel only each other, so each family fans out
+    // radially without disturbing unrelated families. Main agents additionally
+    // share a "roots" bucket so the top layer still spreads itself apart. Tool
+    // nodes join their owning agent's family. THIS predicate is the definition
+    // of "who affects whom" — widen/narrow the buckets to change the scoping.
+    //
+    // Deliberate trade-off: sub-agents of DIFFERENT families share no bucket,
+    // so they exert no long-range repulsion on each other — only forceCollide
+    // resolves any physical overlap. This is intended (family isolation); do
+    // not add cross-family charge here without revisiting that goal.
+    const chargeBucketsOf = (node: SimNode): string[] => {
+      const ownerId = node.toolCall?.parentAgentId ?? node.id;
+      const family = `fam:${rootAgentId(ownerId, agents)}`;
+      return node.toolCall || node.agent.parentId ? [family] : ["roots", family];
+    };
+
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force(
         "link",
@@ -399,7 +417,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       )
       .force(
         "charge",
-        forceManyBody<SimNode>()
+        forceGroupedManyBody<SimNode>(chargeBucketsOf)
           .distanceMax(GRAPH.chargeDistanceMax)
           .strength((d) => {
             if (d.toolCall) return GRAPH.chargeStrengthTool;

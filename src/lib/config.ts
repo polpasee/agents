@@ -29,7 +29,7 @@ export const GRAPH = {
   linkDistance: 300, // Link distance (px) for Main↔Main edges (message/blocking/default)
   subAgentLinkDistance: 200, // Link distance (px) for Main↔sub-agent parent edges
   toolLinkDistance: 80, // Link distance (px) for any↔tool edges
-  chargeDistanceMax: 500, // Cap (px) on forceManyBody reach — beyond this, charge contributes zero force (bounds main↔main drift)
+  chargeDistanceMax: 500, // Cap (px) on charge reach — beyond this, charge contributes zero force (bounds main↔main drift)
   chargeStrengthMain: -500, // Repulsion strength applied to main agents (no parentId)
   chargeStrengthSubAgent: -200, // Repulsion strength applied to sub-agents (has parentId, not a tool)
   chargeStrengthTool: -80, // Repulsion strength applied to tool nodes
