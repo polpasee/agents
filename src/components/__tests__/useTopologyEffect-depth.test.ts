@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
-import type { ForceLink, ForceManyBody, ForceCollide } from "d3-force";
+import type { ForceLink, ForceCollide } from "d3-force";
 import { GRAPH } from "@/lib/config";
 import { depthFactor } from "@/lib/d3/depth";
-import type { SimNode, SimLink } from "@/lib/d3";
+import type { SimNode, SimLink, GroupedManyBodyForce } from "@/lib/d3";
 import type { AgentState, EdgeState } from "@/lib/types";
 import { mockAgent } from "@/lib/__tests__/test-utils";
 import { useTopologyEffect } from "../AgentGraph/useTopologyEffect";
@@ -159,12 +159,10 @@ describe("useTopologyEffect — depth plumbing", () => {
     const tm = nodes.find((n) => n.id === "tm")!;
 
     const charge =
-      refs.simulationRef.current!.force<ForceManyBody<SimNode>>("charge")!;
+      refs.simulationRef.current!.force<GroupedManyBodyForce<SimNode>>("charge")!;
     const strength = charge.strength();
-    expect(strength(leaf, 0, nodes)).toBe(
-      GRAPH.chargeStrengthSubAgent * depthFactor(2),
-    );
-    expect(strength(tm, 0, nodes)).toBe(GRAPH.chargeStrengthSubAgent);
+    expect(strength(leaf)).toBe(GRAPH.chargeStrengthSubAgent * depthFactor(2));
+    expect(strength(tm)).toBe(GRAPH.chargeStrengthSubAgent);
   });
 
   it("depth-scales collide radius for nested sub-agents but not for team members", () => {

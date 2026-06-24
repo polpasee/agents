@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agentDepth, depthFactor } from "../d3/depth";
+import { agentDepth, depthFactor, rootAgentId } from "../d3/depth";
 import { GRAPH } from "../config";
 import type { AgentState } from "../types";
 
@@ -102,5 +102,60 @@ describe("depthFactor", () => {
     // These are the formulas used at the call sites; depth 1 must be a no-op.
     expect(GRAPH.subAgentLinkDistance * depthFactor(1)).toBe(200);
     expect(GRAPH.subAgentNodeRadius * depthFactor(1)).toBe(28);
+  });
+});
+
+describe("rootAgentId", () => {
+  it("returns the agent's own id for a root agent", () => {
+    const agents = makeMap(makeAgent("root"));
+    expect(rootAgentId("root", agents)).toBe("root");
+  });
+
+  it("returns the id itself for an unknown agent", () => {
+    expect(rootAgentId("ghost", makeMap())).toBe("ghost");
+  });
+
+  it("returns the root for a direct child", () => {
+    const agents = makeMap(makeAgent("root"), makeAgent("child", "root"));
+    expect(rootAgentId("child", agents)).toBe("root");
+  });
+
+  it("walks a multi-level chain up to the root", () => {
+    const agents = makeMap(
+      makeAgent("a0"),
+      makeAgent("a1", "a0"),
+      makeAgent("a2", "a1"),
+      makeAgent("a3", "a2"),
+    );
+    expect(rootAgentId("a3", agents)).toBe("a0");
+    expect(rootAgentId("a2", agents)).toBe("a0");
+  });
+
+  it("groups every member of a family under the same root", () => {
+    const agents = makeMap(
+      makeAgent("main"),
+      makeAgent("subA", "main"),
+      makeAgent("subB", "main"),
+      makeAgent("leaf", "subA"),
+    );
+    const root = rootAgentId("main", agents);
+    expect(rootAgentId("subA", agents)).toBe(root);
+    expect(rootAgentId("subB", agents)).toBe(root);
+    expect(rootAgentId("leaf", agents)).toBe(root);
+  });
+
+  it("returns the furthest known ancestor when the parent is unknown", () => {
+    const agents = makeMap(makeAgent("orphan", "gone"));
+    expect(rootAgentId("orphan", agents)).toBe("gone");
+  });
+
+  it("terminates on a self-parent cycle", () => {
+    const agents = makeMap(makeAgent("a", "a"));
+    expect(rootAgentId("a", agents)).toBe("a");
+  });
+
+  it("terminates on a two-node cycle", () => {
+    const agents = makeMap(makeAgent("a", "b"), makeAgent("b", "a"));
+    expect(rootAgentId("a", agents)).toBe("b");
   });
 });

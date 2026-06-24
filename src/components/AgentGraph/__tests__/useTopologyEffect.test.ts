@@ -32,10 +32,6 @@ vi.mock("d3-force", () => {
       distance: vi.fn().mockReturnThis(),
       links: vi.fn().mockReturnThis(),
     })),
-    forceManyBody: vi.fn(() => ({
-      distanceMax: vi.fn().mockReturnThis(),
-      strength: vi.fn().mockReturnThis(),
-    })),
     forceX: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceY: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceCollide: vi.fn(() => ({ radius: vi.fn().mockReturnThis() })),
@@ -85,6 +81,11 @@ vi.mock("@/lib/d3", () => ({
   clusterLabelAnchor: vi.fn(() => ({ x: 0, y: 0 })),
   agentDepth: vi.fn(() => 0),
   depthFactor: vi.fn(() => 1),
+  rootAgentId: vi.fn((id: string) => id),
+  forceGroupedManyBody: vi.fn(() => ({
+    distanceMax: vi.fn().mockReturnThis(),
+    strength: vi.fn().mockReturnThis(),
+  })),
   hexPath: vi.fn(() => "M0,0"),
 }));
 
