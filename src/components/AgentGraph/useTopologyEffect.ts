@@ -413,6 +413,13 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
               );
             }
             return GRAPH.linkDistance;
+          })
+          .strength((d) => {
+            if (d.edgeType === "tool") return GRAPH.toolLinkStrength;
+            if (d.edgeType === "parent") return GRAPH.parentLinkStrength;
+            // message / blocking peer edges: minimal pull so they don't
+            // distort the parent-driven hierarchy
+            return GRAPH.peerLinkStrength;
           }),
       )
       .force(
