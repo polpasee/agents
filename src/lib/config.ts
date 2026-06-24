@@ -26,14 +26,17 @@ export const GRAPH = {
   tooltipY: -48, // Vertical offset (px) of the hover tooltip above the node
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
-  linkDistance: 300, // Link distance (px) for Main↔Main edges (message/blocking/default)
-  subAgentLinkDistance: 200, // Link distance (px) for Main↔sub-agent parent edges
-  toolLinkDistance: 80, // Link distance (px) for any↔tool edges
-  chargeDistanceMax: 500, // Cap (px) on charge reach — beyond this, charge contributes zero force (bounds main↔main drift)
-  chargeStrengthMain: -500, // Repulsion strength applied to main agents (no parentId)
-  chargeStrengthSubAgent: -200, // Repulsion strength applied to sub-agents (has parentId, not a tool)
-  chargeStrengthTool: -80, // Repulsion strength applied to tool nodes
-  centerStrength: 0.05, // Per-node strength for forceX/forceY pull toward viewport center
+  linkDistance: 150, // Link distance (px) for Main↔Main edges (message/blocking/default)
+  subAgentLinkDistance: 100, // Link distance (px) for Main↔sub-agent parent edges
+  toolLinkDistance: 55, // Link distance (px) for any↔tool edges
+  chargeDistanceMax: 320, // Cap (px) on charge reach — beyond this, charge contributes zero force (bounds main↔main drift)
+  chargeStrengthMain: -260, // Repulsion strength applied to main agents (no parentId)
+  chargeStrengthSubAgent: -150, // Repulsion strength applied to sub-agents (has parentId, not a tool)
+  chargeStrengthTool: -55, // Repulsion strength applied to tool nodes
+  centerStrength: 0.08, // Per-node strength for forceX/forceY pull toward viewport center
+  parentLinkStrength: 0.85, // forceLink strength for parent (hierarchy) links — rigid so children cluster onto their parent
+  peerLinkStrength: 0.08, // forceLink strength for message/blocking peer edges — cosmetic pull only, keeps them from distorting the tree
+  toolLinkStrength: 0.7, // forceLink strength for tool links — tools hug their owning agent
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   depthScale: 0.85, // Per-level shrink factor for nested sub-agents at depth >= 2 (depth <= 1 stays at 1.0)
   depthScaleMin: 0.55, // Floor on the cumulative depth shrink so depth-5 nodes stay legible

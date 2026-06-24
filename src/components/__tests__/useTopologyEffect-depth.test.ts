@@ -206,5 +206,10 @@ describe("useTopologyEffect — depth plumbing", () => {
     const toolLink = links.find((l) => l.edgeType === "tool")!;
     expect(toolLink).toBeDefined();
     expect(distance(toolLink, 0, links)).toBe(GRAPH.toolLinkDistance);
+
+    // The strength accessor must also route injected tool links to the
+    // tool branch (not the message/blocking peer fallthrough).
+    const strength = linkForce.strength();
+    expect(strength(toolLink, 0, links)).toBe(GRAPH.toolLinkStrength);
   });
 });
