@@ -137,6 +137,17 @@ describe("useTopologyEffect — depth plumbing", () => {
     expect(distance(message, 0, links)).toBe(GRAPH.linkDistance);
   });
 
+  it("applies per-edge-type link strength (rigid parent, weak peer)", () => {
+    const { refs } = buildChainTopology();
+    const linkForce = getLinkForce(refs);
+    const strength = linkForce.strength();
+    const links = linkForce.links();
+    const toMid = links.find((l) => l.edgeType === "parent" && (l.target as SimNode).id === "mid")!;
+    const message = links.find((l) => l.edgeType === "message")!;
+    expect(strength(toMid, 0, links)).toBe(GRAPH.linkStrengthParent);
+    expect(strength(message, 0, links)).toBe(GRAPH.linkStrengthPeer);
+  });
+
   it("keeps parent-link distance flat for team-member targets at depth >= 2", () => {
     const { refs } = buildChainTopology();
 
@@ -206,5 +217,8 @@ describe("useTopologyEffect — depth plumbing", () => {
     const toolLink = links.find((l) => l.edgeType === "tool")!;
     expect(toolLink).toBeDefined();
     expect(distance(toolLink, 0, links)).toBe(GRAPH.toolLinkDistance);
+
+    const strength = linkForce.strength();
+    expect(strength(toolLink, 0, links)).toBe(GRAPH.linkStrengthTool);
   });
 });

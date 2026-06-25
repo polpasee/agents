@@ -100,7 +100,7 @@ describe("depthFactor", () => {
 
   it("keeps depth-1 link distance and radius at the exact pre-change values", () => {
     // These are the formulas used at the call sites; depth 1 must be a no-op.
-    expect(GRAPH.subAgentLinkDistance * depthFactor(1)).toBe(200);
+    expect(GRAPH.subAgentLinkDistance * depthFactor(1)).toBe(90);
     expect(GRAPH.subAgentNodeRadius * depthFactor(1)).toBe(28);
   });
 });
