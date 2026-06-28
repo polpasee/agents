@@ -3,7 +3,12 @@ import { renderHook } from "@testing-library/react";
 import type { ForceLink, ForceCollide } from "d3-force";
 import { GRAPH } from "@/lib/config";
 import { depthFactor } from "@/lib/d3/depth";
-import type { SimNode, SimLink, GroupedManyBodyForce } from "@/lib/d3";
+import type {
+  SimNode,
+  SimLink,
+  GroupedManyBodyForce,
+  RadialSpokesForce,
+} from "@/lib/d3";
 import type { AgentState, EdgeState } from "@/lib/types";
 import { mockAgent } from "@/lib/__tests__/test-utils";
 import { useTopologyEffect } from "../AgentGraph/useTopologyEffect";
@@ -159,7 +164,9 @@ describe("useTopologyEffect — depth plumbing", () => {
     const tm = nodes.find((n) => n.id === "tm")!;
 
     const charge =
-      refs.simulationRef.current!.force<GroupedManyBodyForce<SimNode>>("charge")!;
+      refs.simulationRef.current!.force<GroupedManyBodyForce<SimNode>>(
+        "charge",
+      )!;
     const strength = charge.strength();
     expect(strength(leaf)).toBe(GRAPH.chargeStrengthSubAgent * depthFactor(2));
     expect(strength(tm)).toBe(GRAPH.chargeStrengthSubAgent);
@@ -179,6 +186,159 @@ describe("useTopologyEffect — depth plumbing", () => {
     );
     // Team members render at the full main-agent radius, depth ignored.
     expect(radius(tm, 0, nodes)).toBe(GRAPH.nodeRadius + 4);
+  });
+
+  it("tool nodes spoke outward via toolSpokes force, inner-seeded tool ends up beyond its owner", () => {
+    // Topology: main M (no parentId), sub-agent S (parentId=M).
+    // S is pinned at (200,0), M at (0,0) → outward direction is +x.
+    // Tool node seeded INSIDE at x=150 (< S.x=200) so a no-op force or the
+    // old full-circle n=1 (-π/2 → target x=200,y=-55) both fail the
+    // assertion; only the outward fan (angle=0 → target x=255) passes.
+    const M = mockAgent({ id: "M" });
+    const S = mockAgent({ id: "S", parentId: "M" });
+    const agentMap = new Map<string, AgentState>([
+      ["M", M],
+      ["S", S],
+    ]);
+    const refs = makeRefs();
+
+    renderHook(() =>
+      useTopologyEffect(refs, {
+        filteredAgents: [M, S],
+        edges: [],
+        agents: agentMap,
+        teams: new Map(),
+        workflows: new Map(),
+        selectedAgentId: null,
+        selectedTeamId: null,
+        selectedWorkflowId: null,
+        topologyVersion: 1,
+        selectAgent: vi.fn(),
+      }),
+    );
+
+    const sim = refs.simulationRef.current!;
+
+    // Pin M and S at known positions; set both x and fx so the force reads them.
+    const mNode = refs.nodesRef.current.find((n) => n.id === "M")!;
+    const sNode = refs.nodesRef.current.find((n) => n.id === "S")!;
+    mNode.x = 0;
+    mNode.y = 0;
+    mNode.fx = 0;
+    mNode.fy = 0;
+    sNode.x = 200;
+    sNode.y = 0;
+    sNode.fx = 200;
+    sNode.fy = 0;
+
+    // Inject a tool node owned by S, seeded on the INNER side.
+    const toolNode: SimNode = {
+      id: "tool:S:1",
+      agent: S,
+      toolCall: { tool: "Read", timestamp: Date.now(), parentAgentId: "S" },
+      x: 150,
+      y: 0,
+      vx: 0,
+      vy: 0,
+    };
+
+    // Drive the "toolSpokes" force (not "spokes").
+    const toolSpokesForce =
+      sim.force<RadialSpokesForce<SimNode>>("toolSpokes")!;
+    toolSpokesForce.initialize([...refs.nodesRef.current, toolNode]);
+
+    // Run many ticks to let the force converge.
+    for (let i = 0; i < 500; i++) {
+      toolSpokesForce(0.3);
+      toolNode.x = (toolNode.x ?? 0) + (toolNode.vx ?? 0);
+      toolNode.y = (toolNode.y ?? 0) + (toolNode.vy ?? 0);
+      toolNode.vx = (toolNode.vx ?? 0) * 0.6;
+      toolNode.vy = (toolNode.vy ?? 0) * 0.6;
+    }
+
+    // Tool must end up beyond its owner S (which is pinned at x=200).
+    expect(toolNode.x).toBeGreaterThan(sNode.x!);
+  });
+
+  it("tool owned by a sub-agent is excluded from the spokes group, so two sub-agents still fan ~180° apart", () => {
+    // Regression guard for the slot-separation invariant. M owns S1,S2 → spokes
+    // group n=2 → targets are vertical (180° apart). A tool OWNED BY S1
+    // (tool.agent.parentId === "M") is fed into the spokes force: it must be
+    // excluded via !n.toolCall so the group stays n=2. If tools were merged into
+    // spokes, n=3 → S1/S2 ~120° apart → assertion fails. S1/S2 are seeded CLUMPED
+    // on one side so a no-op/disabled spokes force also fails (they'd stay clumped).
+    const M = mockAgent({ id: "M" });
+    const S1 = mockAgent({ id: "S1", parentId: "M" });
+    const S2 = mockAgent({ id: "S2", parentId: "M" });
+    const agentMap = new Map<string, AgentState>([
+      ["M", M],
+      ["S1", S1],
+      ["S2", S2],
+    ]);
+    const refs = makeRefs();
+
+    renderHook(() =>
+      useTopologyEffect(refs, {
+        filteredAgents: [M, S1, S2],
+        edges: [],
+        agents: agentMap,
+        teams: new Map(),
+        workflows: new Map(),
+        selectedAgentId: null,
+        selectedTeamId: null,
+        selectedWorkflowId: null,
+        topologyVersion: 1,
+        selectAgent: vi.fn(),
+      }),
+    );
+
+    const sim = refs.simulationRef.current!;
+    const mNode = refs.nodesRef.current.find((n) => n.id === "M")!;
+    const s1Node = refs.nodesRef.current.find((n) => n.id === "S1")!;
+    const s2Node = refs.nodesRef.current.find((n) => n.id === "S2")!;
+
+    // Pin M at origin; seed S1/S2 CLUMPED on the +x upper side (not antipodal).
+    mNode.x = 0;
+    mNode.y = 0;
+    s1Node.x = 100;
+    s1Node.y = 12;
+    s1Node.vx = 0;
+    s1Node.vy = 0;
+    s2Node.x = 96;
+    s2Node.y = 20;
+    s2Node.vx = 0;
+    s2Node.vy = 0;
+
+    // Tool OWNED BY S1 — its spokes key would be M (S1.parentId) if the
+    // !n.toolCall exclusion were removed, so a re-merge would push the group to n=3.
+    const toolNode: SimNode = {
+      id: "tool:S1:1",
+      agent: S1,
+      toolCall: { tool: "Read", timestamp: Date.now(), parentAgentId: "S1" },
+      x: 50,
+      y: 0,
+      vx: 0,
+      vy: 0,
+    };
+
+    const spokeForce = sim.force<RadialSpokesForce<SimNode>>("spokes")!;
+    spokeForce.initialize([mNode, s1Node, s2Node, toolNode]);
+
+    for (let i = 0; i < 500; i++) {
+      spokeForce(0.5);
+      for (const n of [s1Node, s2Node]) {
+        n.x = (n.x ?? 0) + (n.vx ?? 0);
+        n.y = (n.y ?? 0) + (n.vy ?? 0);
+        n.vx = (n.vx ?? 0) * 0.6;
+        n.vy = (n.vy ?? 0) * 0.6;
+      }
+    }
+
+    const angle1 = Math.atan2(s1Node.y ?? 0, s1Node.x ?? 0);
+    const angle2 = Math.atan2(s2Node.y ?? 0, s2Node.x ?? 0);
+    let diff = Math.abs(angle1 - angle2);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    expect(Math.abs(diff - Math.PI)).toBeLessThan(0.3);
   });
 
   it("returns GRAPH.toolLinkDistance for tool links fed into the same link force", () => {

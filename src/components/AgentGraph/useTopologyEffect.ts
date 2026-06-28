@@ -467,6 +467,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           (n) => GRAPH.subAgentLinkDistance * depthFactor(n.depth),
         ).strength(GRAPH.spokeStrength),
       )
+      .force(
+        "toolSpokes",
+        forceRadialSpokes<SimNode>(
+          (n) => n.id,
+          (n) => (n.toolCall ? n.toolCall.parentAgentId : undefined),
+          () => GRAPH.toolLinkDistance,
+          (parent) => (parent.agent.teamId ? undefined : parent.agent.parentId),
+        ).strength(GRAPH.spokeStrength),
+      )
       .force("x", forceX<SimNode>(width / 2).strength(centerStrengthOf))
       .force("y", forceY<SimNode>(height / 2).strength(centerStrengthOf))
       .force(
