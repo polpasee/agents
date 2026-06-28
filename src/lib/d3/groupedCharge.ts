@@ -57,8 +57,14 @@ export function forceGroupedManyBody<N extends SimulationNodeDatum>(
           let l = x * x + y * y;
           if (l >= distanceMax2) continue;
           // Coincident on an axis → jiggle so the force has a direction.
-          if (x === 0) { x = jiggle(); l += x * x; }
-          if (y === 0) { y = jiggle(); l += y * y; }
+          if (x === 0) {
+            x = jiggle();
+            l += x * x;
+          }
+          if (y === 0) {
+            y = jiggle();
+            l += y * y;
+          }
           if (l < distanceMin2) l = Math.sqrt(distanceMin2 * l);
           // `a` is pushed by `b`'s charge and vice-versa (Newton's third law).
           const wb = (strength(b) * alpha) / l;
