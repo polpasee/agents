@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { JSONL_MAX_BYTES, MAX_TASK_LENGTH } from "./config";
+import { warnUnlessMissing } from "./fs-warn";
 
 const fileOffsets = new Map<string, number>();
 
@@ -20,9 +21,7 @@ export function readNewLines(filePath: string): string[] {
   try {
     stat = fs.statSync(normalized);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`Failed to stat ${normalized}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to stat ${normalized}:`);
     return [];
   }
   if (stat.size <= offset) return [];
@@ -34,9 +33,7 @@ export function readNewLines(filePath: string): string[] {
   } catch (err) {
     // File vanished between stat and open — degrade to "no new lines"
     // instead of throwing out of the caller's discovery loop.
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`Failed to open ${normalized}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to open ${normalized}:`);
     return [];
   }
   let buf: Buffer;
@@ -130,9 +127,7 @@ export function extractTaskFromJSONL(
       }
     }
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`Failed to extract task from ${filePath}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to extract task from ${filePath}:`);
   }
   return result;
 }

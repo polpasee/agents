@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { THINKING_EFFORTS, type ThinkingEffort } from "../../src/lib/types";
+import { warnUnlessMissing } from "./fs-warn";
 
 // ---------------------------------------------------------------------------
 // Per-pass settings.json cache — avoids re-reading the same file for every
@@ -25,9 +26,7 @@ export function readSettingsCached(
         ? (parsed as Record<string, unknown>)
         : null;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-      console.warn(`Failed to read settings ${filePath}:`, err);
-    }
+    warnUnlessMissing(err, `Failed to read settings ${filePath}:`);
   }
   cache.set(filePath, result);
   return result;
