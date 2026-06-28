@@ -20,6 +20,7 @@ import {
   depthFactor,
   rootAgentId,
   forceGroupedManyBody,
+  forceRadialSpokes,
 } from "@/lib/d3";
 import type { SimNode, SimLink } from "@/lib/d3";
 import type {
@@ -436,6 +437,17 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
               );
             return GRAPH.chargeStrengthMain;
           }),
+      )
+      .force(
+        "spokes",
+        forceRadialSpokes<SimNode>(
+          (n) => n.id,
+          (n) =>
+            n.agent.parentId && !n.agent.teamId && !n.toolCall
+              ? n.agent.parentId
+              : undefined,
+          (n) => GRAPH.subAgentLinkDistance * depthFactor(n.depth),
+        ).strength(GRAPH.spokeStrength),
       )
       .force(
         "x",

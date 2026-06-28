@@ -37,6 +37,7 @@ export const GRAPH = {
   parentLinkStrength: 0.85, // forceLink strength for parent (hierarchy) links — rigid so children cluster onto their parent
   peerLinkStrength: 0.08, // forceLink strength for message/blocking peer edges — cosmetic pull only, keeps them from distorting the tree
   toolLinkStrength: 0.7, // forceLink strength for tool links — tools hug their owning agent
+  spokeStrength: 0.1, // forceRadialSpokes pull toward each child's even-angle target around its parent — gentle so the rigid parent link still owns the radius
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   depthScale: 0.85, // Per-level shrink factor for nested sub-agents at depth >= 2 (depth <= 1 stays at 1.0)
   depthScaleMin: 0.55, // Floor on the cumulative depth shrink so depth-5 nodes stay legible
