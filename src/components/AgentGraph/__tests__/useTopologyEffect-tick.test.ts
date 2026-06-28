@@ -79,6 +79,9 @@ vi.mock("@/lib/d3", () => ({
     distanceMax: vi.fn().mockReturnThis(),
     strength: vi.fn().mockReturnThis(),
   })),
+  forceRadialSpokes: vi.fn(() => ({
+    strength: vi.fn().mockReturnThis(),
+  })),
   hexPath: vi.fn(() => "M0,0"),
 }));
 
@@ -110,6 +113,7 @@ vi.mock("@/lib/config", () => ({
     parentLinkStrength: 0.85,
     peerLinkStrength: 0.08,
     toolLinkStrength: 0.7,
+    spokeStrength: 0.1,
   },
   getNodeRadius: vi.fn(() => 42),
 }));
