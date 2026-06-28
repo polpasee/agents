@@ -27,7 +27,7 @@ export const GRAPH = {
   tooltipMaxWidth: 280, // Max width (px) of the tooltip before text wraps
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 150, // Link distance (px) for Main↔Main edges (message/blocking/default)
-  subAgentLinkDistance: 100, // Link distance (px) for Main↔sub-agent parent edges
+  subAgentLinkDistance: 160, // Link distance (px) for Main↔sub-agent parent edges
   toolLinkDistance: 55, // Link distance (px) for any↔tool edges
   chargeDistanceMax: 320, // Cap (px) on charge reach — beyond this, charge contributes zero force (bounds main↔main drift)
   chargeStrengthMain: -260, // Repulsion strength applied to main agents (no parentId)
