@@ -11,9 +11,27 @@ import { agents } from "./agent-state";
 declare global {
   // eslint-disable-next-line no-var
   var __backgroundTasksStarted: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __agentMonitorErrHandlers: boolean | undefined;
 }
 
 export async function startBackgroundTasks(): Promise<void> {
+  // Last-resort visibility net for truly-unhandled errors. Installed here — a
+  // Node-only, dynamically-imported module — rather than in instrumentation.ts
+  // so the `process.on` calls stay out of the edge bundle's static analysis.
+  // Poll loops already catch their own errors locally; this only surfaces what
+  // would otherwise be silent. Deliberately does NOT exit — long-lived monitor.
+  // HMR-safe flag installs the handlers exactly once across dev hot-reloads.
+  if (!globalThis.__agentMonitorErrHandlers) {
+    globalThis.__agentMonitorErrHandlers = true;
+    process.on("unhandledRejection", (reason) => {
+      console.error("[instrumentation] unhandledRejection:", reason);
+    });
+    process.on("uncaughtException", (err) => {
+      console.error("[instrumentation] uncaughtException:", err);
+    });
+  }
+
   if (globalThis.__backgroundTasksStarted) return;
 
   // Flip the started flag only AFTER all dynamic imports resolve. If any
