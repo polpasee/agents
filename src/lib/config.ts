@@ -33,11 +33,12 @@ export const GRAPH = {
   chargeStrengthMain: -260, // Repulsion strength applied to main agents (no parentId)
   chargeStrengthSubAgent: -150, // Repulsion strength applied to sub-agents (has parentId, not a tool)
   chargeStrengthTool: -55, // Repulsion strength applied to tool nodes
-  centerStrength: 0.08, // Per-node strength for forceX/forceY pull toward viewport center
+  centerStrength: 0.08, // Per-node strength for forceX/forceY pull toward viewport center (main agents & team members)
+  subAgentCenterStrength: 0.015, // Much weaker forceX/forceY pull for sub-agents: they orbit their parent via the parent link + spokes, so a strong viewport-center pull only dragged them onto the center-facing arc and made them clump on one side
   parentLinkStrength: 0.85, // forceLink strength for parent (hierarchy) links — rigid so children cluster onto their parent
   peerLinkStrength: 0.08, // forceLink strength for message/blocking peer edges — cosmetic pull only, keeps them from distorting the tree
   toolLinkStrength: 0.7, // forceLink strength for tool links — tools hug their owning agent
-  spokeStrength: 0.1, // forceRadialSpokes pull toward each child's even-angle target around its parent — gentle so the rigid parent link still owns the radius
+  spokeStrength: 0.25, // forceRadialSpokes pull toward each child's even-angle target around its parent — firm enough to enforce the even fan, still well below the rigid parent link (0.85) so the link owns the radius
   subAgentNodeRadius: 28, // Radius (px) of sub-agent nodes (agents with parentId, no teamId)
   depthScale: 0.85, // Per-level shrink factor for nested sub-agents at depth >= 2 (depth <= 1 stays at 1.0)
   depthScaleMin: 0.55, // Floor on the cumulative depth shrink so depth-5 nodes stay legible

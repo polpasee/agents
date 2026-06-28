@@ -394,7 +394,25 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     const chargeBucketsOf = (node: SimNode): string[] => {
       const ownerId = node.toolCall?.parentAgentId ?? node.id;
       const family = `fam:${rootAgentId(ownerId, agents)}`;
-      return node.toolCall || node.agent.parentId ? [family] : ["roots", family];
+      return node.toolCall || node.agent.parentId
+        ? [family]
+        : ["roots", family];
+    };
+
+    // forceX/forceY centering strength. A sub-agent whose parent is present is
+    // anchored by the rigid parent link + spokes, so a full viewport-center
+    // pull only drags it onto the center-facing arc and clumps siblings on one
+    // side — give those the weak pull. Main agents, team members, and orphaned
+    // sub-agents (parent evicted from the store, so no parent link or spoke)
+    // keep the full pull as their only viewport anchor; tool nodes get none
+    // (they hug their owner via the tool link).
+    const centerStrengthOf = (d: SimNode): number => {
+      if (d.toolCall) return 0;
+      return d.agent.parentId &&
+        !d.agent.teamId &&
+        agentIds.has(d.agent.parentId)
+        ? GRAPH.subAgentCenterStrength
+        : GRAPH.centerStrength;
     };
 
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
@@ -449,18 +467,8 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           (n) => GRAPH.subAgentLinkDistance * depthFactor(n.depth),
         ).strength(GRAPH.spokeStrength),
       )
-      .force(
-        "x",
-        forceX<SimNode>(width / 2).strength((d) =>
-          d.toolCall ? 0 : GRAPH.centerStrength,
-        ),
-      )
-      .force(
-        "y",
-        forceY<SimNode>(height / 2).strength((d) =>
-          d.toolCall ? 0 : GRAPH.centerStrength,
-        ),
-      )
+      .force("x", forceX<SimNode>(width / 2).strength(centerStrengthOf))
+      .force("y", forceY<SimNode>(height / 2).strength(centerStrengthOf))
       .force(
         "collide",
         forceCollide<SimNode>().radius((d) =>
