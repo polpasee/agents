@@ -117,11 +117,12 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
     centerStrength: 0.08,
+    subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,
     parentLinkStrength: 0.85,
     peerLinkStrength: 0.08,
     toolLinkStrength: 0.7,
-    spokeStrength: 0.1,
+    spokeStrength: 0.25,
   },
   getNodeRadius: vi.fn(() => 42),
 }));
@@ -131,7 +132,7 @@ vi.mock("../simulationDrag", () => ({
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
-import { forceSimulation } from "d3-force";
+import { forceSimulation, forceX, forceY } from "d3-force";
 import { select as d3Select } from "d3-selection";
 import { updateLinkVisuals } from "@/lib/d3";
 import { buildWorkflowLabelMap } from "@/lib/workflowLabels";
@@ -251,6 +252,64 @@ describe("useTopologyEffect", () => {
     const refs = makeRefs();
     renderHook(() => useTopologyEffect(refs, makeOpts([agent])));
     expect(vi.mocked(forceSimulation)).toHaveBeenCalledOnce();
+  });
+
+  it("applies weak viewport-centering to sub-agents, full to mains/teams, none to tools", () => {
+    // Regression: a sub-agent whose parent is present is anchored by the parent
+    // link + spokes. A full forceX/forceY pull dragged it onto the center-facing
+    // arc and clumped siblings on one side, so it gets a much weaker pull. An
+    // orphan (parent not rendered) has no such anchor and keeps the full pull.
+    const refs = makeRefs();
+    renderHook(() =>
+      useTopologyEffect(
+        refs,
+        makeOpts([
+          makeAgent({ id: "m" }),
+          makeAgent({ id: "s", parentId: "m" }),
+        ]),
+      ),
+    );
+
+    // forceX and forceY must share the same strength accessor — capture both.
+    const captureStrength = (force: {
+      mock: { results: { value: unknown }[] };
+    }) =>
+      (
+        force.mock.results[0]!.value as {
+          strength: { mock: { calls: unknown[][] } };
+        }
+      ).strength.mock.calls[0]![0] as (d: SimNode) => number;
+    const centerStrengthOf = captureStrength(vi.mocked(forceX));
+    // Guards the Y-axis half of the fix: both axes use the identical accessor.
+    expect(captureStrength(vi.mocked(forceY))).toBe(centerStrengthOf);
+
+    const toolNode = {
+      id: "t",
+      agent: makeAgent({ id: "a1" }),
+      toolCall: { tool: "Read", timestamp: 0, parentAgentId: "a1" },
+    } as SimNode;
+    const mainNode = { id: "m", agent: makeAgent({ id: "m" }) } as SimNode;
+    const subAgentNode = {
+      id: "s",
+      agent: makeAgent({ id: "s", parentId: "m" }),
+    } as SimNode;
+    const teamNode = {
+      id: "tm",
+      agent: makeAgent({ id: "tm", parentId: "m", teamId: "team1" }),
+    } as SimNode;
+    // Orphan: parent "ghost" was evicted, so it is not in the rendered set.
+    const orphanNode = {
+      id: "o",
+      agent: makeAgent({ id: "o", parentId: "ghost" }),
+    } as SimNode;
+
+    expect(centerStrengthOf(toolNode)).toBe(0);
+    expect(centerStrengthOf(mainNode)).toBe(0.08);
+    expect(centerStrengthOf(subAgentNode)).toBe(0.015);
+    // Team members render full-size and center like mains, not sub-agents.
+    expect(centerStrengthOf(teamNode)).toBe(0.08);
+    // Orphaned sub-agent keeps the full pull — it has no parent link or spoke.
+    expect(centerStrengthOf(orphanNode)).toBe(0.08);
   });
 
   it("writes nodes to refs from filteredAgents", () => {

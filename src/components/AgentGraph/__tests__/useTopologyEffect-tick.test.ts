@@ -109,11 +109,12 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
     centerStrength: 0.08,
+    subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,
     parentLinkStrength: 0.85,
     peerLinkStrength: 0.08,
     toolLinkStrength: 0.7,
-    spokeStrength: 0.1,
+    spokeStrength: 0.25,
   },
   getNodeRadius: vi.fn(() => 42),
 }));
