@@ -415,13 +415,20 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         : GRAPH.centerStrength;
     };
 
+    // A tool node rests this far from its owner's center: the owner hexagon's
+    // radius (depth-scaled) plus a fixed gap, so larger hexagons push their tools
+    // out proportionally. Used by BOTH the tool link distance and the toolSpokes radius.
+    const toolRestRadius = (node: SimNode): number =>
+      getNodeRadius(node.agent, depthFactor(node.depth)) + GRAPH.toolGap;
+
     const simulation = forceSimulation<SimNode, SimLink>(nodes)
       .force(
         "link",
         forceLink<SimNode, SimLink>(links)
           .id((d) => d.id)
           .distance((d) => {
-            if (d.edgeType === "tool") return GRAPH.toolLinkDistance;
+            if (d.edgeType === "tool")
+              return toolRestRadius(d.source as SimNode);
             // Parent links shrink with the child's nesting depth (depth 1 is a
             // no-op). Team members render full-size, so their links don't scale.
             if (d.edgeType === "parent") {
@@ -472,7 +479,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         forceRadialSpokes<SimNode>(
           (n) => n.id,
           (n) => (n.toolCall ? n.toolCall.parentAgentId : undefined),
-          () => GRAPH.toolLinkDistance,
+          (n) => toolRestRadius(n),
           (parent) => (parent.agent.teamId ? undefined : parent.agent.parentId),
         ).strength(GRAPH.spokeStrength),
       )

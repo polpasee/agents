@@ -400,6 +400,29 @@ describe("useToolNodesEffect", () => {
     expect(refs.toolLinksRef.current).toHaveLength(0);
   });
 
+  it("tool node inherits depth from its owner agent's SimNode", () => {
+    // Guards Edit 1: the tool node's .depth must equal the owner SimNode's .depth
+    // so that toolRestRadius(toolNode) == toolRestRadius(ownerNode) at every nesting level.
+    const now = Date.now();
+    const agent = makeAgent({
+      id: "a1",
+      parentId: "parent",
+      toolCalls: [{ tool: "bash", timestamp: now - 500 }],
+    });
+    // Owner SimNode with depth=1 (as set by useTopologyEffect for a direct sub-agent)
+    const ownerNode: SimNode = { id: "a1", agent, depth: 1 } as SimNode;
+    const refs = makeRefs({
+      nodesRef: makeMutableRef<SimNode[]>([ownerNode]),
+    });
+
+    renderHook(() =>
+      useToolNodesEffect(refs, { agents: new Map([["a1", agent]]) }),
+    );
+
+    expect(refs.toolNodesRef.current).toHaveLength(1);
+    expect(refs.toolNodesRef.current[0]?.depth).toBe(1);
+  });
+
   it("emits a tool link from agent to tool node with edgeType 'tool'", () => {
     const now = Date.now();
     const agent = makeAgent({
