@@ -106,7 +106,7 @@ vi.mock("@/lib/config", () => ({
     zoomExtent: [0.15, 4],
     newNodeAlpha: 0.3,
     nodeRadius: 42,
-    subAgentLinkDistance: 100,
+    subAgentLinkDistance: 160,
     linkDistance: 150,
     toolLinkDistance: 55,
     chargeDistanceMax: 320,
