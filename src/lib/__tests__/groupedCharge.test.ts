@@ -9,7 +9,9 @@ function node(id: string, x: number, y: number, groups: string[]): TestNode {
 }
 
 function run(nodes: TestNode[], strength = -30, distanceMax?: number) {
-  let force = forceGroupedManyBody<TestNode>((n) => n.groups).strength(() => strength);
+  let force = forceGroupedManyBody<TestNode>((n) => n.groups).strength(
+    () => strength,
+  );
   if (distanceMax !== undefined) force = force.distanceMax(distanceMax);
   force.initialize(nodes);
   force(1); // one tick at alpha = 1
@@ -70,7 +72,9 @@ describe("forceGroupedManyBody", () => {
   it("recomputes buckets when re-initialized with a new node set", () => {
     const a = node("a", 0, 0, ["g1"]);
     const b = node("b", 10, 0, ["g1"]);
-    const force = forceGroupedManyBody<TestNode>((n) => n.groups).strength(() => -30);
+    const force = forceGroupedManyBody<TestNode>((n) => n.groups).strength(
+      () => -30,
+    );
     force.initialize([a]); // b not in the simulation yet
     force(1);
     expect(a.vx).toBe(0); // alone in its bucket
