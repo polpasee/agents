@@ -8,6 +8,22 @@ function node(id: string, x: number, y: number): TestNode {
   return { id, x, y, vx: 0, vy: 0 };
 }
 
+function integrate(
+  children: TestNode[],
+  force: (a: number) => void,
+  steps = 300,
+) {
+  for (let s = 0; s < steps; s++) {
+    force(1);
+    for (const c of children) {
+      c.x = (c.x ?? 0) + (c.vx ?? 0);
+      c.y = (c.y ?? 0) + (c.vy ?? 0);
+      c.vx = (c.vx ?? 0) * 0.6;
+      c.vy = (c.vy ?? 0) * 0.6;
+    }
+  }
+}
+
 describe("forceRadialSpokes", () => {
   it("converges 4 children to even angular spacing around a fixed parent", () => {
     const parent = node("P", 0, 0);
@@ -26,18 +42,7 @@ describe("forceRadialSpokes", () => {
       () => RADIUS,
     );
     force.initialize(all);
-
-    // Simple integrator: 300 iterations with velocity decay
-    for (let step = 0; step < 300; step++) {
-      force(1);
-      for (const c of children) {
-        c.x = (c.x ?? 0) + (c.vx ?? 0);
-        c.y = (c.y ?? 0) + (c.vy ?? 0);
-        c.vx = (c.vx ?? 0) * 0.6;
-        c.vy = (c.vy ?? 0) * 0.6;
-      }
-      // parent stays pinned at origin
-    }
+    integrate(children, force);
 
     const angles = children
       .map((c) => Math.atan2(c.y ?? 0, c.x ?? 0))
@@ -96,5 +101,83 @@ describe("forceRadialSpokes", () => {
     const result = force.strength(0.5);
     expect(result).toBe(force); // setter chains
     expect(force.strength()).toBe(0.5);
+  });
+});
+
+type TestNodeWithParent = SimulationNodeDatum & {
+  id: string;
+  parentId?: string;
+};
+
+function nodeP(
+  id: string,
+  x: number,
+  y: number,
+  parentId?: string,
+): TestNodeWithParent {
+  return {
+    id,
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    ...(parentId !== undefined ? { parentId } : {}),
+  };
+}
+
+describe("forceRadialSpokes — outward fan with grandparent", () => {
+  it("fans 3 inner-seeded children outward past the parent (no child stays on inner side)", () => {
+    // G at origin, P at (100, 0) — outward direction is +x (angle 0).
+    // Children seeded at x=90 (< P.x=100) so a no-op force leaves them
+    // there; the outward fan must push every child past x=100.
+    const G = nodeP("G", 0, 0);
+    const P = nodeP("P", 100, 0, "G");
+    const C1 = nodeP("C1", 90, 8, "P");
+    const C2 = nodeP("C2", 90, 0, "P");
+    const C3 = nodeP("C3", 90, -8, "P");
+    const children = [C1, C2, C3];
+    const all = [G, P, ...children];
+    const RADIUS = 40;
+
+    // grandparentIdOf: for C1/C2/C3 whose parent is P, grandparent = P.parentId = G.
+    const force = forceRadialSpokes<TestNodeWithParent>(
+      (n) => n.id,
+      (n) => n.parentId,
+      () => RADIUS,
+      (parent) => parent.parentId,
+    );
+    force.initialize(all);
+    integrate(children, force);
+
+    // Every child must end up strictly on the outer side of P.
+    for (const c of children) {
+      expect(c.x).toBeGreaterThan(P.x ?? 100);
+    }
+
+    // Fan is symmetric about the x-axis: sum of y-coordinates ≈ 0.
+    const sumY = children.reduce((s, c) => s + (c.y ?? 0), 0);
+    expect(Math.abs(sumY)).toBeLessThan(5);
+  });
+
+  it("fans a single inner-seeded child outward, not up/down as full-circle n=1 would", () => {
+    // G at origin, P at (100, 0). One child seeded inner at (90, 0).
+    // Full-circle n=1 targets angle -π/2 → tx=100, ty=-R (child.x stays ≈100, not >100).
+    // Outward arc n=1 targets angle 0 → tx=140, ty=0 (child.x → ~140 > 100).
+    const G = nodeP("G", 0, 0);
+    const P = nodeP("P", 100, 0, "G");
+    const C = nodeP("C", 90, 0, "P");
+    const RADIUS = 40;
+
+    const force = forceRadialSpokes<TestNodeWithParent>(
+      (n) => n.id,
+      (n) => n.parentId,
+      () => RADIUS,
+      (parent) => parent.parentId,
+    );
+    force.initialize([G, P, C]);
+    integrate([C], force);
+
+    expect(C.x).toBeGreaterThan(P.x ?? 100);
+    expect(Math.abs(C.y ?? 0)).toBeLessThan(1);
   });
 });
