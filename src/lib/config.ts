@@ -28,7 +28,7 @@ export const GRAPH = {
   taskMaxChars: 36, // Max characters shown for a task name before truncation
   linkDistance: 150, // Link distance (px) for Main↔Main edges (message/blocking/default)
   subAgentLinkDistance: 160, // Link distance (px) for Main↔sub-agent parent edges
-  toolLinkDistance: 55, // Link distance (px) for any↔tool edges
+  toolGap: 28, // px gap between a tool node and its owning agent hexagon's edge; tool rests at getNodeRadius(owner) + toolGap, so larger hexagons (main = 42px) push their tools out proportionally while sub-agents (28px) keep tools at ~the old 55px
   chargeDistanceMax: 320, // Cap (px) on charge reach — beyond this, charge contributes zero force (bounds main↔main drift)
   chargeStrengthMain: -260, // Repulsion strength applied to main agents (no parentId)
   chargeStrengthSubAgent: -150, // Repulsion strength applied to sub-agents (has parentId, not a tool)

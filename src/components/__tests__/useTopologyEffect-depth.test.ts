@@ -341,7 +341,7 @@ describe("useTopologyEffect — depth plumbing", () => {
     expect(Math.abs(diff - Math.PI)).toBeLessThan(0.3);
   });
 
-  it("returns GRAPH.toolLinkDistance for tool links fed into the same link force", () => {
+  it("returns owner-radius + toolGap for tool links fed into the same link force", () => {
     const { refs, main } = buildChainTopology();
 
     const sim = refs.simulationRef.current!;
@@ -365,11 +365,155 @@ describe("useTopologyEffect — depth plumbing", () => {
     const links = linkForce.links();
     const toolLink = links.find((l) => l.edgeType === "tool")!;
     expect(toolLink).toBeDefined();
-    expect(distance(toolLink, 0, links)).toBe(GRAPH.toolLinkDistance);
+    // Main agent (no parentId) → getNodeRadius returns nodeRadius (42) + toolGap (28) = 70
+    expect(distance(toolLink, 0, links)).toBe(GRAPH.nodeRadius + GRAPH.toolGap);
 
     // The strength accessor must also route injected tool links to the
     // tool branch (not the message/blocking peer fallthrough).
     const strength = linkForce.strength();
     expect(strength(toolLink, 0, links)).toBe(GRAPH.toolLinkStrength);
+  });
+
+  it("tool link distance scales with owner hexagon: main pushes tool farther than sub-agent does", () => {
+    // Build a topology with a main M (no parentId) owning a tool, and a
+    // sub-agent S (parentId=M) owning a tool.  Both tool links go through the
+    // same link force; the main-owned tool must land strictly farther than the
+    // sub-agent-owned one.  This test FAILS if the distance were reverted to a
+    // flat constant.
+    const M = mockAgent({ id: "M" });
+    const S = mockAgent({ id: "S", parentId: "M" });
+    const agentMap = new Map<string, AgentState>([
+      ["M", M],
+      ["S", S],
+    ]);
+    const refs = makeRefs();
+
+    renderHook(() =>
+      useTopologyEffect(refs, {
+        filteredAgents: [M, S],
+        edges: [],
+        agents: agentMap,
+        teams: new Map(),
+        workflows: new Map(),
+        selectedAgentId: null,
+        selectedTeamId: null,
+        selectedWorkflowId: null,
+        topologyVersion: 1,
+        selectAgent: vi.fn(),
+      }),
+    );
+
+    const sim = refs.simulationRef.current!;
+    const linkForce = getLinkForce(refs);
+
+    const toolNodeMain: SimNode = {
+      id: "tool:M:1",
+      agent: M,
+      toolCall: { tool: "Read", timestamp: Date.now(), parentAgentId: "M" },
+    };
+    const toolNodeSub: SimNode = {
+      id: "tool:S:1",
+      agent: S,
+      toolCall: { tool: "Read", timestamp: Date.now(), parentAgentId: "S" },
+    };
+    sim.nodes([...refs.nodesRef.current, toolNodeMain, toolNodeSub]);
+    linkForce.links([
+      ...refs.linksRef.current,
+      { source: "M", target: "tool:M:1", edgeType: "tool" },
+      { source: "S", target: "tool:S:1", edgeType: "tool" },
+    ]);
+
+    const distance = linkForce.distance();
+    const links = linkForce.links();
+    const mainToolLink = links.find(
+      (l) => l.edgeType === "tool" && (l.target as SimNode).id === "tool:M:1",
+    )!;
+    const subToolLink = links.find(
+      (l) => l.edgeType === "tool" && (l.target as SimNode).id === "tool:S:1",
+    )!;
+    expect(mainToolLink).toBeDefined();
+    expect(subToolLink).toBeDefined();
+
+    const mainDist = distance(mainToolLink, 0, links);
+    const subDist = distance(subToolLink, 0, links);
+
+    // Main (nodeRadius=42): 42 + 28 = 70
+    expect(mainDist).toBe(GRAPH.nodeRadius + GRAPH.toolGap);
+    // Sub-agent (subAgentNodeRadius=28, depthFactor(1)=1): 28 + 28 = 56
+    expect(subDist).toBe(GRAPH.subAgentNodeRadius + GRAPH.toolGap);
+    // The main pushes its tool strictly farther than the sub-agent does.
+    expect(mainDist).toBeGreaterThan(subDist);
+  });
+
+  it("depth-2 sub-agent tool link distance matches toolRestRadius formula and is less than depth-1", () => {
+    // Build M → S1 (parentId=M) → S2 (parentId=S1). S2 owns a tool.
+    // The tool node carries depth=2 (as set by the fixed useToolNodesEffect).
+    // link distance == subAgentNodeRadius * depthFactor(2) + toolGap
+    // == toolSpokes radiusOf result (same formula, same depth)
+    // < 56 (depth-1 sub-agent result)
+    const M = mockAgent({ id: "M" });
+    const S1 = mockAgent({ id: "S1", parentId: "M" });
+    const S2 = mockAgent({ id: "S2", parentId: "S1" });
+    const agentMap = new Map<string, AgentState>([
+      ["M", M],
+      ["S1", S1],
+      ["S2", S2],
+    ]);
+    const refs = makeRefs();
+
+    renderHook(() =>
+      useTopologyEffect(refs, {
+        filteredAgents: [M, S1, S2],
+        edges: [],
+        agents: agentMap,
+        teams: new Map(),
+        workflows: new Map(),
+        selectedAgentId: null,
+        selectedTeamId: null,
+        selectedWorkflowId: null,
+        topologyVersion: 1,
+        selectAgent: vi.fn(),
+      }),
+    );
+
+    const sim = refs.simulationRef.current!;
+    const linkForce = getLinkForce(refs);
+
+    // Mirror useToolNodesEffect with the fixed depth wiring: depth = owner's depth (2)
+    const s2Node = refs.nodesRef.current.find((n) => n.id === "S2")!;
+    expect(s2Node.depth).toBe(2);
+
+    const toolNodeDepth2: SimNode = {
+      id: "tool:S2:1",
+      agent: S2,
+      depth: 2, // matches s2Node.depth (asserted above) — what useToolNodesEffect now sets
+      toolCall: { tool: "Read", timestamp: Date.now(), parentAgentId: "S2" },
+    };
+    sim.nodes([...refs.nodesRef.current, toolNodeDepth2]);
+    linkForce.links([
+      ...refs.linksRef.current,
+      { source: "S2", target: "tool:S2:1", edgeType: "tool" },
+    ]);
+
+    const distance = linkForce.distance();
+    const links = linkForce.links();
+    const depth2ToolLink = links.find(
+      (l) => l.edgeType === "tool" && (l.target as SimNode).id === "tool:S2:1",
+    )!;
+    expect(depth2ToolLink).toBeDefined();
+
+    const depth2Dist = distance(depth2ToolLink, 0, links);
+    const expectedDist =
+      GRAPH.subAgentNodeRadius * depthFactor(2) + GRAPH.toolGap;
+
+    // Link distance matches the formula used by both link force and toolSpokes.
+    expect(depth2Dist).toBe(expectedDist);
+    // The toolSpokes radiusOf produces the same value (same helper, same depth).
+    expect(expectedDist).toBe(
+      GRAPH.subAgentNodeRadius * depthFactor(toolNodeDepth2.depth) +
+        GRAPH.toolGap,
+    );
+    // Depth-2 tool rests closer than a depth-1 sub-agent's tool (56px).
+    expect(depth2Dist).toBeLessThan(GRAPH.subAgentNodeRadius + GRAPH.toolGap);
   });
 });

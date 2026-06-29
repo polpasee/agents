@@ -60,6 +60,10 @@ export function useToolNodesEffect(refs: AgentGraphRefs, opts: Options) {
         const toolNode: SimNode = existing ?? {
           id: toolNodeId,
           agent,
+          // Inherit owner's depth so toolRestRadius matches the link force at every nesting level
+          ...(parentNode?.depth !== undefined
+            ? { depth: parentNode.depth }
+            : {}),
           toolCall: {
             tool: tc.tool,
             timestamp: tc.timestamp,
