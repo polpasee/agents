@@ -47,6 +47,7 @@ describe("Client-side config", () => {
         "chargeStrengthMain",
         "chargeStrengthSubAgent",
         "chargeStrengthTool",
+        "chargeStrengthGlobal",
       ]);
 
       for (const [key, value] of Object.entries(GRAPH)) {

@@ -36,6 +36,10 @@ vi.mock("d3-force", () => {
     forceX: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceY: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceCollide: vi.fn(() => ({ radius: vi.fn().mockReturnThis() })),
+    forceManyBody: vi.fn(() => ({
+      strength: vi.fn().mockReturnThis(),
+      distanceMax: vi.fn().mockReturnThis(),
+    })),
   };
 });
 
@@ -116,6 +120,8 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthMain: -260,
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
+    chargeStrengthGlobal: -80,
+    chargeGlobalDistanceMax: 200,
     centerStrength: 0.08,
     subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,
@@ -132,7 +138,7 @@ vi.mock("../simulationDrag", () => ({
 }));
 
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
-import { forceSimulation, forceX, forceY } from "d3-force";
+import { forceSimulation, forceX, forceY, forceManyBody } from "d3-force";
 import { select as d3Select } from "d3-selection";
 import { updateLinkVisuals } from "@/lib/d3";
 import { buildWorkflowLabelMap } from "@/lib/workflowLabels";
@@ -252,6 +258,29 @@ describe("useTopologyEffect", () => {
     const refs = makeRefs();
     renderHook(() => useTopologyEffect(refs, makeOpts([agent])));
     expect(vi.mocked(forceSimulation)).toHaveBeenCalledOnce();
+  });
+
+  it("registers a chargeGlobal forceManyBody force with the weak all-pairs config", () => {
+    const agent = makeAgent({ id: "a1" });
+    const refs = makeRefs();
+    renderHook(() => useTopologyEffect(refs, makeOpts([agent])));
+
+    const sim = refs.simulationRef.current as unknown as {
+      force: { mock: { calls: unknown[][] } };
+    };
+    const chargeGlobalCall = sim.force.mock.calls.find(
+      (call) => call[0] === "chargeGlobal",
+    );
+    expect(chargeGlobalCall).toBeDefined();
+
+    const forceInstance = vi.mocked(forceManyBody).mock.results[0]!.value as {
+      strength: { mock: { calls: unknown[][] } };
+      distanceMax: { mock: { calls: unknown[][] } };
+    };
+    // The registered force must be the exact instance forceManyBody() returned.
+    expect(chargeGlobalCall![1]).toBe(forceInstance);
+    expect(forceInstance.strength.mock.calls[0]![0]).toBe(-80);
+    expect(forceInstance.distanceMax.mock.calls[0]![0]).toBe(200);
   });
 
   it("applies weak viewport-centering to sub-agents, full to mains/teams, none to tools", () => {

@@ -7,6 +7,7 @@ import {
   forceX,
   forceY,
   forceCollide,
+  forceManyBody,
 } from "d3-force";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
@@ -387,10 +388,11 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // nodes join their owning agent's family. THIS predicate is the definition
     // of "who affects whom" — widen/narrow the buckets to change the scoping.
     //
-    // Deliberate trade-off: sub-agents of DIFFERENT families share no bucket,
-    // so they exert no long-range repulsion on each other — only forceCollide
-    // resolves any physical overlap. This is intended (family isolation); do
-    // not add cross-family charge here without revisiting that goal.
+    // Two-tier design: this strong family-scoped charge shapes each family's
+    // radial fan-out and exerts no force across families. A separate weak
+    // global "chargeGlobal" forceManyBody (registered below) gives EVERY node
+    // pair short-range personal-space repulsion, so cross-family nodes can't
+    // drift too close. forceCollide remains the hard-overlap backstop.
     const chargeBucketsOf = (node: SimNode): string[] => {
       const ownerId = node.toolCall?.parentAgentId ?? node.id;
       const family = `fam:${rootAgentId(ownerId, agents)}`;
@@ -462,6 +464,12 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
               );
             return GRAPH.chargeStrengthMain;
           }),
+      )
+      .force(
+        "chargeGlobal",
+        forceManyBody<SimNode>()
+          .strength(GRAPH.chargeStrengthGlobal)
+          .distanceMax(GRAPH.chargeGlobalDistanceMax),
       )
       .force(
         "spokes",
