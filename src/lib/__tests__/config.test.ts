@@ -72,6 +72,15 @@ describe("Client-side config", () => {
       expect(GRAPH.nodeRadius).toBeLessThan(GRAPH.glowRingRadius);
       expect(GRAPH.glowRingRadius).toBeLessThan(GRAPH.collideRadius);
     });
+
+    it("global charge is weaker and shorter-range than the family charge (two-tier design)", () => {
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(
+        GRAPH.chargeDistanceMax,
+      );
+      expect(Math.abs(GRAPH.chargeStrengthGlobal)).toBeLessThan(
+        Math.abs(GRAPH.chargeStrengthMain),
+      );
+    });
   });
 
   describe("getNodeRadius", () => {

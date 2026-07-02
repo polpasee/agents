@@ -386,13 +386,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // radially without disturbing unrelated families. Main agents additionally
     // share a "roots" bucket so the top layer still spreads itself apart. Tool
     // nodes join their owning agent's family. THIS predicate is the definition
-    // of "who affects whom" — widen/narrow the buckets to change the scoping.
+    // of "who affects whom" for the family-scoped charge — widen/narrow the
+    // buckets to change that scoping.
     //
     // Two-tier design: this strong family-scoped charge shapes each family's
-    // radial fan-out and exerts no force across families. A separate weak
-    // global "chargeGlobal" forceManyBody (registered below) gives EVERY node
-    // pair short-range personal-space repulsion, so cross-family nodes can't
-    // drift too close. forceCollide remains the hard-overlap backstop.
+    // radial fan-out and exerts no cross-family force below the root layer
+    // (mains still repel each other via the shared "roots" bucket). A separate
+    // weak global "chargeGlobal" forceManyBody (registered below) gives EVERY
+    // node pair short-range personal-space repulsion, so cross-family nodes
+    // can't drift too close. forceCollide remains the hard-overlap backstop.
     const chargeBucketsOf = (node: SimNode): string[] => {
       const ownerId = node.toolCall?.parentAgentId ?? node.id;
       const family = `fam:${rootAgentId(ownerId, agents)}`;
