@@ -47,6 +47,7 @@ describe("Client-side config", () => {
         "chargeStrengthMain",
         "chargeStrengthSubAgent",
         "chargeStrengthTool",
+        "chargeStrengthGlobal",
       ]);
 
       for (const [key, value] of Object.entries(GRAPH)) {
@@ -70,6 +71,22 @@ describe("Client-side config", () => {
     it("nodeRadius < glowRingRadius < collideRadius", () => {
       expect(GRAPH.nodeRadius).toBeLessThan(GRAPH.glowRingRadius);
       expect(GRAPH.glowRingRadius).toBeLessThan(GRAPH.collideRadius);
+    });
+
+    it("global charge is weaker and shorter-range than the family charge (two-tier design)", () => {
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(
+        GRAPH.chargeDistanceMax,
+      );
+      expect(Math.abs(GRAPH.chargeStrengthGlobal)).toBeLessThan(
+        Math.abs(GRAPH.chargeStrengthMain),
+      );
+      // Regression guard: the global charge's range must stay below both link
+      // distances, or it reshapes already-settled linked pairs (contradicting
+      // its own "doesn't reshape the macro layout" intent).
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(GRAPH.linkDistance);
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(
+        GRAPH.subAgentLinkDistance,
+      );
     });
   });
 

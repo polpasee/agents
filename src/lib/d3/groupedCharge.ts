@@ -18,8 +18,8 @@ import type { SimulationNodeDatum } from "d3-force";
  * API so this force is a drop-in replacement for the simulation's "charge".
  *
  * `groupsOf` must return at least one key per node; a node mapped to an empty
- * array joins no bucket and is excluded from all repulsion (neither pushes nor
- * is pushed).
+ * array joins no bucket and is excluded from this force's repulsion (neither
+ * pushes nor is pushed).
  */
 export interface GroupedManyBodyForce<N extends SimulationNodeDatum> {
   (alpha: number): void;

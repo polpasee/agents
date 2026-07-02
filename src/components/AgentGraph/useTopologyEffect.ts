@@ -7,6 +7,7 @@ import {
   forceX,
   forceY,
   forceCollide,
+  forceManyBody,
 } from "d3-force";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
@@ -385,12 +386,16 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // radially without disturbing unrelated families. Main agents additionally
     // share a "roots" bucket so the top layer still spreads itself apart. Tool
     // nodes join their owning agent's family. THIS predicate is the definition
-    // of "who affects whom" — widen/narrow the buckets to change the scoping.
+    // of "who affects whom" for the family-scoped charge — widen/narrow the
+    // buckets to change that scoping.
     //
-    // Deliberate trade-off: sub-agents of DIFFERENT families share no bucket,
-    // so they exert no long-range repulsion on each other — only forceCollide
-    // resolves any physical overlap. This is intended (family isolation); do
-    // not add cross-family charge here without revisiting that goal.
+    // Two-tier design: this strong family-scoped charge shapes each family's
+    // radial fan-out and exerts no cross-family force below the root layer
+    // (mains still repel each other via the shared "roots" bucket). A separate
+    // weak global "chargeGlobal" forceManyBody (registered below) gives EVERY
+    // agent pair short-range personal-space repulsion, so cross-family nodes
+    // can't drift too close — tools are exempt since they're leashed to their
+    // owner. forceCollide remains the hard-overlap backstop.
     const chargeBucketsOf = (node: SimNode): string[] => {
       const ownerId = node.toolCall?.parentAgentId ?? node.id;
       const family = `fam:${rootAgentId(ownerId, agents)}`;
@@ -462,6 +467,15 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
               );
             return GRAPH.chargeStrengthMain;
           }),
+      )
+      .force(
+        "chargeGlobal",
+        forceManyBody<SimNode>()
+          // Tools are leashed to their owner (tool link + toolSpokes) and already
+          // repel family peers at chargeStrengthTool — exempt them here so the
+          // global charge doesn't double-count and loosen the tuned tool cluster.
+          .strength((d) => (d.toolCall ? 0 : GRAPH.chargeStrengthGlobal))
+          .distanceMax(GRAPH.chargeGlobalDistanceMax),
       )
       .force(
         "spokes",

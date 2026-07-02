@@ -46,6 +46,10 @@ vi.mock("d3-force", () => {
     forceX: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceY: vi.fn(() => ({ strength: vi.fn().mockReturnThis() })),
     forceCollide: vi.fn(() => ({ radius: vi.fn().mockReturnThis() })),
+    forceManyBody: vi.fn(() => ({
+      strength: vi.fn().mockReturnThis(),
+      distanceMax: vi.fn().mockReturnThis(),
+    })),
   };
 });
 
@@ -108,6 +112,8 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthMain: -260,
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
+    chargeStrengthGlobal: -80,
+    chargeGlobalDistanceMax: 120,
     centerStrength: 0.08,
     subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,
