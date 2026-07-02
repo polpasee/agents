@@ -113,7 +113,7 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
     chargeStrengthGlobal: -80,
-    chargeGlobalDistanceMax: 200,
+    chargeGlobalDistanceMax: 120,
     centerStrength: 0.08,
     subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,

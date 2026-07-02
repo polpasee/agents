@@ -121,7 +121,7 @@ vi.mock("@/lib/config", () => ({
     chargeStrengthSubAgent: -150,
     chargeStrengthTool: -55,
     chargeStrengthGlobal: -80,
-    chargeGlobalDistanceMax: 200,
+    chargeGlobalDistanceMax: 120,
     centerStrength: 0.08,
     subAgentCenterStrength: 0.015,
     toolNodeRadius: 14,
@@ -279,8 +279,21 @@ describe("useTopologyEffect", () => {
     };
     // The registered force must be the exact instance forceManyBody() returned.
     expect(chargeGlobalCall![1]).toBe(forceInstance);
-    expect(forceInstance.strength.mock.calls[0]![0]).toBe(-80);
-    expect(forceInstance.distanceMax.mock.calls[0]![0]).toBe(200);
+    expect(forceInstance.distanceMax.mock.calls[0]![0]).toBe(120);
+
+    // strength is an accessor: 0 for tools (already leashed to their owner),
+    // GRAPH.chargeStrengthGlobal for every other agent node.
+    const strengthOf = forceInstance.strength.mock.calls[0]![0] as (
+      d: SimNode,
+    ) => number;
+    const toolNode = {
+      id: "t",
+      agent: makeAgent({ id: "a1" }),
+      toolCall: { tool: "Read", timestamp: 0, parentAgentId: "a1" },
+    } as SimNode;
+    const agentNode = { id: "a1", agent: makeAgent({ id: "a1" }) } as SimNode;
+    expect(strengthOf(toolNode)).toBe(0);
+    expect(strengthOf(agentNode)).toBe(-80);
   });
 
   it("applies weak viewport-centering to sub-agents, full to mains/teams, none to tools", () => {

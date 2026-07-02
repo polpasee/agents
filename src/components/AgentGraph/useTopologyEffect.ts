@@ -393,8 +393,9 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // radial fan-out and exerts no cross-family force below the root layer
     // (mains still repel each other via the shared "roots" bucket). A separate
     // weak global "chargeGlobal" forceManyBody (registered below) gives EVERY
-    // node pair short-range personal-space repulsion, so cross-family nodes
-    // can't drift too close. forceCollide remains the hard-overlap backstop.
+    // agent pair short-range personal-space repulsion, so cross-family nodes
+    // can't drift too close — tools are exempt since they're leashed to their
+    // owner. forceCollide remains the hard-overlap backstop.
     const chargeBucketsOf = (node: SimNode): string[] => {
       const ownerId = node.toolCall?.parentAgentId ?? node.id;
       const family = `fam:${rootAgentId(ownerId, agents)}`;
@@ -470,7 +471,10 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       .force(
         "chargeGlobal",
         forceManyBody<SimNode>()
-          .strength(GRAPH.chargeStrengthGlobal)
+          // Tools are leashed to their owner (tool link + toolSpokes) and already
+          // repel family peers at chargeStrengthTool — exempt them here so the
+          // global charge doesn't double-count and loosen the tuned tool cluster.
+          .strength((d) => (d.toolCall ? 0 : GRAPH.chargeStrengthGlobal))
           .distanceMax(GRAPH.chargeGlobalDistanceMax),
       )
       .force(

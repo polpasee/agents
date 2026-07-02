@@ -80,6 +80,13 @@ describe("Client-side config", () => {
       expect(Math.abs(GRAPH.chargeStrengthGlobal)).toBeLessThan(
         Math.abs(GRAPH.chargeStrengthMain),
       );
+      // Regression guard: the global charge's range must stay below both link
+      // distances, or it reshapes already-settled linked pairs (contradicting
+      // its own "doesn't reshape the macro layout" intent).
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(GRAPH.linkDistance);
+      expect(GRAPH.chargeGlobalDistanceMax).toBeLessThan(
+        GRAPH.subAgentLinkDistance,
+      );
     });
   });
 

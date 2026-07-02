@@ -33,8 +33,8 @@ export const GRAPH = {
   chargeStrengthMain: -260, // Repulsion strength applied to main agents (no parentId)
   chargeStrengthSubAgent: -150, // Repulsion strength applied to sub-agents (has parentId, not a tool)
   chargeStrengthTool: -55, // Repulsion strength applied to tool nodes
-  chargeStrengthGlobal: -80, // Weak all-pairs "personal space" repulsion applied to every node, including cross-family pairs
-  chargeGlobalDistanceMax: 200, // Short range for chargeStrengthGlobal so it doesn't reshape the macro layout
+  chargeStrengthGlobal: -80, // Weak "personal space" repulsion applied to every agent pair, including cross-family pairs (tools exempt — see chargeGlobal registration)
+  chargeGlobalDistanceMax: 120, // Deliberately below linkDistance/subAgentLinkDistance so it doesn't reshape the settled macro layout
   centerStrength: 0.08, // Per-node strength for forceX/forceY pull toward viewport center (main agents & team members)
   subAgentCenterStrength: 0.015, // Much weaker forceX/forceY pull for sub-agents: they orbit their parent via the parent link + spokes, so a strong viewport-center pull only dragged them onto the center-facing arc and made them clump on one side
   parentLinkStrength: 0.85, // forceLink strength for parent (hierarchy) links — rigid so children cluster onto their parent
