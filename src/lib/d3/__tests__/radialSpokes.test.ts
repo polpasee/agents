@@ -40,7 +40,7 @@ describe("forceRadialSpokes", () => {
       (n) => n.id,
       (n) => (n.id === "P" ? undefined : "P"),
       () => RADIUS,
-    );
+    ).arcSpan(2 * Math.PI); // full circle, forced explicitly
     force.initialize(all);
     integrate(children, force);
 
@@ -101,6 +101,89 @@ describe("forceRadialSpokes", () => {
     const result = force.strength(0.5);
     expect(result).toBe(force); // setter chains
     expect(force.strength()).toBe(0.5);
+  });
+
+  it("arcSpan() getter returns undefined by default, then the set value", () => {
+    const force = forceRadialSpokes<TestNode>(
+      (n) => n.id,
+      () => undefined,
+      () => 100,
+    );
+    expect(force.arcSpan()).toBeUndefined();
+    const result = force.arcSpan(Math.PI / 2);
+    expect(result).toBe(force); // setter chains
+    expect(force.arcSpan()).toBe(Math.PI / 2);
+  });
+
+  it("fans a 2-child root group into an arc (both children above the parent), not one-up/one-down", () => {
+    // Forcing arcSpan=π centers the root fan on straight-up (-π/2), so a
+    // 2-child group should land with BOTH children above the parent instead
+    // of the full-circle default's one-up/one-down split.
+    const parent = node("P", 0, 0);
+    const children = [node("C1", 10, 0), node("C2", -10, 0)];
+    const all = [parent, ...children];
+    const RADIUS = 100;
+
+    const force = forceRadialSpokes<TestNode>(
+      (n) => n.id,
+      (n) => (n.id === "P" ? undefined : "P"),
+      () => RADIUS,
+    ).arcSpan(Math.PI);
+    force.initialize(all);
+    integrate(children, force);
+
+    for (const c of children) {
+      expect(c.y ?? 0).toBeLessThan(parent.y ?? 0);
+    }
+  });
+
+  it("with arcSpan unset, fans a 2-child root group into a full circle (opposite sides, not both above)", () => {
+    // Unset arcSpan defaults a root group (no grandparent) to 2π, so a
+    // 2-child group settles on opposite sides of the parent — this is the
+    // behavior the toolSpokes force relies on to preserve the full-circle
+    // tool ring around main agents.
+    const parent = node("P", 0, 0);
+    const children = [node("C1", 10, 0), node("C2", -10, 0)];
+    const all = [parent, ...children];
+    const RADIUS = 100;
+
+    const force = forceRadialSpokes<TestNode>(
+      (n) => n.id,
+      (n) => (n.id === "P" ? undefined : "P"),
+      () => RADIUS,
+    );
+    force.initialize(all);
+    integrate(children, force);
+
+    const xs = children.map((c) => c.x ?? 0).sort((a, b) => a - b);
+    expect(xs[0]).toBeLessThan(0);
+    expect(xs[1]).toBeGreaterThan(0);
+    for (const c of children) {
+      expect(Math.abs(c.y ?? 0)).toBeLessThan(1);
+    }
+  });
+
+  it("arcSpan() widens or narrows the angular spread between children", () => {
+    function angularGapFor(spanValue: number): number {
+      const parent = node("P", 0, 0);
+      const children = [node("C1", 10, 0), node("C2", -10, 0)];
+      const all = [parent, ...children];
+      const force = forceRadialSpokes<TestNode>(
+        (n) => n.id,
+        (n) => (n.id === "P" ? undefined : "P"),
+        () => 100,
+      ).arcSpan(spanValue);
+      force.initialize(all);
+      integrate(children, force);
+      const angles = children.map((c) => Math.atan2(c.y ?? 0, c.x ?? 0));
+      let gap = Math.abs(angles[1]! - angles[0]!);
+      if (gap > Math.PI) gap = 2 * Math.PI - gap;
+      return gap;
+    }
+
+    const narrow = angularGapFor(Math.PI / 2);
+    const wide = angularGapFor(Math.PI);
+    expect(wide).toBeGreaterThan(narrow);
   });
 });
 

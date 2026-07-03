@@ -1,8 +1,21 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import { loadLocalStorage, saveLocalStorage } from "./helpers";
-import type { ThemeMode } from "../types";
+import type { ThemeMode, LayoutTuning } from "../types";
+import { LAYOUT_TUNING_DEFAULTS, clampLayoutTuning } from "../config";
 import { resolveSessionId } from "../sessions";
+
+const LAYOUT_TUNING_SAVE_DEBOUNCE_MS = 150;
+let layoutTuningSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function loadStoredLayoutTuning(): LayoutTuning {
+  return {
+    ...LAYOUT_TUNING_DEFAULTS,
+    ...clampLayoutTuning(
+      loadLocalStorage<Partial<LayoutTuning>>("layoutTuning", {}) ?? {},
+    ),
+  };
+}
 
 export type UISlice = Pick<
   AgentStore,
@@ -22,6 +35,8 @@ export type UISlice = Pick<
   | "showLiveMetrics"
   | "theme"
   | "soundMuted"
+  | "layoutTuning"
+  | "showLayoutSettings"
   | "comparison"
   | "selectAgent"
   | "selectTeam"
@@ -41,6 +56,9 @@ export type UISlice = Pick<
   | "toggleLiveMetrics"
   | "toggleTheme"
   | "toggleSoundMute"
+  | "setLayoutTuning"
+  | "resetLayoutTuning"
+  | "toggleLayoutSettings"
   | "loadComparison"
   | "exitComparison"
   | "hydrateUI"
@@ -227,6 +245,33 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
     set({ soundMuted: next });
   },
 
+  // ── Layout Tuning ──────────────────────────────────
+  layoutTuning: { ...LAYOUT_TUNING_DEFAULTS }, // Hydrated from localStorage on client mount
+  showLayoutSettings: false,
+
+  // State updates immediately every call so live preview / subscribers keep
+  // re-firing on every slider tick; the localStorage write is debounced
+  // (trailing, ~150ms) so dragging a slider doesn't hit disk dozens of
+  // times/sec.
+  setLayoutTuning: (partial) => {
+    const next = { ...get().layoutTuning, ...partial };
+    set({ layoutTuning: next });
+    clearTimeout(layoutTuningSaveTimer);
+    layoutTuningSaveTimer = setTimeout(() => {
+      saveLocalStorage("layoutTuning", next);
+    }, LAYOUT_TUNING_SAVE_DEBOUNCE_MS);
+  },
+
+  resetLayoutTuning: () => {
+    const next = { ...LAYOUT_TUNING_DEFAULTS };
+    clearTimeout(layoutTuningSaveTimer);
+    saveLocalStorage("layoutTuning", next);
+    set({ layoutTuning: next });
+  },
+
+  toggleLayoutSettings: () =>
+    set({ showLayoutSettings: !get().showLayoutSettings }),
+
   // ── Hydration: sync from localStorage after client mount ──
   // Centralizes every localStorage-backed field so SSR renders a stable default
   // and client-side hydration brings them in via a single `useEffect` in <Dashboard>.
@@ -237,6 +282,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
       theme: loadLocalStorage<ThemeMode>("theme", "dark"),
       budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
       agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
+      layoutTuning: loadStoredLayoutTuning(),
     };
     if (Array.isArray(stored)) {
       updates.selectedSessionIds = new Set(stored);

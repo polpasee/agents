@@ -8,6 +8,7 @@ import {
   forceY,
   forceCollide,
   forceManyBody,
+  type Simulation,
 } from "d3-force";
 import { EDGE_COLORS, UI, WORKFLOW_COLOR, agentColor } from "@/lib/colors";
 import { GRAPH, getNodeRadius } from "@/lib/config";
@@ -29,6 +30,7 @@ import type {
   EdgeState,
   TeamState,
   WorkflowRunState,
+  LayoutTuning,
 } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 import { simulationDrag } from "./simulationDrag";
@@ -45,6 +47,167 @@ interface Options {
   selectedWorkflowId: string | null;
   topologyVersion: number;
   selectAgent: (id: string | null) => void;
+  layoutTuning: LayoutTuning;
+}
+
+export interface TunableForcesContext {
+  agents: Map<string, AgentState>;
+  agentIds: Set<string>;
+  links: SimLink[];
+  width: number;
+  height: number;
+  layoutTuning: LayoutTuning;
+}
+
+/**
+ * Applies every layout-tuning-dependent force onto `simulation` via
+ * `simulation.force(name, force)`, which re-initializes just that force in
+ * place (no node/link rebuild, no SVG touch). Shared by the topology-rebuild
+ * effect below (initial build) and `useLayoutTuningEffect` (live retune when
+ * a tuning slider changes), so adjusting a slider never needs to wipe the
+ * SVG or discard pinned static-layout positions.
+ */
+export function applyTunableForces(
+  simulation: Simulation<SimNode, SimLink>,
+  ctx: TunableForcesContext,
+): Simulation<SimNode, SimLink> {
+  const { agents, agentIds, links, width, height, layoutTuning } = ctx;
+
+  // A tool node rests this far from its owner's center: the owner hexagon's
+  // radius (depth-scaled) plus a fixed gap, so larger hexagons push their tools
+  // out proportionally. Used by BOTH the tool link distance and the toolSpokes radius.
+  const toolRestRadius = (node: SimNode): number =>
+    getNodeRadius(node.agent, depthFactor(node.depth)) + GRAPH.toolGap;
+
+  // Charge is scoped per family: a main agent and the sub-agents it spawned
+  // (same root ancestor) repel only each other, so each family fans out
+  // radially without disturbing unrelated families. Main agents additionally
+  // share a "roots" bucket so the top layer still spreads itself apart. Tool
+  // nodes join their owning agent's family. THIS predicate is the definition
+  // of "who affects whom" for the family-scoped charge — widen/narrow the
+  // buckets to change that scoping.
+  //
+  // Two-tier design: this strong family-scoped charge shapes each family's
+  // radial fan-out and exerts no cross-family force below the root layer
+  // (mains still repel each other via the shared "roots" bucket). A separate
+  // weak global "chargeGlobal" forceManyBody (registered below) gives EVERY
+  // agent pair short-range personal-space repulsion, so cross-family nodes
+  // can't drift too close — tools are exempt since they're leashed to their
+  // owner. forceCollide remains the hard-overlap backstop.
+  const chargeBucketsOf = (node: SimNode): string[] => {
+    const ownerId = node.toolCall?.parentAgentId ?? node.id;
+    const family = `fam:${rootAgentId(ownerId, agents)}`;
+    return node.toolCall || node.agent.parentId ? [family] : ["roots", family];
+  };
+
+  // forceX/forceY centering strength. A sub-agent whose parent is present is
+  // anchored by the rigid parent link + spokes, so a full viewport-center
+  // pull only drags it onto the center-facing arc and clumps siblings on one
+  // side — give those the weak pull. Main agents, team members, and orphaned
+  // sub-agents (parent evicted from the store, so no parent link or spoke)
+  // keep the full pull as their only viewport anchor; tool nodes get none
+  // (they hug their owner via the tool link).
+  const centerStrengthOf = (d: SimNode): number => {
+    if (d.toolCall) return 0;
+    return d.agent.parentId && !d.agent.teamId && agentIds.has(d.agent.parentId)
+      ? GRAPH.subAgentCenterStrength
+      : GRAPH.centerStrength;
+  };
+
+  return simulation
+    .force(
+      "link",
+      forceLink<SimNode, SimLink>(links)
+        .id((d) => d.id)
+        .distance((d) => {
+          if (d.edgeType === "tool") return toolRestRadius(d.source as SimNode);
+          // Parent links shrink with the child's nesting depth (depth 1 is a
+          // no-op). Team members render full-size, so their links don't scale.
+          if (d.edgeType === "parent") {
+            const target = d.target as SimNode;
+            return (
+              layoutTuning.subAgentDistance *
+              (target.agent.teamId ? 1 : depthFactor(target.depth))
+            );
+          }
+          return layoutTuning.mainPeerDistance;
+        })
+        .strength((d) => {
+          if (d.edgeType === "tool") return GRAPH.toolLinkStrength;
+          if (d.edgeType === "parent") return GRAPH.parentLinkStrength;
+          // message / blocking peer edges: minimal pull so they don't
+          // distort the parent-driven hierarchy
+          return GRAPH.peerLinkStrength;
+        }),
+    )
+    .force(
+      "charge",
+      forceGroupedManyBody<SimNode>(chargeBucketsOf)
+        .distanceMax(layoutTuning.chargeReach)
+        .strength((d) => {
+          if (d.toolCall) return GRAPH.chargeStrengthTool;
+          // Team members render full-size, so their charge doesn't scale.
+          if (d.agent.parentId)
+            return (
+              layoutTuning.siblingRepulsion *
+              (d.agent.teamId ? 1 : depthFactor(d.depth))
+            );
+          return layoutTuning.mainRepulsion;
+        }),
+    )
+    .force(
+      "chargeGlobal",
+      forceManyBody<SimNode>()
+        // Tools are leashed to their owner (tool link + toolSpokes) and already
+        // repel family peers at chargeStrengthTool — exempt them here so the
+        // global charge doesn't double-count and loosen the tuned tool cluster.
+        .strength((d) => (d.toolCall ? 0 : layoutTuning.globalRepulsion))
+        // Clamped below the smallest tunable link distance so the global
+        // charge's reach never exceeds the springs holding the layout
+        // together — otherwise a lowered link distance leaves the charge
+        // pushing nodes apart faster than the links can pull them back,
+        // causing drift/jitter.
+        .distanceMax(
+          Math.min(
+            GRAPH.chargeGlobalDistanceMax,
+            layoutTuning.subAgentDistance,
+            layoutTuning.mainPeerDistance,
+          ),
+        ),
+    )
+    .force(
+      "spokes",
+      forceRadialSpokes<SimNode>(
+        (n) => n.id,
+        (n) =>
+          n.agent.parentId && !n.agent.teamId && !n.toolCall
+            ? n.agent.parentId
+            : undefined,
+        (n) => layoutTuning.subAgentDistance * depthFactor(n.depth),
+      )
+        .strength(layoutTuning.fanStrength)
+        .arcSpan((layoutTuning.fanSpreadDeg * Math.PI) / 180),
+    )
+    .force(
+      "toolSpokes",
+      forceRadialSpokes<SimNode>(
+        (n) => n.id,
+        (n) => (n.toolCall ? n.toolCall.parentAgentId : undefined),
+        (n) => toolRestRadius(n),
+        (parent) => (parent.agent.teamId ? undefined : parent.agent.parentId),
+      ).strength(GRAPH.spokeStrength),
+    )
+    .force("x", forceX<SimNode>(width / 2).strength(centerStrengthOf))
+    .force("y", forceY<SimNode>(height / 2).strength(centerStrengthOf))
+    .force(
+      "collide",
+      forceCollide<SimNode>().radius((d) =>
+        d.toolCall
+          ? GRAPH.toolNodeRadius + layoutTuning.collisionPadding
+          : getNodeRadius(d.agent, depthFactor(d.depth)) +
+            layoutTuning.collisionPadding,
+      ),
+    );
 }
 
 /**
@@ -70,6 +233,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     selectedWorkflowId,
     selectAgent,
     topologyVersion,
+    layoutTuning,
   } = opts;
 
   useEffect(() => {
@@ -381,132 +545,16 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       nodesByPhasePerRun.set(runId, nodesByPhase);
     }
 
-    // Charge is scoped per family: a main agent and the sub-agents it spawned
-    // (same root ancestor) repel only each other, so each family fans out
-    // radially without disturbing unrelated families. Main agents additionally
-    // share a "roots" bucket so the top layer still spreads itself apart. Tool
-    // nodes join their owning agent's family. THIS predicate is the definition
-    // of "who affects whom" for the family-scoped charge — widen/narrow the
-    // buckets to change that scoping.
-    //
-    // Two-tier design: this strong family-scoped charge shapes each family's
-    // radial fan-out and exerts no cross-family force below the root layer
-    // (mains still repel each other via the shared "roots" bucket). A separate
-    // weak global "chargeGlobal" forceManyBody (registered below) gives EVERY
-    // agent pair short-range personal-space repulsion, so cross-family nodes
-    // can't drift too close — tools are exempt since they're leashed to their
-    // owner. forceCollide remains the hard-overlap backstop.
-    const chargeBucketsOf = (node: SimNode): string[] => {
-      const ownerId = node.toolCall?.parentAgentId ?? node.id;
-      const family = `fam:${rootAgentId(ownerId, agents)}`;
-      return node.toolCall || node.agent.parentId
-        ? [family]
-        : ["roots", family];
-    };
-
-    // forceX/forceY centering strength. A sub-agent whose parent is present is
-    // anchored by the rigid parent link + spokes, so a full viewport-center
-    // pull only drags it onto the center-facing arc and clumps siblings on one
-    // side — give those the weak pull. Main agents, team members, and orphaned
-    // sub-agents (parent evicted from the store, so no parent link or spoke)
-    // keep the full pull as their only viewport anchor; tool nodes get none
-    // (they hug their owner via the tool link).
-    const centerStrengthOf = (d: SimNode): number => {
-      if (d.toolCall) return 0;
-      return d.agent.parentId &&
-        !d.agent.teamId &&
-        agentIds.has(d.agent.parentId)
-        ? GRAPH.subAgentCenterStrength
-        : GRAPH.centerStrength;
-    };
-
-    // A tool node rests this far from its owner's center: the owner hexagon's
-    // radius (depth-scaled) plus a fixed gap, so larger hexagons push their tools
-    // out proportionally. Used by BOTH the tool link distance and the toolSpokes radius.
-    const toolRestRadius = (node: SimNode): number =>
-      getNodeRadius(node.agent, depthFactor(node.depth)) + GRAPH.toolGap;
-
-    const simulation = forceSimulation<SimNode, SimLink>(nodes)
-      .force(
-        "link",
-        forceLink<SimNode, SimLink>(links)
-          .id((d) => d.id)
-          .distance((d) => {
-            if (d.edgeType === "tool")
-              return toolRestRadius(d.source as SimNode);
-            // Parent links shrink with the child's nesting depth (depth 1 is a
-            // no-op). Team members render full-size, so their links don't scale.
-            if (d.edgeType === "parent") {
-              const target = d.target as SimNode;
-              return (
-                GRAPH.subAgentLinkDistance *
-                (target.agent.teamId ? 1 : depthFactor(target.depth))
-              );
-            }
-            return GRAPH.linkDistance;
-          })
-          .strength((d) => {
-            if (d.edgeType === "tool") return GRAPH.toolLinkStrength;
-            if (d.edgeType === "parent") return GRAPH.parentLinkStrength;
-            // message / blocking peer edges: minimal pull so they don't
-            // distort the parent-driven hierarchy
-            return GRAPH.peerLinkStrength;
-          }),
-      )
-      .force(
-        "charge",
-        forceGroupedManyBody<SimNode>(chargeBucketsOf)
-          .distanceMax(GRAPH.chargeDistanceMax)
-          .strength((d) => {
-            if (d.toolCall) return GRAPH.chargeStrengthTool;
-            // Team members render full-size, so their charge doesn't scale.
-            if (d.agent.parentId)
-              return (
-                GRAPH.chargeStrengthSubAgent *
-                (d.agent.teamId ? 1 : depthFactor(d.depth))
-              );
-            return GRAPH.chargeStrengthMain;
-          }),
-      )
-      .force(
-        "chargeGlobal",
-        forceManyBody<SimNode>()
-          // Tools are leashed to their owner (tool link + toolSpokes) and already
-          // repel family peers at chargeStrengthTool — exempt them here so the
-          // global charge doesn't double-count and loosen the tuned tool cluster.
-          .strength((d) => (d.toolCall ? 0 : GRAPH.chargeStrengthGlobal))
-          .distanceMax(GRAPH.chargeGlobalDistanceMax),
-      )
-      .force(
-        "spokes",
-        forceRadialSpokes<SimNode>(
-          (n) => n.id,
-          (n) =>
-            n.agent.parentId && !n.agent.teamId && !n.toolCall
-              ? n.agent.parentId
-              : undefined,
-          (n) => GRAPH.subAgentLinkDistance * depthFactor(n.depth),
-        ).strength(GRAPH.spokeStrength),
-      )
-      .force(
-        "toolSpokes",
-        forceRadialSpokes<SimNode>(
-          (n) => n.id,
-          (n) => (n.toolCall ? n.toolCall.parentAgentId : undefined),
-          (n) => toolRestRadius(n),
-          (parent) => (parent.agent.teamId ? undefined : parent.agent.parentId),
-        ).strength(GRAPH.spokeStrength),
-      )
-      .force("x", forceX<SimNode>(width / 2).strength(centerStrengthOf))
-      .force("y", forceY<SimNode>(height / 2).strength(centerStrengthOf))
-      .force(
-        "collide",
-        forceCollide<SimNode>().radius((d) =>
-          d.toolCall
-            ? GRAPH.toolNodeRadius + 4
-            : getNodeRadius(d.agent, depthFactor(d.depth)) + 4,
-        ),
-      )
+    const simulation = forceSimulation<SimNode, SimLink>(nodes);
+    applyTunableForces(simulation, {
+      agents,
+      agentIds,
+      links,
+      width,
+      height,
+      layoutTuning,
+    });
+    simulation
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
       .on("tick", () => {
         // Glow/main pairs share datum objects (same `links` array), so compute
@@ -711,6 +759,12 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // changes — agent register/remove, parent/team/workflow moves, edge add/remove),
     // so without this dep a filter flip from "no matches" to "1 match" leaves
     // the graph stuck on the empty-state message.
+    //
+    // layoutTuning is intentionally OMITTED: it's read once here (initial
+    // force setup via applyTunableForces) and closed over by the tick
+    // handler, but a slider-only change is handled in place by
+    // `useLayoutTuningEffect`, which re-applies forces onto this same
+    // simulation without wiping the SVG or rebuilding nodes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topologyVersion, filteredAgents.length, selectAgent]);
 }

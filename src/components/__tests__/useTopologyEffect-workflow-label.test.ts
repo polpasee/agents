@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { AgentState, WorkflowRunState } from "@/lib/types";
+import { LAYOUT_TUNING_DEFAULTS } from "@/lib/config";
 import { mockAgent, mockWorkflowRun } from "@/lib/__tests__/test-utils";
 import { useTopologyEffect } from "../AgentGraph/useTopologyEffect";
 import type { AgentGraphRefs } from "../AgentGraph/refs";
@@ -61,6 +62,7 @@ describe("useTopologyEffect — workflow label stamping", () => {
         selectedWorkflowId: null,
         topologyVersion: 1,
         selectAgent: vi.fn(),
+        layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
       }),
     );
 

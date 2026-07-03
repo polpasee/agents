@@ -3,6 +3,8 @@
 // useEventStream.ts. STREAM_BATCH_* constants below tune the client-side
 // event-buffer flush cadence used to coalesce render churn.
 
+import type { LayoutTuning } from "./types";
+
 export const STREAM_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events ~1 frame
 export const STREAM_BATCH_MAX_SIZE = 50; // Force-flush at this many buffered events
 
@@ -58,6 +60,62 @@ export const GRAPH = {
   toolWindowMs: 15_000, // Duration (ms) tool call nodes remain visible after being called
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
+
+/** Default values for the user-tunable layout knobs exposed in the Layout
+ *  Tuning dialog. Non-fan defaults mirror GRAPH so "Reset to defaults"
+ *  reproduces today's look (except `collisionPadding`, which has no GRAPH
+ *  counterpart — it reproduces the previously hardcoded `+4` collide gap);
+ *  fanSpreadDeg defaults to a 180° arc (rather than a full circle) so 1–2
+ *  sibling sub-agents fan out instead of stacking. */
+export const LAYOUT_TUNING_DEFAULTS: LayoutTuning = {
+  subAgentDistance: GRAPH.subAgentLinkDistance,
+  siblingRepulsion: GRAPH.chargeStrengthSubAgent,
+  mainRepulsion: GRAPH.chargeStrengthMain,
+  fanStrength: GRAPH.spokeStrength,
+  fanSpreadDeg: 180,
+  mainPeerDistance: GRAPH.linkDistance,
+  chargeReach: GRAPH.chargeDistanceMax,
+  globalRepulsion: GRAPH.chargeStrengthGlobal,
+  collisionPadding: 4,
+};
+
+/** Min/max/step bounds for each layout-tuning slider — the single source of
+ *  truth for the range contract enforced by both the tuning panel UI and
+ *  `clampLayoutTuning` (localStorage hydration sanitization). */
+export const LAYOUT_TUNING_BOUNDS: Record<
+  keyof LayoutTuning,
+  { min: number; max: number; step: number }
+> = {
+  subAgentDistance: { min: 60, max: 400, step: 5 },
+  siblingRepulsion: { min: -600, max: 0, step: 10 },
+  mainRepulsion: { min: -800, max: 0, step: 10 },
+  fanStrength: { min: 0, max: 1, step: 0.05 },
+  fanSpreadDeg: { min: 30, max: 360, step: 5 },
+  mainPeerDistance: { min: 60, max: 400, step: 5 },
+  chargeReach: { min: 100, max: 800, step: 10 },
+  globalRepulsion: { min: -300, max: 0, step: 5 },
+  collisionPadding: { min: 0, max: 40, step: 1 },
+};
+
+/** Sanitizes a (possibly corrupted or stale) partial layout-tuning blob
+ *  loaded from localStorage. Keys with non-finite values (NaN, null → NaN,
+ *  Infinity, etc.) are omitted entirely so the caller's default fills in;
+ *  finite values are clamped into their configured [min, max] range. */
+export function clampLayoutTuning(
+  partial: Partial<LayoutTuning>,
+): Partial<LayoutTuning> {
+  const result: Partial<LayoutTuning> = {};
+  for (const key of Object.keys(
+    LAYOUT_TUNING_BOUNDS,
+  ) as (keyof LayoutTuning)[]) {
+    const value = partial[key];
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const { min, max } = LAYOUT_TUNING_BOUNDS[key];
+      result[key] = Math.min(max, Math.max(min, value));
+    }
+  }
+  return result;
+}
 
 /** Returns the effective node radius based on whether the agent is a sub-agent.
  *  `depthFactor` (see lib/d3/depth.ts) scales ONLY the sub-agent branch so

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ForceLink, ForceCollide } from "d3-force";
-import { GRAPH } from "@/lib/config";
+import { GRAPH, LAYOUT_TUNING_DEFAULTS } from "@/lib/config";
 import { depthFactor } from "@/lib/d3/depth";
 import type {
   SimNode,
@@ -79,6 +79,7 @@ function buildChainTopology() {
       selectedWorkflowId: null,
       topologyVersion: 1,
       selectAgent: vi.fn(),
+      layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
     }),
   );
 
@@ -214,6 +215,7 @@ describe("useTopologyEffect — depth plumbing", () => {
         selectedWorkflowId: null,
         topologyVersion: 1,
         selectAgent: vi.fn(),
+        layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
       }),
     );
 
@@ -260,13 +262,14 @@ describe("useTopologyEffect — depth plumbing", () => {
     expect(toolNode.x).toBeGreaterThan(sNode.x!);
   });
 
-  it("tool owned by a sub-agent is excluded from the spokes group, so two sub-agents still fan ~180° apart", () => {
+  it("tool owned by a sub-agent is excluded from the spokes group, so two sub-agents still fan ~90° apart", () => {
     // Regression guard for the slot-separation invariant. M owns S1,S2 → spokes
-    // group n=2 → targets are vertical (180° apart). A tool OWNED BY S1
-    // (tool.agent.parentId === "M") is fed into the spokes force: it must be
-    // excluded via !n.toolCall so the group stays n=2. If tools were merged into
-    // spokes, n=3 → S1/S2 ~120° apart → assertion fails. S1/S2 are seeded CLUMPED
-    // on one side so a no-op/disabled spokes force also fails (they'd stay clumped).
+    // group n=2 → with the default fanSpreadDeg (180°) targets are arcSpan/n =
+    // 90° apart. A tool OWNED BY S1 (tool.agent.parentId === "M") is fed into
+    // the spokes force: it must be excluded via !n.toolCall so the group stays
+    // n=2. If tools were merged into spokes, n=3 → adjacent slots would be
+    // arcSpan/3 = 60° apart → assertion fails. S1/S2 are seeded CLUMPED on one
+    // side so a no-op/disabled spokes force also fails (they'd stay clumped).
     const M = mockAgent({ id: "M" });
     const S1 = mockAgent({ id: "S1", parentId: "M" });
     const S2 = mockAgent({ id: "S2", parentId: "M" });
@@ -289,6 +292,7 @@ describe("useTopologyEffect — depth plumbing", () => {
         selectedWorkflowId: null,
         topologyVersion: 1,
         selectAgent: vi.fn(),
+        layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
       }),
     );
 
@@ -338,7 +342,7 @@ describe("useTopologyEffect — depth plumbing", () => {
     const angle2 = Math.atan2(s2Node.y ?? 0, s2Node.x ?? 0);
     let diff = Math.abs(angle1 - angle2);
     if (diff > Math.PI) diff = 2 * Math.PI - diff;
-    expect(Math.abs(diff - Math.PI)).toBeLessThan(0.3);
+    expect(Math.abs(diff - Math.PI / 2)).toBeLessThan(0.3);
   });
 
   it("returns owner-radius + toolGap for tool links fed into the same link force", () => {
@@ -400,6 +404,7 @@ describe("useTopologyEffect — depth plumbing", () => {
         selectedWorkflowId: null,
         topologyVersion: 1,
         selectAgent: vi.fn(),
+        layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
       }),
     );
 
@@ -473,6 +478,7 @@ describe("useTopologyEffect — depth plumbing", () => {
         selectedWorkflowId: null,
         topologyVersion: 1,
         selectAgent: vi.fn(),
+        layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
       }),
     );
 
