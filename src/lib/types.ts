@@ -348,6 +348,19 @@ export interface FileModification {
 // ── F11: Theme ───────────────────────────────────────
 export type ThemeMode = "dark" | "light";
 
+// ── Layout Tuning ─────────────────────────────────────
+export interface LayoutTuning {
+  subAgentDistance: number; // Main↔sub-agent link distance & spoke radius (px)
+  siblingRepulsion: number; // sub-agent family charge strength (negative)
+  mainRepulsion: number; // main agent charge strength (negative)
+  fanStrength: number; // radial spoke force strength 0..1
+  fanSpreadDeg: number; // radial fan arc span in DEGREES
+  mainPeerDistance: number; // main↔main / peer link distance (px)
+  chargeReach: number; // family charge distanceMax (px)
+  globalRepulsion: number; // weak global personal-space charge (negative)
+  collisionPadding: number; // extra collision radius padding (px)
+}
+
 // ── F12: Graph Layout Modes ──────────────────────────
 export type GraphLayout = "force" | "tree" | "radial" | "hierarchical";
 

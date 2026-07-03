@@ -20,6 +20,7 @@ import { ReplayBar } from "./ReplayBar";
 import { LogViewer } from "./LogViewer";
 import { ErrorDrillDown } from "./ErrorDrillDown";
 import { ExportModal } from "./ExportModal";
+import { LayoutTuningPanel } from "./LayoutTuningPanel";
 import { DiffViewer } from "./DiffViewer";
 import { SessionComparison } from "./SessionComparison";
 import { useMetricSampler } from "@/hooks/useMetricSampler";
@@ -204,6 +205,7 @@ export function Dashboard() {
       )}
       <ErrorDrillDown />
       <ExportModal />
+      <LayoutTuningPanel />
       <DiffViewer />
     </div>
   );

@@ -1,7 +1,8 @@
 import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import { loadLocalStorage, saveLocalStorage } from "./helpers";
-import type { ThemeMode } from "../types";
+import type { ThemeMode, LayoutTuning } from "../types";
+import { LAYOUT_TUNING_DEFAULTS } from "../config";
 import { resolveSessionId } from "../sessions";
 
 export type UISlice = Pick<
@@ -22,6 +23,8 @@ export type UISlice = Pick<
   | "showLiveMetrics"
   | "theme"
   | "soundMuted"
+  | "layoutTuning"
+  | "showLayoutSettings"
   | "comparison"
   | "selectAgent"
   | "selectTeam"
@@ -41,6 +44,9 @@ export type UISlice = Pick<
   | "toggleLiveMetrics"
   | "toggleTheme"
   | "toggleSoundMute"
+  | "setLayoutTuning"
+  | "resetLayoutTuning"
+  | "toggleLayoutSettings"
   | "loadComparison"
   | "exitComparison"
   | "hydrateUI"
@@ -227,6 +233,25 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
     set({ soundMuted: next });
   },
 
+  // ── Layout Tuning ──────────────────────────────────
+  layoutTuning: { ...LAYOUT_TUNING_DEFAULTS }, // Hydrated from localStorage on client mount
+  showLayoutSettings: false,
+
+  setLayoutTuning: (partial) => {
+    const next = { ...get().layoutTuning, ...partial };
+    saveLocalStorage("layoutTuning", next);
+    set({ layoutTuning: next });
+  },
+
+  resetLayoutTuning: () => {
+    const next = { ...LAYOUT_TUNING_DEFAULTS };
+    saveLocalStorage("layoutTuning", next);
+    set({ layoutTuning: next });
+  },
+
+  toggleLayoutSettings: () =>
+    set({ showLayoutSettings: !get().showLayoutSettings }),
+
   // ── Hydration: sync from localStorage after client mount ──
   // Centralizes every localStorage-backed field so SSR renders a stable default
   // and client-side hydration brings them in via a single `useEffect` in <Dashboard>.
@@ -237,6 +262,13 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
       theme: loadLocalStorage<ThemeMode>("theme", "dark"),
       budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
       agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
+      layoutTuning: {
+        ...LAYOUT_TUNING_DEFAULTS,
+        ...(loadLocalStorage<Partial<LayoutTuning> | null>(
+          "layoutTuning",
+          null,
+        ) ?? {}),
+      },
     };
     if (Array.isArray(stored)) {
       updates.selectedSessionIds = new Set(stored);

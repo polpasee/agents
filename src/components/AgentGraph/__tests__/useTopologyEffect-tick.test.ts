@@ -85,6 +85,7 @@ vi.mock("@/lib/d3", () => ({
   })),
   forceRadialSpokes: vi.fn(() => ({
     strength: vi.fn().mockReturnThis(),
+    arcSpan: vi.fn().mockReturnThis(),
   })),
   hexPath: vi.fn(() => "M0,0"),
 }));
@@ -134,6 +135,20 @@ import { linkPath, clusterHullPath, clusterLabelAnchor } from "@/lib/d3";
 import { useTopologyEffect } from "../useTopologyEffect";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Mirrors LAYOUT_TUNING_DEFAULTS (config.ts is mocked above so we can't
+// import it directly) — values match the mocked GRAPH constants.
+const TEST_LAYOUT_TUNING = {
+  subAgentDistance: 100,
+  siblingRepulsion: -150,
+  mainRepulsion: -260,
+  fanStrength: 0.25,
+  fanSpreadDeg: 180,
+  mainPeerDistance: 150,
+  chargeReach: 320,
+  globalRepulsion: -80,
+  collisionPadding: 4,
+};
 
 function makeAgent(overrides: Partial<AgentState> = {}): AgentState {
   return {
@@ -244,6 +259,7 @@ function makeOpts(
     selectedWorkflowId: null as string | null,
     topologyVersion: 1,
     selectAgent: vi.fn(),
+    layoutTuning: TEST_LAYOUT_TUNING,
     ...overrides,
   };
 }

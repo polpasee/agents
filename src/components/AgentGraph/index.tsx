@@ -39,6 +39,7 @@ export function AgentGraph({ ref }: Props) {
   const heatmapEnabled = useAgentStore((s) => s.heatmapEnabled);
   const heatmapMetric = useAgentStore((s) => s.heatmapMetric);
   const graphLayout = useAgentStore((s) => s.graphLayout);
+  const layoutTuning = useAgentStore((s) => s.layoutTuning);
   const filteredAgents = useFilteredAgents();
   // Cheap integer that bumps only when topology actually changes (agents
   // join/leave, parent/team links move, message/blocking edges added or
@@ -71,6 +72,7 @@ export function AgentGraph({ ref }: Props) {
     selectedWorkflowId,
     topologyVersion,
     selectAgent,
+    layoutTuning,
   });
   useNodeVisualsEffect(refs, {
     agents,

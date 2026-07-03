@@ -3,6 +3,8 @@
 // useEventStream.ts. STREAM_BATCH_* constants below tune the client-side
 // event-buffer flush cadence used to coalesce render churn.
 
+import type { LayoutTuning } from "./types";
+
 export const STREAM_BATCH_INTERVAL_MS = 16; // Flush buffered state:update events ~1 frame
 export const STREAM_BATCH_MAX_SIZE = 50; // Force-flush at this many buffered events
 
@@ -58,6 +60,22 @@ export const GRAPH = {
   toolWindowMs: 15_000, // Duration (ms) tool call nodes remain visible after being called
   toolMaxPerAgent: 5, // Maximum number of tool nodes shown per agent at once
 } as const;
+
+/** Default values for the user-tunable layout knobs exposed in the Layout
+ *  Tuning dialog. Non-fan defaults mirror GRAPH so "Reset to defaults"
+ *  reproduces today's look; fanSpreadDeg defaults to a 180° arc (rather than
+ *  a full circle) so 1–2 sibling sub-agents fan out instead of stacking. */
+export const LAYOUT_TUNING_DEFAULTS: LayoutTuning = {
+  subAgentDistance: GRAPH.subAgentLinkDistance,
+  siblingRepulsion: GRAPH.chargeStrengthSubAgent,
+  mainRepulsion: GRAPH.chargeStrengthMain,
+  fanStrength: GRAPH.spokeStrength,
+  fanSpreadDeg: 180,
+  mainPeerDistance: GRAPH.linkDistance,
+  chargeReach: GRAPH.chargeDistanceMax,
+  globalRepulsion: GRAPH.chargeStrengthGlobal,
+  collisionPadding: 4,
+};
 
 /** Returns the effective node radius based on whether the agent is a sub-agent.
  *  `depthFactor` (see lib/d3/depth.ts) scales ONLY the sub-agent branch so

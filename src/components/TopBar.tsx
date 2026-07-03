@@ -12,6 +12,7 @@ export function TopBar() {
   const selectedSessionIds = useAgentStore((s) => s.selectedSessionIds);
   const selectOnlySession = useAgentStore((s) => s.selectOnlySession);
   const selectAllSessions = useAgentStore((s) => s.selectAllSessions);
+  const toggleLayoutSettings = useAgentStore((s) => s.toggleLayoutSettings);
 
   // Dropdown lists main agents (one per session). Picking one filters the
   // topology to that session; picking "All sessions" clears the filter. This is
@@ -74,34 +75,49 @@ export function TopBar() {
         </div>
       </div>
 
-      {/* Right: Session filter */}
-      <select
-        aria-label="Filter sessions"
-        value={currentValue}
-        onChange={(e) =>
-          e.target.value
-            ? selectOnlySession(e.target.value)
-            : selectAllSessions()
-        }
-        disabled={sessions.length === 0}
-        className="text-xs font-mono rounded px-2 py-1 outline-none max-w-[60vw]"
-        style={{
-          background: "var(--color-bg)",
-          color: UI.text.primary,
-          border: `1px solid ${UI.primary}44`,
-        }}
-      >
-        <option value="">
-          {sessions.length === 0
-            ? "No agents"
-            : `All sessions (${sessions.length})`}
-        </option>
-        {sessions.map((session) => (
-          <option key={session.sessionId} value={session.sessionId}>
-            {session.label}
+      {/* Right: Layout tuning + session filter */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={toggleLayoutSettings}
+          aria-label="Layout tuning settings"
+          title="Layout tuning settings"
+          className="text-xs font-mono rounded px-2 py-1"
+          style={{
+            background: "var(--color-bg)",
+            color: UI.text.primary,
+            border: `1px solid ${UI.primary}44`,
+          }}
+        >
+          ⚙ Layout
+        </button>
+        <select
+          aria-label="Filter sessions"
+          value={currentValue}
+          onChange={(e) =>
+            e.target.value
+              ? selectOnlySession(e.target.value)
+              : selectAllSessions()
+          }
+          disabled={sessions.length === 0}
+          className="text-xs font-mono rounded px-2 py-1 outline-none max-w-[60vw]"
+          style={{
+            background: "var(--color-bg)",
+            color: UI.text.primary,
+            border: `1px solid ${UI.primary}44`,
+          }}
+        >
+          <option value="">
+            {sessions.length === 0
+              ? "No agents"
+              : `All sessions (${sessions.length})`}
           </option>
-        ))}
-      </select>
+          {sessions.map((session) => (
+            <option key={session.sessionId} value={session.sessionId}>
+              {session.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

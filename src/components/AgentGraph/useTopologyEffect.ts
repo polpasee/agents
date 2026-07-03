@@ -29,6 +29,7 @@ import type {
   EdgeState,
   TeamState,
   WorkflowRunState,
+  LayoutTuning,
 } from "@/lib/types";
 import type { AgentGraphRefs } from "./refs";
 import { simulationDrag } from "./simulationDrag";
@@ -45,6 +46,7 @@ interface Options {
   selectedWorkflowId: string | null;
   topologyVersion: number;
   selectAgent: (id: string | null) => void;
+  layoutTuning: LayoutTuning;
 }
 
 /**
@@ -70,6 +72,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     selectedWorkflowId,
     selectAgent,
     topologyVersion,
+    layoutTuning,
   } = opts;
 
   useEffect(() => {
@@ -439,11 +442,11 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             if (d.edgeType === "parent") {
               const target = d.target as SimNode;
               return (
-                GRAPH.subAgentLinkDistance *
+                layoutTuning.subAgentDistance *
                 (target.agent.teamId ? 1 : depthFactor(target.depth))
               );
             }
-            return GRAPH.linkDistance;
+            return layoutTuning.mainPeerDistance;
           })
           .strength((d) => {
             if (d.edgeType === "tool") return GRAPH.toolLinkStrength;
@@ -456,16 +459,16 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
       .force(
         "charge",
         forceGroupedManyBody<SimNode>(chargeBucketsOf)
-          .distanceMax(GRAPH.chargeDistanceMax)
+          .distanceMax(layoutTuning.chargeReach)
           .strength((d) => {
             if (d.toolCall) return GRAPH.chargeStrengthTool;
             // Team members render full-size, so their charge doesn't scale.
             if (d.agent.parentId)
               return (
-                GRAPH.chargeStrengthSubAgent *
+                layoutTuning.siblingRepulsion *
                 (d.agent.teamId ? 1 : depthFactor(d.depth))
               );
-            return GRAPH.chargeStrengthMain;
+            return layoutTuning.mainRepulsion;
           }),
       )
       .force(
@@ -474,7 +477,7 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
           // Tools are leashed to their owner (tool link + toolSpokes) and already
           // repel family peers at chargeStrengthTool — exempt them here so the
           // global charge doesn't double-count and loosen the tuned tool cluster.
-          .strength((d) => (d.toolCall ? 0 : GRAPH.chargeStrengthGlobal))
+          .strength((d) => (d.toolCall ? 0 : layoutTuning.globalRepulsion))
           .distanceMax(GRAPH.chargeGlobalDistanceMax),
       )
       .force(
@@ -485,8 +488,11 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
             n.agent.parentId && !n.agent.teamId && !n.toolCall
               ? n.agent.parentId
               : undefined,
-          (n) => GRAPH.subAgentLinkDistance * depthFactor(n.depth),
-        ).strength(GRAPH.spokeStrength),
+          (n) => layoutTuning.subAgentDistance * depthFactor(n.depth),
+          (parent) => (parent.agent.teamId ? undefined : parent.agent.parentId),
+        )
+          .strength(layoutTuning.fanStrength)
+          .arcSpan((layoutTuning.fanSpreadDeg * Math.PI) / 180),
       )
       .force(
         "toolSpokes",
@@ -503,8 +509,9 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
         "collide",
         forceCollide<SimNode>().radius((d) =>
           d.toolCall
-            ? GRAPH.toolNodeRadius + 4
-            : getNodeRadius(d.agent, depthFactor(d.depth)) + 4,
+            ? GRAPH.toolNodeRadius + layoutTuning.collisionPadding
+            : getNodeRadius(d.agent, depthFactor(d.depth)) +
+              layoutTuning.collisionPadding,
         ),
       )
       .alpha(prevPositions.size > 0 ? GRAPH.newNodeAlpha : 1)
@@ -712,5 +719,5 @@ export function useTopologyEffect(refs: AgentGraphRefs, opts: Options) {
     // so without this dep a filter flip from "no matches" to "1 match" leaves
     // the graph stuck on the empty-state message.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topologyVersion, filteredAgents.length, selectAgent]);
+  }, [topologyVersion, filteredAgents.length, selectAgent, layoutTuning]);
 }

@@ -20,6 +20,7 @@ import type {
   ComparisonState,
   AgentType,
   WorkflowRunState,
+  LayoutTuning,
 } from "../types";
 
 export interface AgentStore {
@@ -168,6 +169,13 @@ export interface AgentStore {
   // Sound
   soundMuted: boolean;
   toggleSoundMute: () => void;
+
+  // Layout Tuning
+  layoutTuning: LayoutTuning;
+  showLayoutSettings: boolean;
+  setLayoutTuning: (partial: Partial<LayoutTuning>) => void;
+  resetLayoutTuning: () => void;
+  toggleLayoutSettings: () => void;
 
   // Hydration
   hydrateUI: () => void;
