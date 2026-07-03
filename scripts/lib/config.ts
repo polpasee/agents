@@ -51,6 +51,16 @@ export const SUBAGENT_STALE_THRESHOLD_MS = 60_000;
 /** Purge removed agent IDs after this long (memory leak prevention) */
 export const REMOVED_IDS_TTL_MS = 60 * 60 * 1000;
 
+/** Node-id prefix for synthetic external-agent nodes (a Codex CLI call surfaced
+ *  as a sub-agent). pruning.ts keys its "no backing file — don't reap a running
+ *  one mid-run" special-case off this. */
+export const EXTERNAL_AGENT_ID_PREFIX = "codex:";
+/** Grace window during which a still-"running" external (Codex) node is exempt
+ *  from stale-pruning — its activity clock is frozen at spawn (no backing file).
+ *  Past this, a node whose tool_result never arrived (e.g. Claude killed
+ *  mid-run) is reaped so it can't pin its ancestor subtree forever. */
+export const MAX_EXTERNAL_RUN_MS = 30 * 60 * 1000;
+
 export const MAX_TOOL_CALLS_PER_AGENT = 20;
 export const MAX_TASK_LENGTH = 100;
 export const MAX_ARG_PREVIEW_LENGTH = 60;

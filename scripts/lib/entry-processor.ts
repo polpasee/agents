@@ -8,6 +8,10 @@ import { broadcast } from "./sse-broadcast";
 import { agents } from "./agent-store";
 import { recordSpawnToolUse } from "./spawn-index";
 import { broadcastRegisterFor } from "./agent-registry";
+import {
+  maybeRegisterExternalAgent,
+  maybeCompleteExternalAgent,
+} from "./external-agent";
 
 // ── Process a JSONL entry ──────────────────────────────
 export function processEntry(entry: Record<string, unknown>, agentId: string) {
@@ -59,6 +63,9 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
       // Agent/Task tool_use blocks are spawn points — index them so nested
       // sub-agents can resolve their real parent (meta.toolUseId).
       recordSpawnToolUse(b, agentId);
+      // A Codex CLI Bash call is surfaced as its own sub-agent node instead of
+      // a generic tool spoke — skip the normal tool-call recording for it.
+      if (maybeRegisterExternalAgent(b, agentId, timestamp)) continue;
       {
         const toolName = b.name;
         const input =
@@ -141,6 +148,13 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
         };
         broadcast({ type: "state:update", event, timestamp });
       }
+    }
+  }
+
+  if (role === "user" && Array.isArray(message.content)) {
+    for (const block of message.content) {
+      if (!block || typeof block !== "object") continue;
+      maybeCompleteExternalAgent(block as Record<string, unknown>, timestamp);
     }
   }
 }
