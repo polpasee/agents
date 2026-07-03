@@ -17,6 +17,8 @@ import {
   STATUS_RUNNING_THRESHOLD_MS,
   STALE_THRESHOLD_MS,
   SUBAGENT_STALE_THRESHOLD_MS,
+  EXTERNAL_AGENT_ID_PREFIX,
+  MAX_EXTERNAL_RUN_MS,
 } from "./config";
 import {
   wfContentCache,
@@ -154,7 +156,20 @@ export function selectStaleAgentIds(
   }
   const stale: string[] = [];
   for (const [agentId, agent] of agentsMap) {
-    if (agent.status !== "running" && agent.status !== "idle") continue;
+    if (agentId.startsWith(EXTERNAL_AGENT_ID_PREFIX)) {
+      // Synthetic external (Codex) nodes have no backing file to refresh their
+      // activity clock, so a still-running one must not be reaped mid-run — but
+      // bound the exemption: if the tool_result never arrives (Claude killed
+      // mid-run), let it age out past a grace window instead of pinning its
+      // ancestor subtree forever.
+      if (
+        agent.status === "running" &&
+        now - agent.startTime <= MAX_EXTERNAL_RUN_MS
+      )
+        continue;
+    } else if (agent.status !== "running" && agent.status !== "idle") {
+      continue;
+    }
     const lastMod = agentLastModifiedMap.get(agentId) || agent.startTime;
     const threshold = agent.parentId
       ? SUBAGENT_STALE_THRESHOLD_MS
