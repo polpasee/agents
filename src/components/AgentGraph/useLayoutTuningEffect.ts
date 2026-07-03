@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import type { ForceLink } from "d3-force";
 import type { AgentState, GraphLayout, LayoutTuning } from "@/lib/types";
+import type { SimNode, SimLink } from "@/lib/d3";
 import type { AgentGraphRefs } from "./refs";
 import { applyTunableForces } from "./useTopologyEffect";
 
@@ -56,6 +58,13 @@ export function useLayoutTuningEffect(refs: AgentGraphRefs, opts: Options) {
       height,
       layoutTuning,
     });
+
+    // applyTunableForces rebuilds the "link" force from agent links only, so
+    // re-merge the tool links (owned by useToolNodesEffect, which is keyed on
+    // `agents` and doesn't re-fire on a tuning change) — otherwise tool nodes
+    // lose their strong link leash until the next agent event re-merges them.
+    const linkForce = sim.force<ForceLink<SimNode, SimLink>>("link");
+    if (linkForce) linkForce.links([...links, ...refs.toolLinksRef.current]);
 
     if (graphLayout === "force") {
       sim.alpha(0.3).restart();
