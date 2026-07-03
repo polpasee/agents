@@ -2,8 +2,20 @@ import type { StateCreator } from "zustand";
 import type { AgentStore } from "./types";
 import { loadLocalStorage, saveLocalStorage } from "./helpers";
 import type { ThemeMode, LayoutTuning } from "../types";
-import { LAYOUT_TUNING_DEFAULTS } from "../config";
+import { LAYOUT_TUNING_DEFAULTS, clampLayoutTuning } from "../config";
 import { resolveSessionId } from "../sessions";
+
+const LAYOUT_TUNING_SAVE_DEBOUNCE_MS = 150;
+let layoutTuningSaveTimer: ReturnType<typeof setTimeout> | undefined;
+
+function loadStoredLayoutTuning(): LayoutTuning {
+  return {
+    ...LAYOUT_TUNING_DEFAULTS,
+    ...clampLayoutTuning(
+      loadLocalStorage<Partial<LayoutTuning>>("layoutTuning", {}) ?? {},
+    ),
+  };
+}
 
 export type UISlice = Pick<
   AgentStore,
@@ -237,14 +249,22 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
   layoutTuning: { ...LAYOUT_TUNING_DEFAULTS }, // Hydrated from localStorage on client mount
   showLayoutSettings: false,
 
+  // State updates immediately every call so live preview / subscribers keep
+  // re-firing on every slider tick; the localStorage write is debounced
+  // (trailing, ~150ms) so dragging a slider doesn't hit disk dozens of
+  // times/sec.
   setLayoutTuning: (partial) => {
     const next = { ...get().layoutTuning, ...partial };
-    saveLocalStorage("layoutTuning", next);
     set({ layoutTuning: next });
+    clearTimeout(layoutTuningSaveTimer);
+    layoutTuningSaveTimer = setTimeout(() => {
+      saveLocalStorage("layoutTuning", next);
+    }, LAYOUT_TUNING_SAVE_DEBOUNCE_MS);
   },
 
   resetLayoutTuning: () => {
     const next = { ...LAYOUT_TUNING_DEFAULTS };
+    clearTimeout(layoutTuningSaveTimer);
     saveLocalStorage("layoutTuning", next);
     set({ layoutTuning: next });
   },
@@ -262,13 +282,7 @@ export const createUISlice: StateCreator<AgentStore, [], [], UISlice> = (
       theme: loadLocalStorage<ThemeMode>("theme", "dark"),
       budgetThreshold: loadLocalStorage<number | null>("budgetThreshold", null),
       agentTypeBudgets: loadLocalStorage("agentTypeBudgets", {}),
-      layoutTuning: {
-        ...LAYOUT_TUNING_DEFAULTS,
-        ...(loadLocalStorage<Partial<LayoutTuning> | null>(
-          "layoutTuning",
-          null,
-        ) ?? {}),
-      },
+      layoutTuning: loadStoredLayoutTuning(),
     };
     if (Array.isArray(stored)) {
       updates.selectedSessionIds = new Set(stored);

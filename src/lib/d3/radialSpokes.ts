@@ -13,17 +13,18 @@ import type { SimulationNodeDatum } from "d3-force";
  *
  * Membership and angular slot order are fixed once in `initialize()`; each
  * child's angle follows from its slot index every tick. The angular width of
- * the fan is controlled by the tunable `arcSpan` (radians, default π via
- * `.arcSpan()`). For root-level groups (parent has no grandparent) the angle
- * formula is `-π/2 + arcSpan·((i+0.5)/n - 0.5)`, centering the fan on
+ * the fan is controlled by the tunable `arcSpan` (radians, via `.arcSpan()`).
+ * When left unset, root groups (parent has no grandparent) default to a full
+ * circle (2π) and grandparent-anchored groups default to a semicircle (π);
+ * `.arcSpan(v)` overrides BOTH branches to span `v`. For root-level groups
+ * the angle formula is `-π/2 + span·((i+0.5)/n - 0.5)`, centering the fan on
  * straight-up so small groups (1–2 children) fan into an arc instead of
- * stacking; passing `arcSpan = 2π` reproduces an even full-circle fan.
- * Groups whose parent has a grandparent (per `grandparentIdOf`) use the same
- * formula but centered on the outward direction away from the grandparent,
- * so nested children spread outward instead of wrapping back toward the
- * root. Coincident parent/grandparent positions fall back to the up-centered
- * formula. Children are sorted by id for stable, deterministic slots across
- * restarts.
+ * stacking when `span` is forced below 2π. Groups whose parent has a
+ * grandparent (per `grandparentIdOf`) use the same formula but centered on
+ * the outward direction away from the grandparent, so nested children spread
+ * outward instead of wrapping back toward the root. Coincident
+ * parent/grandparent positions fall back to the up-centered formula.
+ * Children are sorted by id for stable, deterministic slots across restarts.
  *
  * The `.strength()` and `.arcSpan()` accessors mirror d3's force API
  * conventions.
@@ -33,7 +34,7 @@ export interface RadialSpokesForce<N extends SimulationNodeDatum> {
   initialize(nodes: N[]): void;
   strength(): number;
   strength(value: number): RadialSpokesForce<N>;
-  arcSpan(): number;
+  arcSpan(): number | undefined;
   arcSpan(value: number): RadialSpokesForce<N>;
 }
 
@@ -43,9 +44,10 @@ export function forceRadialSpokes<N extends SimulationNodeDatum>(
   radiusOf: (node: N) => number,
   grandparentIdOf?: (parent: N) => string | undefined,
 ): RadialSpokesForce<N> {
-  // Width of the fan, in radians. Default π keeps the outward (grandparent)
-  // fan a semicircle; tunable via `.arcSpan()`.
-  let arcSpan = Math.PI;
+  // Width of the fan, in radians; tunable via `.arcSpan()`. When unset, the
+  // tick loop below picks a legacy per-branch default: 2π (full circle) for
+  // root groups, π (semicircle) for grandparent-anchored groups.
+  let arcSpan: number | undefined = undefined;
 
   let strength = 0.1;
   let groups: { parent: N; children: N[]; grandparent?: N }[] = [];
@@ -59,11 +61,12 @@ export function forceRadialSpokes<N extends SimulationNodeDatum>(
         const dy = (parent.y ?? 0) - (grandparent.y ?? 0);
         if (dx !== 0 || dy !== 0) base = Math.atan2(dy, dx);
       }
+      const span = arcSpan ?? (base !== undefined ? Math.PI : 2 * Math.PI);
       for (let i = 0; i < n; i++) {
         const angle =
           base !== undefined
-            ? base + arcSpan * ((i + 0.5) / n - 0.5)
-            : -Math.PI / 2 + arcSpan * ((i + 0.5) / n - 0.5);
+            ? base + span * ((i + 0.5) / n - 0.5)
+            : -Math.PI / 2 + span * ((i + 0.5) / n - 0.5);
         const child = children[i]!;
         const R = radiusOf(child);
         const tx = (parent.x ?? 0) + R * Math.cos(angle);

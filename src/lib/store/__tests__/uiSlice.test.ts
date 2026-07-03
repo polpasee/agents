@@ -8,6 +8,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { useAgentStore } from "../../store";
 import { mockAgent } from "../../__tests__/test-utils";
+import { LAYOUT_TUNING_DEFAULTS } from "../../config";
+import type { LayoutTuning } from "../../types";
 
 function resetUI() {
   useAgentStore.setState({
@@ -38,6 +40,7 @@ function resetUI() {
     fileAttentionOpen: false,
     soundMuted: false,
     comparison: { active: false, leftSession: null, rightSession: null },
+    layoutTuning: { ...LAYOUT_TUNING_DEFAULTS },
   });
 }
 
@@ -475,5 +478,101 @@ describe("toggleFileAttention", () => {
     useAgentStore.setState({ fileAttentionOpen: true });
     useAgentStore.getState().toggleFileAttention();
     expect(useAgentStore.getState().fileAttentionOpen).toBe(false);
+  });
+});
+
+// ── layoutTuning ──────────────────────────────────────────────────────────
+
+describe("layoutTuning", () => {
+  describe("hydrateUI", () => {
+    it("merges a partial stored blob over defaults", () => {
+      (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: string) => {
+          if (key === "layoutTuning")
+            return JSON.stringify({ fanSpreadDeg: 90 });
+          return null;
+        },
+      );
+      useAgentStore.getState().hydrateUI();
+      const { layoutTuning } = useAgentStore.getState();
+      expect(layoutTuning.fanSpreadDeg).toBe(90);
+      expect(layoutTuning.collisionPadding).toBe(
+        LAYOUT_TUNING_DEFAULTS.collisionPadding,
+      );
+    });
+
+    it("sanitizes non-finite/out-of-range values instead of propagating them", () => {
+      (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
+        (key: string) => {
+          if (key === "layoutTuning")
+            return JSON.stringify({
+              subAgentDistance: null,
+              mainRepulsion: 999999,
+              fanStrength: NaN,
+            });
+          return null;
+        },
+      );
+      useAgentStore.getState().hydrateUI();
+      const { layoutTuning } = useAgentStore.getState();
+      // null/NaN are dropped by the sanitizer → default fills in
+      expect(Number.isFinite(layoutTuning.subAgentDistance)).toBe(true);
+      expect(layoutTuning.subAgentDistance).toBe(
+        LAYOUT_TUNING_DEFAULTS.subAgentDistance,
+      );
+      expect(layoutTuning.fanStrength).toBe(LAYOUT_TUNING_DEFAULTS.fanStrength);
+      // out-of-range but finite → clamped to max (0)
+      expect(layoutTuning.mainRepulsion).toBe(0);
+    });
+  });
+
+  describe("setLayoutTuning", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("updates only the changed key, preserves the rest, and persists after the debounce", () => {
+      vi.useFakeTimers();
+      const before = useAgentStore.getState().layoutTuning;
+
+      useAgentStore.getState().setLayoutTuning({ fanSpreadDeg: 90 });
+      const after = useAgentStore.getState().layoutTuning;
+
+      expect(after).not.toBe(before);
+      expect(after.fanSpreadDeg).toBe(90);
+      for (const key of Object.keys(LAYOUT_TUNING_DEFAULTS) as Array<
+        keyof LayoutTuning
+      >) {
+        if (key === "fanSpreadDeg") continue;
+        expect(after[key]).toBe(before[key]);
+      }
+
+      // Not persisted synchronously — debounced.
+      expect(localStorage.setItem).not.toHaveBeenCalledWith(
+        "layoutTuning",
+        expect.anything(),
+      );
+
+      vi.advanceTimersByTime(200);
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        "layoutTuning",
+        JSON.stringify(after),
+      );
+    });
+  });
+
+  describe("resetLayoutTuning", () => {
+    it("returns state to defaults and persists immediately", () => {
+      useAgentStore.getState().setLayoutTuning({ fanSpreadDeg: 90 });
+      useAgentStore.getState().resetLayoutTuning();
+
+      expect(useAgentStore.getState().layoutTuning).toEqual(
+        LAYOUT_TUNING_DEFAULTS,
+      );
+      expect(localStorage.setItem).toHaveBeenCalledWith(
+        "layoutTuning",
+        JSON.stringify(LAYOUT_TUNING_DEFAULTS),
+      );
+    });
   });
 });

@@ -141,7 +141,7 @@ vi.mock("../simulationDrag", () => ({
 // ── Imports (after mocks) ─────────────────────────────────────────────────────
 import { forceSimulation, forceX, forceY, forceManyBody } from "d3-force";
 import { select as d3Select } from "d3-selection";
-import { updateLinkVisuals } from "@/lib/d3";
+import { updateLinkVisuals, forceRadialSpokes } from "@/lib/d3";
 import { buildWorkflowLabelMap } from "@/lib/workflowLabels";
 import { useTopologyEffect } from "../useTopologyEffect";
 
@@ -368,6 +368,35 @@ describe("useTopologyEffect", () => {
     expect(centerStrengthOf(teamNode)).toBe(0.08);
     // Orphaned sub-agent keeps the full pull — it has no parent link or spoke.
     expect(centerStrengthOf(orphanNode)).toBe(0.08);
+  });
+
+  it("sets arcSpan from fanSpreadDeg on the sub-agent spokes force but never on toolSpokes (preserves its full-circle default)", () => {
+    // The sub-agent "spokes" force is created first (3 args — no
+    // grandparentIdOf, so sub-agents always use the up-centered root branch)
+    // and has .arcSpan() forced from the tunable fanSpreadDeg. "toolSpokes"
+    // is created second (4 args, keeps grandparentIdOf) and must NEVER call
+    // .arcSpan(), so it inherits forceRadialSpokes' dual legacy defaults —
+    // restoring the full-circle tool ring around main agents.
+    const agent = makeAgent({ id: "a1" });
+    const refs = makeRefs();
+    renderHook(() => useTopologyEffect(refs, makeOpts([agent])));
+
+    const calls = vi.mocked(forceRadialSpokes).mock.calls;
+    expect(calls.length).toBe(2);
+    expect(calls[0]).toHaveLength(3); // spokes: no grandparentIdOf
+    expect(calls[1]).toHaveLength(4); // toolSpokes: keeps grandparentIdOf
+
+    const results = vi.mocked(forceRadialSpokes).mock.results;
+    const spokesInstance = results[0]!.value as {
+      arcSpan: { mock: { calls: unknown[][] } };
+    };
+    const toolSpokesInstance = results[1]!.value as {
+      arcSpan: { mock: { calls: unknown[][] } };
+    };
+
+    // fanSpreadDeg=180 (TEST_LAYOUT_TUNING) → π radians.
+    expect(spokesInstance.arcSpan.mock.calls).toEqual([[Math.PI]]);
+    expect(toolSpokesInstance.arcSpan.mock.calls).toHaveLength(0);
   });
 
   it("writes nodes to refs from filteredAgents", () => {

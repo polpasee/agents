@@ -3,70 +3,29 @@
 import { useAgentStore } from "@/lib/store";
 import { UI } from "@/lib/colors";
 import { ModalBackdrop } from "./ModalBackdrop";
+import { LAYOUT_TUNING_BOUNDS } from "@/lib/config";
 import type { LayoutTuning } from "@/lib/types";
 
 interface SliderConfig {
   key: keyof LayoutTuning;
   label: string;
-  min: number;
-  max: number;
-  step: number;
   format?: (value: number) => string;
 }
 
 const SLIDERS: SliderConfig[] = [
-  {
-    key: "subAgentDistance",
-    label: "Sub-agent distance",
-    min: 60,
-    max: 400,
-    step: 5,
-  },
-  {
-    key: "siblingRepulsion",
-    label: "Sibling repulsion",
-    min: -600,
-    max: 0,
-    step: 10,
-  },
-  {
-    key: "mainRepulsion",
-    label: "Main repulsion",
-    min: -800,
-    max: 0,
-    step: 10,
-  },
-  { key: "fanStrength", label: "Fan strength", min: 0, max: 1, step: 0.05 },
+  { key: "subAgentDistance", label: "Sub-agent distance" },
+  { key: "siblingRepulsion", label: "Sibling repulsion" },
+  { key: "mainRepulsion", label: "Main repulsion" },
+  { key: "fanStrength", label: "Fan strength" },
   {
     key: "fanSpreadDeg",
     label: "Fan spread",
-    min: 30,
-    max: 360,
-    step: 5,
     format: (v) => `${v}°`,
   },
-  {
-    key: "mainPeerDistance",
-    label: "Main/peer distance",
-    min: 60,
-    max: 400,
-    step: 5,
-  },
-  { key: "chargeReach", label: "Charge reach", min: 100, max: 800, step: 10 },
-  {
-    key: "globalRepulsion",
-    label: "Global repulsion",
-    min: -300,
-    max: 0,
-    step: 5,
-  },
-  {
-    key: "collisionPadding",
-    label: "Collision padding",
-    min: 0,
-    max: 40,
-    step: 1,
-  },
+  { key: "mainPeerDistance", label: "Main/peer distance" },
+  { key: "chargeReach", label: "Charge reach" },
+  { key: "globalRepulsion", label: "Global repulsion" },
+  { key: "collisionPadding", label: "Collision padding" },
 ];
 
 export function LayoutTuningPanel() {
@@ -110,6 +69,7 @@ export function LayoutTuningPanel() {
         <div className="flex flex-col gap-3">
           {SLIDERS.map((s) => {
             const value = layoutTuning[s.key];
+            const { min, max, step } = LAYOUT_TUNING_BOUNDS[s.key];
             return (
               <label
                 key={s.key}
@@ -124,9 +84,9 @@ export function LayoutTuningPanel() {
                 </span>
                 <input
                   type="range"
-                  min={s.min}
-                  max={s.max}
-                  step={s.step}
+                  min={min}
+                  max={max}
+                  step={step}
                   value={value}
                   onChange={(e) =>
                     setLayoutTuning({

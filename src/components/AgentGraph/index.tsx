@@ -8,6 +8,7 @@ import { useFilteredAgents } from "@/hooks/useFilteredAgents";
 import { useAgentGraphRefs } from "./refs";
 import { useFitToView } from "./useFitToView";
 import { useTopologyEffect } from "./useTopologyEffect";
+import { useLayoutTuningEffect } from "./useLayoutTuningEffect";
 import { useNodeVisualsEffect } from "./useNodeVisualsEffect";
 import { useToolNodesEffect } from "./useToolNodesEffect";
 import { useLifecycleEffectsLayer } from "./useLifecycleEffectsLayer";
@@ -73,6 +74,12 @@ export function AgentGraph({ ref }: Props) {
     topologyVersion,
     selectAgent,
     layoutTuning,
+  });
+  useLayoutTuningEffect(refs, {
+    layoutTuning,
+    filteredAgents,
+    agents,
+    graphLayout,
   });
   useNodeVisualsEffect(refs, {
     agents,
