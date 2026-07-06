@@ -29,6 +29,15 @@ describe("isCodexCommand", () => {
     "codex>run.log",
     "codex|tee log",
     "true; codex exec x",
+    "rtk proxy codex",
+    'rtk proxy codex exec "x"',
+    "rtk proxy ./codex run",
+    "rtk proxy /usr/local/bin/codex run",
+    "true && rtk proxy codex exec x",
+    'J=/tmp/x; WTB=/tmp/y; rtk proxy codex -a never exec -s workspace-write -C "$WTB" --json',
+    "/usr/local/bin/rtk proxy codex run",
+    "./rtk proxy codex run",
+    "rtk\tproxy\tcodex exec x",
   ])("matches %j", (cmd) => {
     expect(isCodexCommand(cmd)).toBe(true);
   });
@@ -46,9 +55,23 @@ describe("isCodexCommand", () => {
     "echo codexample",
     "ls -la",
     "rm codex",
+    "rtk git status",
+    "rtk gain",
+    "rtk gain --history",
+    "rtk discover",
+    "rtk proxy npx codex-lint",
+    "rtk proxy codex-lint",
+    "rtk proxy",
+    "npx codex",
+    "sudo codex",
+    "env X=Y codex",
     // continuation / heredoc line beginning with "codex" is NOT an invocation
     "cat > notes.txt <<EOF\ncodex is great\nEOF",
     "printf hi\ncodex mentioned here",
+    // a newline inside the rtk-proxy prefix must not bridge to an unrelated
+    // "codex" mention on a following line
+    "rtk proxy\ncodex is not what we want here",
+    "rtk\nproxy codex exec x",
   ])("does not match %j", (cmd) => {
     expect(isCodexCommand(cmd)).toBe(false);
   });

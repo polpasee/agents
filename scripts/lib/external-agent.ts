@@ -18,7 +18,22 @@ const MAX_TASK_PREVIEW = 80;
 // `codex` that begins a *continuation* line of a multi-line command / heredoc
 // are NOT matched (newline is deliberately excluded from the separators so a
 // heredoc body mentioning codex can't spawn a node).
-const CODEX_CMD_RE = /(?:^|[;&|(`])\s*(?:\S*\/)?codex(?:\s|$|[;&|)<>])/;
+//
+// One exception: `rtk proxy <cmd>` (a CLI wrapper some contributors use as a
+// passthrough) is, by its own contract, a raw-passthrough escape hatch that
+// runs `<cmd>` literally, unfiltered — so the token right after `rtk proxy`
+// carries the same "this is the real target command" guarantee a
+// bare command position does. Allowed as an optional prefix immediately before
+// `codex`, itself optionally path-qualified (mirroring the `codex` path
+// prefix above). The whitespace inside this prefix is restricted to spaces/
+// tabs (not `\s`), so `rtk proxy` on one line can't bridge across a newline
+// to an unrelated `codex` mention on the next — preserving the no-newline
+// guarantee above. Deliberately NOT generalized to other runners (`sudo`,
+// `npx`, `env VAR=val`, ...): those don't carry that guarantee, so admitting
+// them would reopen the precision/recall trade-off this detector
+// intentionally closed.
+const CODEX_CMD_RE =
+  /(?:^|[;&|(`])\s*(?:(?:\S*\/)?rtk[ \t]+proxy[ \t]+)?(?:\S*\/)?codex(?:\s|$|[;&|)<>])/;
 
 export function isCodexCommand(command: string): boolean {
   return CODEX_CMD_RE.test(command);
