@@ -19,10 +19,10 @@ const MAX_TASK_PREVIEW = 80;
 // are NOT matched (newline is deliberately excluded from the separators so a
 // heredoc body mentioning codex can't spawn a node).
 //
-// One exception: `rtk proxy <cmd>` (the user's Rust CLI proxy tool, documented
-// in ~/.claude/RTK.md) is a raw-passthrough escape hatch — by definition its
-// contract is "run <cmd> literally, unfiltered" — so the token right after
-// `rtk proxy` carries the same "this is the real target command" guarantee a
+// One exception: `rtk proxy <cmd>` (a CLI wrapper some contributors use as a
+// passthrough) is, by its own contract, a raw-passthrough escape hatch that
+// runs `<cmd>` literally, unfiltered — so the token right after `rtk proxy`
+// carries the same "this is the real target command" guarantee a
 // bare command position does. Allowed as an optional prefix immediately before
 // `codex`. Deliberately NOT generalized to other runners (`sudo`, `npx`,
 // `env VAR=val`, ...): those don't carry that guarantee, so admitting them
