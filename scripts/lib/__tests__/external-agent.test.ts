@@ -29,6 +29,12 @@ describe("isCodexCommand", () => {
     "codex>run.log",
     "codex|tee log",
     "true; codex exec x",
+    "rtk proxy codex",
+    'rtk proxy codex exec "x"',
+    "rtk proxy ./codex run",
+    "rtk proxy /usr/local/bin/codex run",
+    "true && rtk proxy codex exec x",
+    'J=/tmp/x; WTB=/tmp/y; rtk proxy codex -a never exec -s workspace-write -C "$WTB" --json',
   ])("matches %j", (cmd) => {
     expect(isCodexCommand(cmd)).toBe(true);
   });
@@ -46,6 +52,16 @@ describe("isCodexCommand", () => {
     "echo codexample",
     "ls -la",
     "rm codex",
+    "rtk git status",
+    "rtk gain",
+    "rtk gain --history",
+    "rtk discover",
+    "rtk proxy npx codex-lint",
+    "rtk proxy codex-lint",
+    "rtk proxy",
+    "npx codex",
+    "sudo codex",
+    "env X=Y codex",
     // continuation / heredoc line beginning with "codex" is NOT an invocation
     "cat > notes.txt <<EOF\ncodex is great\nEOF",
     "printf hi\ncodex mentioned here",
