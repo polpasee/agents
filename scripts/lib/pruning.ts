@@ -167,7 +167,12 @@ export function selectStaleAgentIds(
         now - agent.startTime <= MAX_EXTERNAL_RUN_MS
       )
         continue;
-    } else if (agent.status !== "running" && agent.status !== "idle") {
+    } else if (
+      agent.status !== "running" &&
+      agent.status !== "idle" &&
+      agent.status !== "completed" &&
+      agent.status !== "error"
+    ) {
       continue;
     }
     const lastMod = agentLastModifiedMap.get(agentId) || agent.startTime;

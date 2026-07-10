@@ -68,7 +68,7 @@ describe("selectStaleAgentIds — external (Codex) node gating", () => {
     expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([externalId]);
   });
 
-  it("keeps a non-external completed node — real agents' terminal states stay protected", () => {
+  it("prunes a non-external completed node once past its stale threshold (push lifecycle: SubagentStop/SessionEnd age out like any other terminal node)", () => {
     const now = Date.now();
     const agents = new Map([
       [
@@ -77,6 +77,45 @@ describe("selectStaleAgentIds — external (Codex) node gating", () => {
       ],
     ]);
     const mtimes = new Map([["child1", oldMtime(now)]]);
+
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual(["child1"]);
+  });
+
+  it("does not prune a completed node still within its stale threshold — lets the completion chime/animation play first", () => {
+    const now = Date.now();
+    const agents = new Map([
+      [
+        "child1",
+        { parentId: "main1", status: "completed", startTime: now - 1_000 },
+      ],
+    ]);
+    const mtimes = new Map([["child1", now - 1_000]]);
+
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
+  });
+
+  it("prunes a non-external error node once past its stale threshold", () => {
+    const now = Date.now();
+    const agents = new Map([
+      [
+        "child1",
+        { parentId: "main1", status: "error", startTime: now - 300_000 },
+      ],
+    ]);
+    const mtimes = new Map([["child1", oldMtime(now)]]);
+
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual(["child1"]);
+  });
+
+  it("never prunes a waiting node, no matter how stale", () => {
+    const now = Date.now();
+    const agents = new Map([
+      [
+        "child1",
+        { parentId: "main1", status: "waiting", startTime: now - 300_000 },
+      ],
+    ]);
+    const mtimes = new Map([["child1", now - 100 * 60 * 60 * 1000]]);
 
     expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
   });

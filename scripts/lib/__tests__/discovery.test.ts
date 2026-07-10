@@ -320,13 +320,13 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
       ["main", now + old],
       ["sub", now + old],
     ]);
-    // The bug: status "completed" !== "idle" so it was protecting the parent.
-    // After the fix only running/waiting children protect the parent.
-    // The completed sub is a terminal state — not added to stale[] by design,
-    // but the parent (stuck idle) IS now eligible for purge.
+    // A completed child never shields its parent (only running/waiting or a
+    // fresh mtime do), so the stuck-idle main is purged. The completed sub is
+    // itself past its stale threshold, so under push-node pruning it too ages
+    // out (terminal nodes linger their threshold, then get removed).
     const result = selectStaleAgentIds(agents, mtimes, now);
     expect(result).toContain("main");
-    expect(result).not.toContain("sub"); // completed is terminal, not stuck
+    expect(result).toContain("sub"); // completed + past threshold → purged
   });
 
   it("purges a stale main whose only child has status=error and old mtime", () => {
@@ -343,10 +343,11 @@ describe("selectStaleAgentIds — terminal children must not protect parent fore
       ["main", now + old],
       ["sub", now + old],
     ]);
-    // Same reasoning: error is terminal, main (idle+stale) is now purgeable.
+    // Same reasoning: error never shields, so the idle+stale main is purged;
+    // the errored sub is past its threshold and ages out under push pruning.
     const result = selectStaleAgentIds(agents, mtimes, now);
     expect(result).toContain("main");
-    expect(result).not.toContain("sub"); // error is terminal, not stuck
+    expect(result).toContain("sub"); // error + past threshold → purged
   });
 
   it("protects a stale main when a child has status=running", () => {

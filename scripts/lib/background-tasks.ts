@@ -37,15 +37,14 @@ export async function startBackgroundTasks(): Promise<void> {
   // Flip the started flag only AFTER all dynamic imports resolve. If any
   // import rejects, the flag stays false so a later caller can retry —
   // previously a failed import would permanently wedge polling off.
-  const { discoverActiveSessions, refreshTrackedAgents } =
-    await import("./discovery");
+  const { discoverActiveSessions } = await import("./discovery");
+  const { scanWorkflowsAllSessions } = await import("./main-session-discovery");
   const {
     PROJECTS_DIR,
     TEAMS_DIR,
     POLL_INTERVAL_MS,
     USAGE_REFRESH_INTERVAL_MS,
     USAGE_REFRESH_THRESHOLD_MS,
-    FULL_SCAN_EVERY_N_POLLS,
   } = await import("./config");
   const { discoverTeams } = await import("./teams-discovery");
   const { readCacheMtime, triggerCcstatuslineRefresh } =
@@ -58,42 +57,30 @@ export async function startBackgroundTasks(): Promise<void> {
   console.log(`[bg] Watching: ${PROJECTS_DIR}`);
   console.log(`[bg] Poll interval: ${POLL_INTERVAL_MS}ms`);
 
-  let firstRun = true;
-  let pollTick = 0;
-  // Escalate from warn to error once discovery has failed this many times in a
-  // row, so a persistent ingestion outage is distinguishable from a one-off
+  // Escalate from warn to error once the residual scan has failed this many
+  // times in a row, so a persistent outage is distinguishable from a one-off
   // hiccup buried in a stream of warns.
   const FAILURE_ESCALATION_THRESHOLD = 3;
   let pollFailures = 0;
+  // Main/subagent lifecycle now arrives via push (hooks + OTLP); this loop only
+  // drives the residuals push can't cover — workflow grouping and teams, both
+  // read from disk. No more per-tick full/refresh discovery.
   async function pollLoop(): Promise<void> {
     try {
-      // Every Nth tick does a full filesystem rediscovery (picks up new
-      // sessions); the rest just refresh already-tracked agents, avoiding a
-      // stat() over every historical JSONL file on every tick. Tick 0 is a
-      // full scan so the first cycle is a complete cold-boot discovery.
-      if (pollTick % FULL_SCAN_EVERY_N_POLLS === 0) {
-        await discoverActiveSessions(PROJECTS_DIR);
-      } else {
-        await refreshTrackedAgents();
-      }
+      await scanWorkflowsAllSessions(PROJECTS_DIR);
       await discoverTeams(TEAMS_DIR);
       pollFailures = 0;
-      if (firstRun) {
-        firstRun = false;
-        console.log(`[bg] Found ${agents.size} active agent(s)`);
-      }
     } catch (err) {
       pollFailures++;
       if (pollFailures >= FAILURE_ESCALATION_THRESHOLD) {
         console.error(
-          `[bg poll] discovery failing repeatedly (${pollFailures}x):`,
+          `[bg poll] residual scan failing repeatedly (${pollFailures}x):`,
           err,
         );
       } else {
-        console.warn("[bg poll] discovery failed:", err);
+        console.warn("[bg poll] residual scan failed:", err);
       }
     } finally {
-      pollTick++;
       setTimeout(pollLoop, POLL_INTERVAL_MS);
     }
   }
@@ -122,6 +109,20 @@ export async function startBackgroundTasks(): Promise<void> {
   }
 
   globalThis.__backgroundTasksStarted = true;
+
+  // One-shot seed: push (hooks/OTLP) has no backfill, so a dashboard opened
+  // mid-session would otherwise miss already-running agents until their next
+  // event. Seed the currently-active sessions from disk once; the first push
+  // event per node claims it (touch() drops its agentFilePaths entry) and push
+  // owns its lifecycle thereafter. Seeded nodes never touched again age out via
+  // normal pruning.
+  try {
+    await discoverActiveSessions(PROJECTS_DIR);
+    console.log(`[bg] Seeded ${agents.size} active agent(s) from disk`);
+  } catch (err) {
+    console.warn("[bg] initial seed scan failed:", err);
+  }
+
   pollLoop();
   usagePollLoop();
 }
