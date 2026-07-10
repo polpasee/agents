@@ -182,15 +182,27 @@ export async function scanWorkflowsAllSessions(
       continue;
     }
 
-    const sessionIds = entries
+    const sessionFiles = entries
       .filter((d) => {
         if (!d.name.endsWith(".jsonl")) return false;
         return UUID_RE.test(d.name.replace(".jsonl", ""));
       })
-      .map((d) => d.name.replace(".jsonl", ""));
+      .map((d) => d.name);
 
-    for (const sessionId of sessionIds) {
-      await scanAndUpsertWorkflows(projectPath, sessionId);
+    const now = Date.now();
+    for (const fileName of sessionFiles) {
+      // Freshness gate (mirrors discoverMainSessions): only sessions touched
+      // within DISCOVERY_THRESHOLD_MS can have live workflow changes, so skip
+      // the per-session subagents/workflows dir walk for stale sessions instead
+      // of scanning every historical session every poll tick.
+      let stat: Stats;
+      try {
+        stat = await fsp.stat(path.join(projectPath, fileName));
+      } catch {
+        continue;
+      }
+      if (now - stat.mtimeMs > DISCOVERY_THRESHOLD_MS) continue;
+      await scanAndUpsertWorkflows(projectPath, fileName.replace(".jsonl", ""));
     }
   }
 }

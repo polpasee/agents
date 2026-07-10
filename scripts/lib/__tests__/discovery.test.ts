@@ -1581,6 +1581,9 @@ describe("pruneState — stale purge cleans every tracking structure", () => {
       teamName: "Team X",
     });
     agentLastModified.set("main", NOW);
+    // A quiet (no-longer-running) sub-agent: running nodes are shielded from the
+    // stale path while active, so mark it idle to exercise the eviction machinery.
+    agents.get("stale-sub")!.status = "idle";
     // Quiet beyond the 60s sub-agent stale window, with no descendants to
     // shield it — only the stale loop can evict it (its parent is a single
     // fresh main, so the dedup loop never fires).

@@ -11,7 +11,13 @@ import {
   maybeRegisterExternalAgent,
   maybeCompleteExternalAgent,
 } from "./external-agent";
-import { touch, setPushStatus, flushPendingTokens } from "./push-ingest";
+import { recordToolCall } from "./entry-processor";
+import {
+  touch,
+  setPushStatus,
+  flushPendingTokensInto,
+  pendingSubKey,
+} from "./push-ingest";
 
 /** Node id for a hook event: a subagent's own id (file-node form, `agent-`
  *  stripped) when present, else the main session id. */
@@ -44,6 +50,8 @@ function registerMainIfAbsent(
   ts: number,
 ): void {
   if (agents.has(sessionId)) {
+    // setPushStatus keeps the clock warm and, being terminal-aware, won't
+    // revive a session already ended by SessionEnd (unordered hook delivery).
     setPushStatus(sessionId, "running", ts);
     return;
   }
@@ -58,7 +66,6 @@ function registerMainIfAbsent(
     startTime: ts,
   });
   touch(sessionId, ts);
-  flushPendingTokens(sessionId);
 }
 
 function registerSubIfAbsent(
@@ -85,7 +92,9 @@ function registerSubIfAbsent(
     startTime: ts,
   });
   touch(id, ts);
-  flushPendingTokens(id);
+  // registerAgent already flushed tokens buffered under this node id; also drain
+  // any that OTLP buffered under the name key before the subagent existed.
+  flushPendingTokensInto(pendingSubKey(sessionId, agentTypeRaw ?? ""), id);
   return id;
 }
 
@@ -136,23 +145,38 @@ function onToolUse(
     nodeId = sessionId;
   }
   setPushStatus(nodeId, "running", ts);
+  // If the node is already completed (a tool event reordered after
+  // SubagentStop/SessionEnd), setPushStatus left it terminal — don't let
+  // recordToolCall revive it or append a spoke.
+  if (agents.get(nodeId)?.status === "completed") return;
 
-  // Codex CLI called via Bash → hollow external node (same path the file
-  // pipeline uses). Requires a tool_use_id to correlate Pre (register) with
-  // Post (complete); if the hook omits it, skip rather than orphan a node.
-  const toolUseId = str(p, "tool_use_id");
-  if (str(p, "tool_name") !== "Bash" || !toolUseId) return;
-  const input =
+  const toolName = str(p, "tool_name");
+  if (!toolName) return;
+  const toolInput =
     p.tool_input && typeof p.tool_input === "object"
       ? (p.tool_input as Record<string, unknown>)
-      : {};
+      : undefined;
+  const toolUseId = str(p, "tool_use_id");
+
   if (isPre) {
-    maybeRegisterExternalAgent(
-      { name: "Bash", id: toolUseId, input },
-      nodeId,
-      ts,
-    );
-  } else {
+    // A Codex CLI Bash call becomes its own hollow node instead of a tool
+    // spoke (needs a tool_use_id to correlate its PostToolUse completion).
+    // Every other tool is recorded as a spoke so push agents keep the tool
+    // history the removed file-poll refresh used to populate.
+    if (
+      toolName === "Bash" &&
+      toolUseId &&
+      maybeRegisterExternalAgent(
+        { name: "Bash", id: toolUseId, input: toolInput ?? {} },
+        nodeId,
+        ts,
+      )
+    ) {
+      return;
+    }
+    recordToolCall(nodeId, toolName, toolInput, ts);
+  } else if (toolName === "Bash" && toolUseId) {
+    // Close the Codex node this Bash call may have opened (no-op otherwise).
     maybeCompleteExternalAgent(
       { type: "tool_result", tool_use_id: toolUseId, is_error: false },
       ts,
@@ -172,11 +196,14 @@ function onNotification(p: Record<string, unknown>, ts: number): void {
   const id = hookNodeId(str(p, "agent_id"), sessionId);
   if (!agents.has(id)) return;
   // The notification type may arrive under any of these keys depending on the
-  // Claude Code build; only act on the two we map, else leave status alone.
+  // Claude Code build. Only map "needs input" → waiting; deliberately NOT
+  // agent_completed → completed: with no agent_id it resolves to the session
+  // id and would mark a live MAIN completed, violating the "only SessionEnd
+  // completes a main" invariant. Real completion comes from SubagentStop /
+  // SessionEnd.
   const kind =
     str(p, "notification_type") ?? str(p, "type") ?? str(p, "matcher");
   if (kind === "agent_needs_input") setPushStatus(id, "waiting", ts);
-  else if (kind === "agent_completed") setPushStatus(id, "completed", ts);
 }
 
 function onSubagentStop(p: Record<string, unknown>, ts: number): void {

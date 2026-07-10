@@ -8,6 +8,7 @@ import { makeAgentState } from "../../src/lib/agentState";
 import { STATUS_RUNNING_THRESHOLD_MS } from "./config";
 import { broadcast } from "./sse-broadcast";
 import { agents, edges, teams, agentLastModified } from "./agent-store";
+import { flushPendingTokens } from "./push-ingest";
 
 // ── Register an agent and broadcast ──────────────────
 export function registerAgent(opts: {
@@ -116,6 +117,11 @@ export function registerAgent(opts: {
     workflowName: opts.workflowName,
   };
   broadcast({ type: "state:update", event, timestamp: Date.now() });
+
+  // Drain any token deltas that a telemetry export attributed to this id before
+  // it registered (OTLP racing ahead of the hook, or the boot seed). Covers
+  // every register path — hook, seed, and file discovery — from one place.
+  flushPendingTokens(opts.agentId);
 }
 
 // Single builder for mid-session agent:register re-broadcasts (model

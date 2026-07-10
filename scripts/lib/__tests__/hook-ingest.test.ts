@@ -8,7 +8,11 @@ import { agents, agentLastModified, agentFilePaths } from "../agent-state";
 import { viewers } from "../sse-broadcast";
 import type { SSEClient } from "../sse-broadcast";
 import { EXTERNAL_AGENT_ID_PREFIX } from "../config";
-import { addTokens, resetPendingTokensForTest } from "../push-ingest";
+import {
+  addTokens,
+  resetPendingTokensForTest,
+  pendingSubKey,
+} from "../push-ingest";
 
 function makeClient(): SSEClient & { received: string[] } {
   const received: string[] = [];
@@ -152,7 +156,7 @@ describe("dispatchHookEvent lifecycle", () => {
     expect(main?.duration).toBe(1000);
   });
 
-  it("Notification agent_needs_input → waiting, agent_completed → completed", () => {
+  it("Notification agent_needs_input → waiting; agent_completed does NOT complete a main", () => {
     dispatchHookEvent(
       { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
       1000,
@@ -166,6 +170,8 @@ describe("dispatchHookEvent lifecycle", () => {
       1100,
     );
     expect(agents.get("sess-1")?.status).toBe("waiting");
+    // agent_completed with no agent_id resolves to the session id; it must NOT
+    // mark the main completed (only SessionEnd does).
     dispatchHookEvent(
       {
         hook_event_name: "Notification",
@@ -174,7 +180,7 @@ describe("dispatchHookEvent lifecycle", () => {
       },
       1200,
     );
-    expect(agents.get("sess-1")?.status).toBe("completed");
+    expect(agents.get("sess-1")?.status).toBe("waiting");
   });
 
   it("registers a Codex hollow node on a Bash codex call and completes it", () => {
@@ -299,6 +305,66 @@ describe("dispatchHookEvent lifecycle", () => {
       k.startsWith(EXTERNAL_AGENT_ID_PREFIX),
     );
     expect(codexNodes).toHaveLength(0);
+  });
+
+  it("flushes subagent tokens buffered under the name key onto the sub, not the main", () => {
+    // OTLP had no subagent id, so it buffered under the name key; registration
+    // must drain it onto the real subagent node.
+    addTokens(pendingSubKey("sess-1", "Explore"), { input: 77 });
+    dispatchHookEvent(
+      { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
+      1000,
+    );
+    dispatchHookEvent(
+      {
+        hook_event_name: "SubagentStart",
+        session_id: "sess-1",
+        agent_id: "agent-nk",
+        agent_type: "Explore",
+      },
+      1100,
+    );
+    expect(agents.get("nk")?.inputTokens).toBe(77);
+    expect(agents.get("sess-1")?.inputTokens ?? 0).toBe(0);
+  });
+
+  it("records a tool spoke on PreToolUse so push agents keep tool history", () => {
+    dispatchHookEvent(
+      { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
+      1000,
+    );
+    dispatchHookEvent(
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "sess-1",
+        tool_name: "Read",
+        tool_input: { file_path: "/x" },
+      },
+      1100,
+    );
+    expect(agents.get("sess-1")?.toolCalls.map((t) => t.tool)).toContain("Read");
+  });
+
+  it("does not revive a completed main when a reordered activity event arrives late", () => {
+    dispatchHookEvent(
+      { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
+      1000,
+    );
+    dispatchHookEvent(
+      { hook_event_name: "SessionEnd", session_id: "sess-1" },
+      2000,
+    );
+    expect(agents.get("sess-1")?.status).toBe("completed");
+    dispatchHookEvent(
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "sess-1",
+        tool_name: "Read",
+        tool_input: {},
+      },
+      2100,
+    );
+    expect(agents.get("sess-1")?.status).toBe("completed");
   });
 
   it("ignores an unknown hook event without throwing or registering", () => {

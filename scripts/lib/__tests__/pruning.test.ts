@@ -120,12 +120,32 @@ describe("selectStaleAgentIds — external (Codex) node gating", () => {
     expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
   });
 
-  it("still prunes a stale running non-external child (baseline unchanged)", () => {
+  it("does not reap a running non-external child mid-run (within the run window)", () => {
+    // Push/seed nodes have no file to refresh their clock; a running node whose
+    // single long tool emits no interim hook must survive until a terminal
+    // event or the run-window bound, not be purged at the 60s stale threshold.
     const now = Date.now();
     const agents = new Map([
       [
         "child1",
         { parentId: "main1", status: "running", startTime: now - 300_000 },
+      ],
+    ]);
+    const mtimes = new Map([["child1", oldMtime(now)]]);
+
+    expect(selectStaleAgentIds(agents, mtimes, now)).toEqual([]);
+  });
+
+  it("reaps a running non-external node past the run window (zombie clear)", () => {
+    const now = Date.now();
+    const agents = new Map([
+      [
+        "child1",
+        {
+          parentId: "main1",
+          status: "running",
+          startTime: now - (MAX_EXTERNAL_RUN_MS + 60_000),
+        },
       ],
     ]);
     const mtimes = new Map([["child1", oldMtime(now)]]);

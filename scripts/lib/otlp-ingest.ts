@@ -4,7 +4,7 @@
 // matching store node. Lifecycle/identity come from hook-ingest.ts; this only
 // supplies tokens/cost. JSON only — no protobuf dependency.
 import { agents, agentLastModified } from "./agent-store";
-import { addTokens } from "./push-ingest";
+import { addTokens, pendingSubKey } from "./push-ingest";
 
 interface OtlpAnyValue {
   stringValue?: string;
@@ -28,8 +28,14 @@ export function flattenAttrs(attrs: unknown): Attrs {
     if (!kv || typeof kv.key !== "string" || !kv.value) continue;
     const v = kv.value;
     if (typeof v.stringValue === "string") out[kv.key] = v.stringValue;
-    else if (v.intValue !== undefined) out[kv.key] = Number(v.intValue);
-    else if (typeof v.doubleValue === "number") out[kv.key] = v.doubleValue;
+    else if (v.intValue !== undefined) {
+      // OTLP/JSON encodes int64 as a string; a malformed/overflowing value must
+      // not become NaN/Infinity (typeof both === "number") and poison a token
+      // total — drop the attribute instead.
+      const n = Number(v.intValue);
+      if (Number.isFinite(n)) out[kv.key] = n;
+    } else if (typeof v.doubleValue === "number" && Number.isFinite(v.doubleValue))
+      out[kv.key] = v.doubleValue;
     else if (typeof v.boolValue === "boolean") out[kv.key] = v.boolValue;
   }
   return out;
@@ -37,9 +43,13 @@ export function flattenAttrs(attrs: unknown): Attrs {
 
 /** Which store node owns these token counts. Main (or absent query_source) →
  *  the session node (id == session.id, exact). Subagent → the most recently
- *  active node in that session whose type/name matches `agent.name`; falls
- *  back to the session main when none match (OTLP carries no subagent id, so
- *  N same-named concurrent subagents can't be disambiguated). */
+ *  active node in that session whose type/name matches `agent.name` (N
+ *  same-named concurrent subagents can't be disambiguated — OTLP carries no
+ *  subagent id). When no subagent node exists yet — a subagent's first LLM
+ *  request typically precedes its first tool/PreToolUse — return a name-scoped
+ *  pending-buffer key so the tokens are held for the real node instead of being
+ *  misattributed to the main; `registerSubIfAbsent` drains it on registration.
+ *  Only when `agent.name` is missing do we fall back to the session main. */
 export function resolveTokenNodeId(attrs: Attrs): string | undefined {
   const sessionId =
     typeof attrs["session.id"] === "string"
@@ -71,7 +81,8 @@ export function resolveTokenNodeId(attrs: Attrs): string | undefined {
       best = id;
     }
   }
-  return best ?? sessionId;
+  if (best) return best;
+  return agentName ? pendingSubKey(sessionId, agentName) : sessionId;
 }
 
 // Drop duplicate api_request records (OTLP retransmits on retry) by request id.
@@ -82,7 +93,7 @@ const seenRequests = new Set<string>();
 
 function num(attrs: Attrs, key: string): number {
   const v = attrs[key];
-  return typeof v === "number" ? v : 0;
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 function handleLogRecord(attrs: Attrs): void {

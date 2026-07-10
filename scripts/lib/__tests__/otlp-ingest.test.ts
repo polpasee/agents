@@ -6,6 +6,7 @@ import {
   resetSeenRequestsForTest,
 } from "../otlp-ingest";
 import { agents, agentLastModified } from "../agent-state";
+import { pendingSubKey } from "../push-ingest";
 import { mockAgent } from "../../../src/lib/__tests__/test-utils";
 
 beforeEach(() => {
@@ -84,13 +85,20 @@ describe("resolveTokenNodeId", () => {
       }),
     ).toBe("new");
   });
-  it("falls back to the session main when no subagent matches", () => {
+  it("buffers under a name-scoped key (not the main) when no subagent matches", () => {
+    // Tokens for a not-yet-registered subagent must be held for the real node,
+    // not misattributed to the session main.
     expect(
       resolveTokenNodeId({
         "session.id": "sess-1",
         query_source: "subagent",
         "agent.name": "nope",
       }),
+    ).toBe(pendingSubKey("sess-1", "nope"));
+  });
+  it("falls back to the session main only when agent.name is absent", () => {
+    expect(
+      resolveTokenNodeId({ "session.id": "sess-1", query_source: "subagent" }),
     ).toBe("sess-1");
   });
 });
