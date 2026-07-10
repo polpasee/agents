@@ -115,7 +115,12 @@ function ensureMain(
 function onSessionStart(p: Record<string, unknown>, ts: number): void {
   const sessionId = str(p, "session_id");
   if (!sessionId) return;
-  registerMainIfAbsent(sessionId, str(p, "cwd") ?? "", str(p, "model") ?? "", ts);
+  registerMainIfAbsent(
+    sessionId,
+    str(p, "cwd") ?? "",
+    str(p, "model") ?? "",
+    ts,
+  );
 }
 
 function onSubagentStart(p: Record<string, unknown>, ts: number): void {

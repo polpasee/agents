@@ -1,12 +1,17 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { agents, agentLastModified } from "../../../../../../../scripts/lib/agent-state";
+import {
+  agents,
+  agentLastModified,
+} from "../../../../../../../scripts/lib/agent-state";
 import { resetSeenRequestsForTest } from "../../../../../../../scripts/lib/otlp-ingest";
 import { OTLP_MAX_BODY_BYTES } from "../../../../../../../scripts/lib/config";
 import { mockAgent } from "../../../../../../../src/lib/__tests__/test-utils";
 import { POST } from "../route";
 
 function post(body: unknown, origin?: string): Request {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
   if (origin) headers.origin = origin;
   return new Request("http://localhost/api/otlp/v1/logs", {
     method: "POST",
@@ -20,7 +25,9 @@ function apiRequestBody(sessionId: string, inputTokens: number): unknown {
     resourceLogs: [
       {
         resource: {
-          attributes: [{ key: "session.id", value: { stringValue: sessionId } }],
+          attributes: [
+            { key: "session.id", value: { stringValue: sessionId } },
+          ],
         },
         scopeLogs: [
           {
@@ -62,7 +69,9 @@ describe("/api/otlp/v1/logs POST", () => {
   });
 
   it("rejects a non-local Origin with 403", async () => {
-    const res = await POST(post({ resourceLogs: [] }, "http://evil.example.com"));
+    const res = await POST(
+      post({ resourceLogs: [] }, "http://evil.example.com"),
+    );
     expect(res.status).toBe(403);
   });
 

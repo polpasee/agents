@@ -34,7 +34,10 @@ export function flattenAttrs(attrs: unknown): Attrs {
       // total — drop the attribute instead.
       const n = Number(v.intValue);
       if (Number.isFinite(n)) out[kv.key] = n;
-    } else if (typeof v.doubleValue === "number" && Number.isFinite(v.doubleValue))
+    } else if (
+      typeof v.doubleValue === "number" &&
+      Number.isFinite(v.doubleValue)
+    )
       out[kv.key] = v.doubleValue;
     else if (typeof v.boolValue === "boolean") out[kv.key] = v.boolValue;
   }

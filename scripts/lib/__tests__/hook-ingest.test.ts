@@ -127,7 +127,9 @@ describe("dispatchHookEvent lifecycle", () => {
     expect(sub?.status).toBe("completed");
     expect(sub?.duration).toBe(500);
     expect(sub?.summary).toBe("done");
-    expect(client.received.some((m) => m.includes("agent:complete"))).toBe(true);
+    expect(client.received.some((m) => m.includes("agent:complete"))).toBe(
+      true,
+    );
   });
 
   it("Stop marks a main idle (not completed)", () => {
@@ -135,10 +137,7 @@ describe("dispatchHookEvent lifecycle", () => {
       { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
       1000,
     );
-    dispatchHookEvent(
-      { hook_event_name: "Stop", session_id: "sess-1" },
-      1500,
-    );
+    dispatchHookEvent({ hook_event_name: "Stop", session_id: "sess-1" }, 1500);
     expect(agents.get("sess-1")?.status).toBe("idle");
   });
 
@@ -342,7 +341,9 @@ describe("dispatchHookEvent lifecycle", () => {
       },
       1100,
     );
-    expect(agents.get("sess-1")?.toolCalls.map((t) => t.tool)).toContain("Read");
+    expect(agents.get("sess-1")?.toolCalls.map((t) => t.tool)).toContain(
+      "Read",
+    );
   });
 
   it("does not revive a completed main when a reordered activity event arrives late", () => {

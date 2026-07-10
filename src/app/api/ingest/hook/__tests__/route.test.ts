@@ -1,10 +1,16 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { agents, agentLastModified, agentFilePaths } from "../../../../../../scripts/lib/agent-state";
+import {
+  agents,
+  agentLastModified,
+  agentFilePaths,
+} from "../../../../../../scripts/lib/agent-state";
 import { HOOK_MAX_BODY_BYTES } from "../../../../../../scripts/lib/config";
 import { POST } from "../route";
 
 function post(body: unknown, origin?: string): Request {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  };
   if (origin) headers.origin = origin;
   return new Request("http://localhost/api/ingest/hook", {
     method: "POST",
@@ -36,7 +42,10 @@ describe("/api/ingest/hook POST", () => {
 
   it("rejects a non-local Origin with 403", async () => {
     const res = await POST(
-      post({ hook_event_name: "SessionStart", session_id: "s1" }, "http://evil.example.com"),
+      post(
+        { hook_event_name: "SessionStart", session_id: "s1" },
+        "http://evil.example.com",
+      ),
     );
     expect(res.status).toBe(403);
   });

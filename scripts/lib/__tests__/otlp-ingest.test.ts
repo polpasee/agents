@@ -129,7 +129,11 @@ describe("ingestOtlpLogs", () => {
   it("dedupes a repeated request_id (OTLP retry)", () => {
     agents.set("sess-1", mockAgent({ id: "sess-1", sessionId: "sess-1" }));
     const body = apiRequestBody(
-      { "event.name": "claude_code.api_request", request_id: "r1", input_tokens: 10 },
+      {
+        "event.name": "claude_code.api_request",
+        request_id: "r1",
+        input_tokens: 10,
+      },
       { "session.id": "sess-1" },
     );
     ingestOtlpLogs(body);
