@@ -56,6 +56,46 @@ is no separate server to start.
 |------|--------------------------|-------------|
 | File-watch (default) | The background poller scans `~/.claude/projects/**/*.jsonl` (and `~/.claude/teams/**`) automatically | Standard Claude Code usage — no agent-side changes required |
 | Mock seeding (dev) | `scripts/mock-agents.ts` writes synthetic JSONL files into `~/.claude/projects/-mock-agents-demo/` so the same poller discovers them | Local development and demos without a live Claude Code session |
+| Push (hooks + telemetry) | Claude Code hooks POST lifecycle events to `/api/ingest/hook`; OpenTelemetry logs POST tokens/cost to `/api/otlp/v1/logs`. The poller is reduced to teams + workflows + historical cost. | Real-time lifecycle (running/waiting/completed) without 1.5s polling |
+
+### Push ingestion setup (one-time, this machine)
+
+Lifecycle/identity/status arrive via **hooks**; tokens/cost via **OpenTelemetry**. Both POST to the dashboard on `localhost:4000`. These endpoints trust localhost/LAN only (see Security & Trust Model) — do not expose port 4000 to untrusted networks.
+
+**1. Hooks** — add to `~/.claude/settings.json`. Each command reads the hook JSON from stdin and fires a detached, time-boxed `curl` that always exits 0, so a stopped dashboard never blocks Claude Code:
+
+```jsonc
+{
+  "hooks": {
+    // Repeat this block for: SessionStart, SubagentStart, PreToolUse,
+    // PostToolUse, Notification, SubagentStop, Stop, SessionEnd.
+    // PreToolUse/PostToolUse take "matcher": "*".
+    "SessionStart": [{ "hooks": [{ "type": "command",
+      "command": "p=$(cat); (curl -s -m 2 -X POST -H 'content-type: application/json' --data \"$p\" http://localhost:4000/api/ingest/hook >/dev/null 2>&1 &) ; exit 0" }] }]
+  }
+}
+```
+
+**2. Telemetry** — set in your shell profile or Claude Code `env`:
+
+```bash
+CLAUDE_CODE_ENABLE_TELEMETRY=1
+OTEL_LOGS_EXPORTER=otlp
+OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4000/api/otlp   # /v1/logs is appended
+OTEL_LOG_TOOL_DETAILS=1
+OTEL_LOGS_EXPORT_INTERVAL=2000
+# leave OTEL_METRICS_EXPORTER unset — the api_request log already carries tokens+cost
+```
+
+**3. Codex CLI** (optional, to attribute Codex token usage) — in `~/.codex/config.toml`:
+
+```toml
+[otel]
+exporter = "otlp-http"
+protocol = "json"
+endpoint = "http://localhost:4000/api/otlp/v1/logs"
+```
 
 ## Features
 

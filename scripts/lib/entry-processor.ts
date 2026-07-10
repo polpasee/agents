@@ -13,6 +13,65 @@ import {
   maybeCompleteExternalAgent,
 } from "./external-agent";
 
+/**
+ * Record one tool call on an agent: build a compact args preview, append a
+ * capped ToolCallEntry, mark the agent running, and broadcast agent:tool_call.
+ * Shared by the JSONL path (processEntry) and the push path (hook-ingest's
+ * PreToolUse) so both produce identical tool-spoke history.
+ */
+export function recordToolCall(
+  agentId: string,
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+  timestamp: number,
+): void {
+  let argsStr: string | undefined;
+  if (input) {
+    const keys = Object.keys(input);
+    if (keys.length <= INLINE_ARGS_MAX_KEYS) {
+      argsStr = keys
+        .map((k) => {
+          const v = input[k];
+          let s: string;
+          if (typeof v === "string") {
+            s = v;
+          } else {
+            try {
+              s = JSON.stringify(v);
+            } catch {
+              // Circular references / non-serializable values must not crash
+              // the whole entry. Show a placeholder so the call is still logged.
+              s = "[unserializable]";
+            }
+          }
+          return `${k}: ${s?.slice(0, MAX_ARG_PREVIEW_LENGTH)}`;
+        })
+        .join(", ");
+    } else {
+      argsStr = keys.join(", ");
+    }
+  }
+
+  const event: AgentEvent = {
+    type: "agent:tool_call",
+    agentId,
+    tool: toolName,
+    args: argsStr,
+  };
+
+  const agent = agents.get(agentId);
+  if (agent) {
+    const tc: ToolCallEntry = { tool: toolName, args: argsStr, timestamp };
+    agent.toolCalls.push(tc);
+    if (agent.toolCalls.length > MAX_TOOL_CALLS_PER_AGENT) {
+      agent.toolCalls = agent.toolCalls.slice(-MAX_TOOL_CALLS_PER_AGENT);
+    }
+    agent.status = "running";
+  }
+
+  broadcast({ type: "state:update", event, timestamp });
+}
+
 // ── Process a JSONL entry ──────────────────────────────
 export function processEntry(entry: Record<string, unknown>, agentId: string) {
   // Defensive wrapper: the polling tick reads many JSONL entries and one bad
@@ -66,63 +125,14 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
       // A Codex CLI Bash call is surfaced as its own sub-agent node instead of
       // a generic tool spoke — skip the normal tool-call recording for it.
       if (maybeRegisterExternalAgent(b, agentId, timestamp)) continue;
-      {
-        const toolName = b.name;
-        const input =
-          b.input && typeof b.input === "object"
-            ? (b.input as Record<string, unknown>)
-            : undefined;
-        let argsStr: string | undefined;
-        if (input) {
-          const keys = Object.keys(input);
-          if (keys.length <= INLINE_ARGS_MAX_KEYS) {
-            argsStr = keys
-              .map((k) => {
-                const v = input[k];
-                let s: string;
-                if (typeof v === "string") {
-                  s = v;
-                } else {
-                  try {
-                    s = JSON.stringify(v);
-                  } catch {
-                    // Circular references / non-serializable values must
-                    // not crash the whole entry. Show a placeholder so the
-                    // tool call is still recorded.
-                    s = "[unserializable]";
-                  }
-                }
-                return `${k}: ${s?.slice(0, MAX_ARG_PREVIEW_LENGTH)}`;
-              })
-              .join(", ");
-          } else {
-            argsStr = keys.join(", ");
-          }
-        }
-
-        const event: AgentEvent = {
-          type: "agent:tool_call",
-          agentId,
-          tool: toolName,
-          args: argsStr,
-        };
-
-        const agent = agents.get(agentId);
-        if (agent) {
-          const tc: ToolCallEntry = {
-            tool: toolName,
-            args: argsStr,
-            timestamp,
-          };
-          agent.toolCalls.push(tc);
-          if (agent.toolCalls.length > MAX_TOOL_CALLS_PER_AGENT) {
-            agent.toolCalls = agent.toolCalls.slice(-MAX_TOOL_CALLS_PER_AGENT);
-          }
-          agent.status = "running";
-        }
-
-        broadcast({ type: "state:update", event, timestamp });
-      }
+      recordToolCall(
+        agentId,
+        b.name,
+        b.input && typeof b.input === "object"
+          ? (b.input as Record<string, unknown>)
+          : undefined,
+        timestamp,
+      );
     }
 
     const usage = message.usage;

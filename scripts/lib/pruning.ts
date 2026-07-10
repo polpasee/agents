@@ -167,7 +167,19 @@ export function selectStaleAgentIds(
         now - agent.startTime <= MAX_EXTERNAL_RUN_MS
       )
         continue;
-    } else if (agent.status !== "running" && agent.status !== "idle") {
+    } else if (agent.status === "running") {
+      // Push/seed nodes have no backing file to refresh their activity clock,
+      // so a running node whose single long tool (e.g. a 2-min build) emits no
+      // interim hook must not be reaped mid-run — status is authoritative.
+      // Bounded by MAX_EXTERNAL_RUN_MS so a process that dies without a terminal
+      // event still clears instead of pinning its subtree forever.
+      if (now - agent.startTime <= MAX_EXTERNAL_RUN_MS) continue;
+    } else if (
+      agent.status !== "idle" &&
+      agent.status !== "completed" &&
+      agent.status !== "error"
+    ) {
+      // waiting (awaiting user input) stays shielded.
       continue;
     }
     const lastMod = agentLastModifiedMap.get(agentId) || agent.startTime;

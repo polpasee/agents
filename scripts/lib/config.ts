@@ -33,6 +33,15 @@ export const ANNOTATION_MAX_BODY_BYTES = 8 * 1024;
 /** Hard cap on agent log file size — refuse to read larger */
 export const LOG_READ_MAX_BYTES = 10 * 1024 * 1024;
 
+/** Reject POST /api/ingest/hook bodies larger than this (DoS guard). A hook
+ *  payload is typically well under 4KB (largest is a Bash tool_input/output
+ *  echo); 64KB leaves generous headroom without admitting an unbounded body. */
+export const HOOK_MAX_BODY_BYTES = 64 * 1024;
+/** Reject POST /api/otlp/v1/logs bodies larger than this (DoS guard). OTLP
+ *  batches multiple log records per export interval, so the cap is larger
+ *  than the hook route's. */
+export const OTLP_MAX_BODY_BYTES = 512 * 1024;
+
 /** Agent is considered still-running if file modified within this window */
 export const STATUS_RUNNING_THRESHOLD_MS = 45_000;
 /** Agent transitions to idle if file modified between RUNNING and this threshold */

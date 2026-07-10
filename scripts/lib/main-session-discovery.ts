@@ -29,6 +29,11 @@ export const wfMtimeCache = new Map<string, number>();
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+// Duplicated from subagent-pipeline.ts's isEphemeralProjectDir rather than
+// imported: subagent-pipeline.ts already imports registerMainAgent from this
+// file, so importing back would create a module cycle.
+const EPHEMERAL_PROJECT_RE = /^-(private-)?(tmp|var-folders|var-tmp)(-|$)/;
+
 /**
  * Returns the runIds of workflow runs belonging to the given session.
  * Exported for testing.
@@ -128,17 +133,76 @@ export async function discoverMainSessions(
     }
 
     updateAgentStatus(sessionId, stat.mtimeMs);
+  }
+}
 
-    // ── Step 1.5: Discover workflow runs for this session ──
-    {
-      const runs = await scanWorkflows(projectPath, sessionId, wfMtimeCache);
-      for (const run of runs) {
-        const hash = JSON.stringify(run);
-        if (wfContentCache.get(run.runId) !== hash) {
-          wfContentCache.set(run.runId, hash);
-          upsertWorkflow(run);
-        }
+/** Scan and broadcast workflow-run changes for one session, deduping via the
+ *  module-level content-hash cache. Shared by the (now-removed) inline
+ *  discovery step and `scanWorkflowsAllSessions` below. */
+async function scanAndUpsertWorkflows(
+  projectPath: string,
+  sessionId: string,
+): Promise<void> {
+  const runs = await scanWorkflows(projectPath, sessionId, wfMtimeCache);
+  for (const run of runs) {
+    const hash = JSON.stringify(run);
+    if (wfContentCache.get(run.runId) !== hash) {
+      wfContentCache.set(run.runId, hash);
+      upsertWorkflow(run);
+    }
+  }
+}
+
+/**
+ * Independent, registration-free workflow scan across every project/session
+ * dir under `projectsDir`. Extracted so workflow grouping (a file-poll
+ * residual kept after the push-ingestion switch) no longer requires running
+ * full main-session discovery (registration, JSONL tailing, status updates).
+ */
+export async function scanWorkflowsAllSessions(
+  projectsDir: string,
+): Promise<void> {
+  let topLevel: Dirent[];
+  try {
+    topLevel = await fsp.readdir(projectsDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  const projectDirs = topLevel
+    .filter((d) => d.isDirectory() && !EPHEMERAL_PROJECT_RE.test(d.name))
+    .map((d) => d.name);
+
+  for (const projectDir of projectDirs) {
+    const projectPath = path.join(projectsDir, projectDir);
+    let entries: Dirent[];
+    try {
+      entries = await fsp.readdir(projectPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    const sessionFiles = entries
+      .filter((d) => {
+        if (!d.name.endsWith(".jsonl")) return false;
+        return UUID_RE.test(d.name.replace(".jsonl", ""));
+      })
+      .map((d) => d.name);
+
+    const now = Date.now();
+    for (const fileName of sessionFiles) {
+      // Freshness gate (mirrors discoverMainSessions): only sessions touched
+      // within DISCOVERY_THRESHOLD_MS can have live workflow changes, so skip
+      // the per-session subagents/workflows dir walk for stale sessions instead
+      // of scanning every historical session every poll tick.
+      let stat: Stats;
+      try {
+        stat = await fsp.stat(path.join(projectPath, fileName));
+      } catch {
+        continue;
       }
+      if (now - stat.mtimeMs > DISCOVERY_THRESHOLD_MS) continue;
+      await scanAndUpsertWorkflows(projectPath, fileName.replace(".jsonl", ""));
     }
   }
 }

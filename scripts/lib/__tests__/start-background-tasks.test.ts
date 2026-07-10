@@ -7,6 +7,8 @@ const state = {
   discoveryCalls: 0,
   discoveryShouldReject: false,
   webhookLoaded: 0,
+  workflowScanCalls: 0,
+  pruneCalls: 0,
 };
 
 vi.mock("../discovery", () => ({
@@ -19,6 +21,22 @@ vi.mock("../discovery", () => ({
   selectStaleAgentIds: vi.fn(() => []),
   selectLosingMains: vi.fn(() => []),
   isEphemeralProjectDir: vi.fn(() => false),
+}));
+
+vi.mock("../main-session-discovery", () => ({
+  scanWorkflowsAllSessions: vi.fn(async () => {
+    state.workflowScanCalls += 1;
+  }),
+}));
+
+vi.mock("../teams-discovery", () => ({
+  discoverTeams: vi.fn(async () => {}),
+}));
+
+vi.mock("../pruning", () => ({
+  pruneState: vi.fn(() => {
+    state.pruneCalls += 1;
+  }),
 }));
 
 vi.mock("../ccstatusline", () => ({
@@ -41,6 +59,8 @@ describe("startBackgroundTasks", () => {
     state.discoveryCalls = 0;
     state.discoveryShouldReject = false;
     state.webhookLoaded = 0;
+    state.workflowScanCalls = 0;
+    state.pruneCalls = 0;
     // Reset the HMR-stable started flag by reaching into globalThis.
     flagHolder.__backgroundTasksStarted = false;
 
@@ -62,6 +82,16 @@ describe("startBackgroundTasks", () => {
 
     expect(state.discoveryCalls).toBe(1);
     expect(flagHolder.__backgroundTasksStarted).toBe(true);
+  });
+
+  it("runs the residual workflow scan and pruneState on each pollLoop tick", async () => {
+    // discoverActiveSessions no longer prunes (it's the one-shot seed), so the
+    // recurring loop must call pruneState itself or stale nodes never age out.
+    await startBackgroundTasks();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(state.workflowScanCalls).toBeGreaterThanOrEqual(1);
+    expect(state.pruneCalls).toBeGreaterThanOrEqual(1);
   });
 
   it("leaves started flag false if a dynamic import / setup throws before pollLoop", async () => {
