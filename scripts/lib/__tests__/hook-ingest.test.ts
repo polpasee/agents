@@ -8,6 +8,7 @@ import { agents, agentLastModified, agentFilePaths } from "../agent-state";
 import { viewers } from "../sse-broadcast";
 import type { SSEClient } from "../sse-broadcast";
 import { EXTERNAL_AGENT_ID_PREFIX } from "../config";
+import { addTokens, resetPendingTokensForTest } from "../push-ingest";
 
 function makeClient(): SSEClient & { received: string[] } {
   const received: string[] = [];
@@ -24,6 +25,7 @@ beforeEach(() => {
   agentLastModified.clear();
   agentFilePaths.clear();
   viewers.clear();
+  resetPendingTokensForTest();
 });
 
 describe("hookNodeId / encodeProjectDir", () => {
@@ -231,6 +233,72 @@ describe("dispatchHookEvent lifecycle", () => {
     );
     expect(agents.size).toBe(1);
     expect(agentLastModified.get("sess-1")).toBe(1800);
+  });
+
+  it("flushes tokens buffered before a main registers (OTLP raced ahead of the hook)", () => {
+    // Tokens arrive for an unregistered session, then SessionStart lands.
+    addTokens("sess-race", { input: 5000, output: 200 });
+    expect(agents.get("sess-race")).toBeUndefined();
+    dispatchHookEvent(
+      { hook_event_name: "SessionStart", session_id: "sess-race", cwd: "/p" },
+      1000,
+    );
+    const main = agents.get("sess-race");
+    expect(main?.inputTokens).toBe(5000);
+    expect(main?.outputTokens).toBe(200);
+  });
+
+  it("flushes tokens buffered before a subagent registers", () => {
+    addTokens("subr", { input: 42 });
+    dispatchHookEvent(
+      {
+        hook_event_name: "SubagentStart",
+        session_id: "sess-1",
+        agent_id: "agent-subr",
+        agent_type: "Explore",
+      },
+      1000,
+    );
+    expect(agents.get("subr")?.inputTokens).toBe(42);
+  });
+
+  it("lazily registers the parent main when a subagent event arrives first", () => {
+    // Detached-curl delivery can reorder hooks: SubagentStart before SessionStart.
+    dispatchHookEvent(
+      {
+        hook_event_name: "SubagentStart",
+        session_id: "sess-1",
+        agent_id: "agent-early",
+        agent_type: "Explore",
+        cwd: "/Users/x/proj",
+      },
+      1000,
+    );
+    const main = agents.get("sess-1");
+    const sub = agents.get("early");
+    expect(main?.agentType).toBe("main");
+    expect(sub?.parentId).toBe("sess-1");
+    expect(sub?.metadata?.projectDir).toBe("-Users-x-proj");
+  });
+
+  it("does not register a Codex node for a Bash codex call missing tool_use_id", () => {
+    dispatchHookEvent(
+      { hook_event_name: "SessionStart", session_id: "sess-1", cwd: "/p" },
+      1000,
+    );
+    dispatchHookEvent(
+      {
+        hook_event_name: "PreToolUse",
+        session_id: "sess-1",
+        tool_name: "Bash",
+        tool_input: { command: "codex exec 'x'" },
+      },
+      1100,
+    );
+    const codexNodes = [...agents.keys()].filter((k) =>
+      k.startsWith(EXTERNAL_AGENT_ID_PREFIX),
+    );
+    expect(codexNodes).toHaveLength(0);
   });
 
   it("ignores an unknown hook event without throwing or registering", () => {

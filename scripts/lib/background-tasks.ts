@@ -39,6 +39,7 @@ export async function startBackgroundTasks(): Promise<void> {
   // previously a failed import would permanently wedge polling off.
   const { discoverActiveSessions } = await import("./discovery");
   const { scanWorkflowsAllSessions } = await import("./main-session-discovery");
+  const { pruneState } = await import("./pruning");
   const {
     PROJECTS_DIR,
     TEAMS_DIR,
@@ -69,6 +70,11 @@ export async function startBackgroundTasks(): Promise<void> {
     try {
       await scanWorkflowsAllSessions(PROJECTS_DIR);
       await discoverTeams(TEAMS_DIR);
+      // pruneState() no longer rides inside discoverActiveSessions/
+      // refreshTrackedAgents (removed from the loop), so it must run here every
+      // tick — it ages out idle/completed/stale push nodes, expires removed-id
+      // tombstones, and dedups losing mains for the whole store.
+      pruneState();
       pollFailures = 0;
     } catch (err) {
       pollFailures++;

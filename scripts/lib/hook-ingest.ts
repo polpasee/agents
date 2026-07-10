@@ -11,7 +11,7 @@ import {
   maybeRegisterExternalAgent,
   maybeCompleteExternalAgent,
 } from "./external-agent";
-import { touch, setPushStatus } from "./push-ingest";
+import { touch, setPushStatus, flushPendingTokens } from "./push-ingest";
 
 /** Node id for a hook event: a subagent's own id (file-node form, `agent-`
  *  stripped) when present, else the main session id. */
@@ -58,6 +58,7 @@ function registerMainIfAbsent(
     startTime: ts,
   });
   touch(sessionId, ts);
+  flushPendingTokens(sessionId);
 }
 
 function registerSubIfAbsent(
@@ -84,7 +85,22 @@ function registerSubIfAbsent(
     startTime: ts,
   });
   touch(id, ts);
+  flushPendingTokens(id);
   return id;
+}
+
+// Hook delivery is fire-and-forget (detached curl), so a SubagentStart or
+// PreToolUse can race ahead of its session's SessionStart. Register the parent
+// main first when it's missing, so the subagent never anchors to a nonexistent
+// node with an empty projectDir.
+function ensureMain(
+  p: Record<string, unknown>,
+  sessionId: string,
+  ts: number,
+): void {
+  if (!agents.has(sessionId)) {
+    registerMainIfAbsent(sessionId, str(p, "cwd") ?? "", "", ts);
+  }
 }
 
 function onSessionStart(p: Record<string, unknown>, ts: number): void {
@@ -97,6 +113,7 @@ function onSubagentStart(p: Record<string, unknown>, ts: number): void {
   const sessionId = str(p, "session_id");
   const agentId = str(p, "agent_id");
   if (!sessionId || !agentId) return;
+  ensureMain(p, sessionId, ts);
   registerSubIfAbsent(agentId, sessionId, str(p, "agent_type"), ts);
 }
 
@@ -112,6 +129,7 @@ function onToolUse(
   // Register-on-first-sight (no reliable SubagentStart hook), then heartbeat.
   let nodeId: string;
   if (agentId) {
+    ensureMain(p, sessionId, ts);
     nodeId = registerSubIfAbsent(agentId, sessionId, str(p, "agent_type"), ts);
   } else {
     registerMainIfAbsent(sessionId, str(p, "cwd") ?? "", "", ts);
