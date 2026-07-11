@@ -101,11 +101,19 @@ function processEntryInner(entry: Record<string, unknown>, agentId: string) {
   const role = typeof message.role === "string" ? message.role : undefined;
 
   // Track the model from every assistant message — users can switch models
-  // mid-session (e.g. Sonnet → Opus), and we want the label to reflect what
-  // Claude is *currently* running, not whatever it was when the session
-  // opened. Only broadcast when the value actually changes.
+  // mid-session (e.g. Sonnet → Opus) or resume a session under a different
+  // model, and we want the label to reflect what Claude is *currently*
+  // running, not whatever it was when the session opened. Guard on the
+  // assistant role and a real "claude-*" model so a co-logged non-assistant
+  // row or a "<synthetic>" API-error entry can't clobber the label (a resumed
+  // session interleaves both fast background turns and its real model turns in
+  // one transcript). Only broadcast when the value actually changes.
   const modelField = message.model;
-  if (typeof modelField === "string" && modelField.length > 0) {
+  if (
+    role === "assistant" &&
+    typeof modelField === "string" &&
+    modelField.startsWith("claude-")
+  ) {
     const agent = agents.get(agentId);
     if (agent && agent.model !== modelField) {
       agent.model = modelField;
