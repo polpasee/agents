@@ -334,6 +334,87 @@ describe("processEntry: lazy model learning", () => {
 
     expect(agents.get("a1")?.model).toBe("claude-opus-4-7");
   });
+
+  it("keeps the latest real model when a resumed session interleaves fable then opus", () => {
+    // A session resumed across runs logs its fast background turns
+    // (claude-fable-5) before the real model turns (claude-opus-4-8) in one
+    // transcript. Replaying in file order must land on the last real model,
+    // not the first-seen one — the root node was showing FABLE otherwise.
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "assistant", model: "claude-fable-5", content: [] },
+      },
+      "a1",
+    );
+    expect(agents.get("a1")?.model).toBe("claude-fable-5");
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "assistant", model: "claude-opus-4-8", content: [] },
+      },
+      "a1",
+    );
+    expect(agents.get("a1")?.model).toBe("claude-opus-4-8");
+  });
+
+  it("ignores a <synthetic> model row so it can't clobber the real model", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "claude-opus-4-8",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "assistant", model: "<synthetic>", content: [] },
+      },
+      "a1",
+    );
+
+    expect(agents.get("a1")?.model).toBe("claude-opus-4-8");
+  });
+
+  it("ignores a model on a non-assistant row", () => {
+    registerAgent({
+      agentId: "a1",
+      sessionId: "a1",
+      projectDir: "proj",
+      agentType: "main",
+      task: "session",
+      slug: "",
+      model: "claude-opus-4-8",
+      startTime: Date.now(),
+    });
+
+    processEntry(
+      {
+        timestamp: new Date().toISOString(),
+        message: { role: "user", model: "claude-fable-5", content: [] },
+      },
+      "a1",
+    );
+
+    expect(agents.get("a1")?.model).toBe("claude-opus-4-8");
+  });
 });
 
 describe("processEntry: defensive serialization", () => {
